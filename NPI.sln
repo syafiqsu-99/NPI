@@ -1,0 +1,33 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35818.85 d17.13
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "npi.client", "npi.client\npi.client.esproj", "{6423F21C-B6D4-D5B6-CB03-6C3B8AFC6464}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NPI.Server", "NPI.Server\NPI.Server.csproj", "{7ECCEFA1-5404-41BB-8839-9E6076C19E41}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6423F21C-B6D4-D5B6-CB03-6C3B8AFC6464}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6423F21C-B6D4-D5B6-CB03-6C3B8AFC6464}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6423F21C-B6D4-D5B6-CB03-6C3B8AFC6464}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{6423F21C-B6D4-D5B6-CB03-6C3B8AFC6464}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6423F21C-B6D4-D5B6-CB03-6C3B8AFC6464}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6423F21C-B6D4-D5B6-CB03-6C3B8AFC6464}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{7ECCEFA1-5404-41BB-8839-9E6076C19E41}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7ECCEFA1-5404-41BB-8839-9E6076C19E41}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7ECCEFA1-5404-41BB-8839-9E6076C19E41}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7ECCEFA1-5404-41BB-8839-9E6076C19E41}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D17A9938-D182-4E45-A1E8-F84F9DCBF87F}
+	EndGlobalSection
+EndGlobal

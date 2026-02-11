@@ -1,0 +1,28 @@
+﻿using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
+using System.Xml.Linq;
+
+namespace NPI.Server.Models
+{
+    public class Departments
+    {
+        [Key]
+        public int dept_id { get; set; }
+
+        [Required]
+        [StringLength(100)]
+        public string dept_name { get; set; }
+
+        [StringLength(20)]
+        public string? dept_code { get; set; }
+
+        [StringLength(200)]
+        public string? description { get; set; }
+
+        public virtual ICollection<Users>? Users { get; set; }
+        public virtual ICollection<Tasks>? Tasks { get; set; }
+        public virtual ICollection<DocumentTypes>? DocumentTypes { get; set; }
+        public virtual ICollection<Milestones>? Milestones { get; set; }
+        public virtual ICollection<Files>? Files { get; set; }
+    }
+}
