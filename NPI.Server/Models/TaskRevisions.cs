@@ -16,10 +16,13 @@ namespace NPI.Server.Models
         [StringLength(200)]
         public string title { get; set; }
 
-        public DateOnly? start_date { get; set; }
+        public DateOnly? old_start_date { get; set; }
+        public DateOnly? old_end_date { get; set; }
 
-        public DateOnly? end_date { get; set; }
-
+        public DateOnly? new_start_date { get; set; }
+        public DateOnly? new_end_date { get; set; }
+        public string note { get; set; } = string.Empty;
+        public DateTime revised_on { get; set; }
         public float? duration { get; set; }
 
         public int? dept_id { get; set; }

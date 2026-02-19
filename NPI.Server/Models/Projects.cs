@@ -51,14 +51,16 @@ namespace NPI.Server.Models
         [ForeignKey("updated_by")]
         public virtual Users? UpdatedByUser { get; set; }
 
-        public virtual ICollection<ProjectTeam>? ProjectTeams { get; set; }
+        public virtual ICollection<ProjectTeams>? ProjectTeams { get; set; }
         public virtual ICollection<Milestones>? Milestones { get; set; }
         public virtual ICollection<Tasks>? Tasks { get; set; }
         public virtual ICollection<Files>? Files { get; set; }
+        public virtual ICollection<Departments>? Departments { get; set; }
         public virtual ICollection<Approvals>? Approvals { get; set; }
         public virtual ICollection<Notifications>? Notifications { get; set; }
         public virtual ICollection<Comments>? Comments { get; set; }
         public virtual ICollection<AuditLogs>? AuditLogs { get; set; }
         public virtual ICollection<ProjectStatusHistory>? ProjectStatusHistories { get; set; }
+        public int dept_id { get; internal set; }
     }
 }

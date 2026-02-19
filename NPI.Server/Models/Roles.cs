@@ -16,5 +16,8 @@ namespace NPI.Server.Models
 
         public virtual ICollection<Users>? Users { get; set; }
         public virtual ICollection<RolePermissions>? RolePermissions { get; set; }
+        public bool is_active { get; set; } = true;
+        public DateTime created_at { get; set; } = DateTime.Now;
+        public DateTime? updated_at { get; set; }
     }
 }

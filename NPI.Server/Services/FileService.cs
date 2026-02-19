@@ -1,86 +1,146 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
+using NPI.Server.DTOs;
 using NPI.Server.Models;
 
 namespace NPI.Server.Services
 {
-    public interface IFileService
-    {
-        Task<(bool Success, string Message, Files File)> UploadFileAsync(
-            IFormFile file, int projId, int? taskId, int? docTypeId, int uploadBy, int? deptId, int? enquiryId = null);
-        Task<(bool Success, byte[] FileData, string ContentType)> DownloadFileAsync(int fileId);
-        Task<bool> DeleteFileAsync(int fileId);
-    }
-
     public class FileService : IFileService
     {
         private readonly ApplicationDbContext _context;
+        private readonly ITaskService _taskService;
         private readonly IConfiguration _configuration;
         private readonly string _basePath;
-        private readonly long _maxFileSizeBytes;
-        private readonly string[] _allowedExtensions;
 
-        public FileService(ApplicationDbContext context, IConfiguration configuration)
+        public FileService(
+            ApplicationDbContext context,
+            ITaskService taskService,
+            IConfiguration configuration)
         {
             _context = context;
+            _taskService = taskService;
             _configuration = configuration;
-            _basePath = configuration["FileStorage:BasePath"];
-            _maxFileSizeBytes = long.Parse(configuration["FileStorage:MaxFileSizeMB"]) * 1024 * 1024;
-            _allowedExtensions = configuration.GetSection("FileStorage:AllowedExtensions").Get<string[]>();
+            _basePath = configuration["FileStorage:BasePath"] ?? @"D:\NPI_Projects";
         }
 
-        public async Task<(bool Success, string Message, Files File)> UploadFileAsync(
-            IFormFile file, int projId, int? taskId, int? docTypeId, int uploadBy, int? deptId, int? enquiryId = null)
+
+        public async Task<(bool success, string message, List<int> fileIds)> UploadFilesAsync(
+            List<IFormFile> files,
+            int projId,
+            int taskId,
+            string taskFolder,
+            string description,
+            int userId)
         {
-            // Validate file exists
-            if (file == null || file.Length == 0)
-            {
-                return (false, "No file provided", null);
-            }
-
-            // Validate file size
-            if (file.Length > _maxFileSizeBytes)
-            {
-                return (false, $"File size exceeds maximum allowed size of {_maxFileSizeBytes / 1024 / 1024} MB", null);
-            }
-
-            // Validate file extension
-            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-            if (!_allowedExtensions.Contains(extension))
-            {
-                return (false, $"File type {extension} is not allowed", null);
-            }
-
-            // Sanitize filename
-            var originalFileName = Path.GetFileName(file.FileName);
-            var safeFileName = Path.GetFileNameWithoutExtension(originalFileName)
-                .Replace(" ", "_")
-                .Replace("..", "")
-                + extension;
-
-            // Generate unique filename
-            var uniqueFileName = $"{Guid.NewGuid()}_{safeFileName}";
-
-            // Create directory structure: BasePath/ProjectId/Year/Month/
-            var projectFolder = Path.Combine(_basePath, projId.ToString(),
-                DateTime.Now.Year.ToString(), DateTime.Now.Month.ToString("D2"));
-
-            if (!Directory.Exists(projectFolder))
-            {
-                Directory.CreateDirectory(projectFolder);
-            }
-
-            var filePath = Path.Combine(projectFolder, uniqueFileName);
-
+            var uploadedFileIds = new List<int>();
             try
             {
-                // Save file
-                using (var stream = new FileStream(filePath, FileMode.Create))
+                var taskFolderPath = await _taskService.GetTaskFolderPathAsync(taskId);
+
+                if (taskFolderPath == null)
+                    return (false,
+                        $"Could not resolve upload folder for task {taskId}. " +
+                        "Ensure the task and its project exist.", uploadedFileIds);
+
+                Directory.CreateDirectory(taskFolderPath);
+
+                var task = await _context.Tasks.FindAsync(taskId);
+                if (task == null)
+                    return (false, "Task not found", uploadedFileIds);
+
+                foreach (var file in files)
                 {
-                    await file.CopyToAsync(stream);
+                    if (file.Length == 0) continue;
+
+                    var destPath = BuildUniqueFilePath(taskFolderPath, file.FileName);
+
+                    using (var stream = new FileStream(destPath, FileMode.Create))
+                        await file.CopyToAsync(stream);
+
+                    var fileRecord = new Files
+                    {
+                        proj_id = projId,
+                        task_id = taskId,
+                        enquiry_id = null,
+                        doc_type_id = null,
+                        file_version = 1,
+                        upload_by = userId,
+                        dept_id = task.dept_id,
+                        file_name = file.FileName,
+                        file_path = destPath,
+                        file_size = file.Length,
+                        content_type = file.ContentType,
+                        status = "Active",
+                        is_latest = true,
+                        replaced_by = null,
+                        created_at = DateTime.Now
+                    };
+
+                    _context.Files.Add(fileRecord);
+                    await _context.SaveChangesAsync();
+                    uploadedFileIds.Add(fileRecord.file_id);
                 }
 
-                // Save to database
+                return (true, $"{uploadedFileIds.Count} file(s) uploaded successfully", uploadedFileIds);
+            }
+            catch (Exception ex)
+            {
+                return (false, $"Upload failed: {ex.Message}", uploadedFileIds);
+            }
+        }
+
+
+        public async Task<(bool Success, string Message, Files? File)> UploadFileAsync(
+            IFormFile file,
+            int projId,
+            int? taskId,
+            int? docTypeId,
+            int uploadBy,
+            int? deptId,
+            int? enquiryId = null)
+        {
+            try
+            {
+                if (file == null || file.Length == 0)
+                    return (false, "No file provided", null);
+
+                string filePath;
+
+                if (taskId.HasValue)
+                {
+                    // Task upload — resolve via TaskService, never via proj_id
+                    var taskFolderPath = await _taskService.GetTaskFolderPathAsync(taskId.Value);
+                    if (taskFolderPath == null)
+                        return (false,
+                            $"Could not resolve upload folder for task {taskId.Value}. " +
+                            "Ensure the task and its project exist.", null);
+
+                    Directory.CreateDirectory(taskFolderPath);
+                    filePath = BuildUniqueFilePath(taskFolderPath, file.FileName);
+                }
+                else if (enquiryId.HasValue)
+                {
+                    // Enquiry upload — enquiry folder is keyed by enquiry_id (unchanged)
+                    var enquiryPath = Path.Combine(_basePath, "enquiries", enquiryId.Value.ToString());
+                    Directory.CreateDirectory(enquiryPath);
+                    filePath = BuildUniqueFilePath(enquiryPath, file.FileName);
+                }
+                else
+                {
+                    // Project-level upload (no task) — use proj_name folder
+                    var project = await _context.Projects.FindAsync(projId);
+                    if (project == null)
+                        return (false, "Project not found", null);
+
+                    var projFolder = SanitizeFolderName(project.proj_name);
+                    var projectPath = Path.Combine(_basePath, "projects", projFolder);
+                    Directory.CreateDirectory(projectPath);
+                    filePath = BuildUniqueFilePath(projectPath, file.FileName);
+                }
+
+                using (var stream = new FileStream(filePath, FileMode.Create))
+                    await file.CopyToAsync(stream);
+
                 var fileRecord = new Files
                 {
                     proj_id = projId,
@@ -90,84 +150,178 @@ namespace NPI.Server.Services
                     file_version = 1,
                     upload_by = uploadBy,
                     dept_id = deptId,
-                    file_name = originalFileName,
+                    file_name = file.FileName,
                     file_path = filePath,
                     file_size = file.Length,
                     content_type = file.ContentType,
-                    status = "uploaded",
+                    status = "Active",
                     is_latest = true,
+                    replaced_by = null,
                     created_at = DateTime.Now
                 };
 
                 _context.Files.Add(fileRecord);
                 await _context.SaveChangesAsync();
-
                 return (true, "File uploaded successfully", fileRecord);
             }
             catch (Exception ex)
             {
-                // Clean up file if database save fails
-                if (File.Exists(filePath))
-                {
-                    File.Delete(filePath);
-                }
-
-                return (false, $"Error uploading file: {ex.Message}", null);
+                return (false, $"Upload failed: {ex.Message}", null);
             }
         }
 
-        public async Task<(bool Success, byte[] FileData, string ContentType)> DownloadFileAsync(int fileId)
+
+        public async Task<List<FileResponseDto>> GetFilesByTaskAsync(int taskId)
         {
-            var file = await _context.Files.FindAsync(fileId);
+            var files = await _context.Files
+                .Where(f => f.task_id == taskId && f.is_latest)
+                .Include(f => f.UploadByUser)
+                .OrderByDescending(f => f.created_at)
+                .ToListAsync();
 
-            if (file == null)
-            {
-                return (false, null, null);
-            }
+            return files.Select(MapToResponseDto).ToList();
+        }
 
-            if (!File.Exists(file.file_path))
-            {
-                return (false, null, null);
-            }
+        public async Task<List<FileResponseDto>> GetFilesByProjectAsync(int projId)
+        {
+            var files = await _context.Files
+                .Where(f => f.proj_id == projId && f.is_latest)
+                .Include(f => f.UploadByUser)
+                .Include(f => f.Task)
+                .OrderByDescending(f => f.created_at)
+                .ToListAsync();
 
+            return files.Select(MapToResponseDto).ToList();
+        }
+
+        public async Task<List<FileResponseDto>> GetFilesByEnquiryAsync(int enquiryId)
+        {
+            var files = await _context.Files
+                .Where(f => f.enquiry_id == enquiryId && f.is_latest)
+                .Include(f => f.UploadByUser)
+                .OrderByDescending(f => f.created_at)
+                .ToListAsync();
+
+            return files.Select(MapToResponseDto).ToList();
+        }
+
+
+        public async Task<(bool Success, byte[]? FileData, string? ContentType)> DownloadFileAsync(int fileId)
+        {
             try
             {
-                var fileData = await File.ReadAllBytesAsync(file.file_path);
-                return (true, fileData, file.content_type);
+                var file = await _context.Files.FindAsync(fileId);
+                if (file == null || !System.IO.File.Exists(file.file_path))
+                    return (false, null, null);
+
+                var bytes = await System.IO.File.ReadAllBytesAsync(file.file_path);
+                return (true, bytes, file.content_type ?? "application/octet-stream");
             }
-            catch
-            {
-                return (false, null, null);
-            }
+            catch { return (false, null, null); }
+        }
+
+        public async Task<(bool success, string message, string? filePath)> GetFilePathAsync(int fileId)
+        {
+            var file = await _context.Files.FindAsync(fileId);
+            if (file == null) return (false, "File not found", null);
+            if (!System.IO.File.Exists(file.file_path))
+                return (false, "Physical file not found on disk", null);
+            return (true, "File found", file.file_path);
         }
 
         public async Task<bool> DeleteFileAsync(int fileId)
         {
-            var file = await _context.Files.FindAsync(fileId);
-
-            if (file == null)
-            {
-                return false;
-            }
-
             try
             {
-                // Soft delete - mark as inactive
-                file.status = "deleted";
+                var file = await _context.Files.FindAsync(fileId);
+                if (file == null) return false;
+                if (System.IO.File.Exists(file.file_path))
+                    System.IO.File.Delete(file.file_path);
+                _context.Files.Remove(file);
                 await _context.SaveChangesAsync();
-
-                // Optional: physically delete file
-                // if (File.Exists(file.file_path))
-                // {
-                //     File.Delete(file.file_path);
-                // }
-
                 return true;
             }
-            catch
+            catch { return false; }
+        }
+
+        public async Task<(bool success, string message)> DeleteFileWithMessageAsync(int fileId)
+        {
+            try
             {
-                return false;
+                var file = await _context.Files.FindAsync(fileId);
+                if (file == null) return (false, "File not found");
+                if (System.IO.File.Exists(file.file_path))
+                    System.IO.File.Delete(file.file_path);
+                _context.Files.Remove(file);
+                await _context.SaveChangesAsync();
+                return (true, "File deleted successfully");
+            }
+            catch (Exception ex)
+            {
+                return (false, $"Delete failed: {ex.Message}");
             }
         }
+
+        public async Task<int> GetTaskDocumentCountAsync(int taskId)
+        {
+            return await _context.Files
+                .Where(f => f.task_id == taskId && f.is_latest)
+                .CountAsync();
+        }
+
+        private static string BuildUniqueFilePath(string folderPath, string originalFileName)
+        {
+            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var safeName = SanitizeFileName(originalFileName);
+            var candidate = Path.Combine(folderPath, $"{timestamp}_{safeName}");
+
+            var counter = 1;
+            while (System.IO.File.Exists(candidate))
+            {
+                var nameOnly = Path.GetFileNameWithoutExtension(safeName);
+                var ext = Path.GetExtension(safeName);
+                candidate = Path.Combine(folderPath, $"{timestamp}_{nameOnly}_{counter}{ext}");
+                counter++;
+            }
+            return candidate;
+        }
+
+        private static string SanitizeFileName(string fileName)
+        {
+            var name = Path.GetFileNameWithoutExtension(fileName)
+                           .Replace(" ", "_")
+                           .Replace("/", "_");
+            name = string.Concat(name.Select(c =>
+                Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+            return name + Path.GetExtension(fileName);
+        }
+
+        private static string SanitizeFolderName(string name)
+        {
+            var result = name.Replace(" ", "_").Replace("/", "_");
+            foreach (var c in Path.GetInvalidFileNameChars())
+                result = result.Replace(c, '_');
+            return result;
+        }
+
+        private static FileResponseDto MapToResponseDto(Files f) => new()
+        {
+            file_id = f.file_id,
+            proj_id = f.proj_id,
+            task_id = f.task_id,
+            task_name = f.Task?.title,
+            enquiry_id = f.enquiry_id,
+            file_name = f.file_name,
+            file_path = f.file_path,
+            file_size = f.file_size,
+            file_type = f.content_type,
+            description = null,
+            uploaded_by = f.upload_by,
+            uploaded_by_name = f.UploadByUser?.username,
+            uploaded_at = f.created_at,
+            file_version = f.file_version,
+            status = f.status,
+            is_latest = f.is_latest
+        };
     }
 }

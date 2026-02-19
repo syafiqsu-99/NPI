@@ -433,7 +433,7 @@ namespace NPI.Server.Services
                     file_id = f.file_id,
                     file_name = f.file_name,
                     file_path = f.file_path,
-                    created_at = f.created_at
+                    uploaded_at = f.created_at
                 }).ToList()
             };
         }

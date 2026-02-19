@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace NPI.Server.Models
 {
-    public class ProjectTeam
+    public class ProjectTeams
     {
         [Key]
         public int team_id { get; set; }
@@ -14,7 +14,7 @@ namespace NPI.Server.Models
         [StringLength(50)]
         public string? role { get; set; }
 
-        public DateTime assigned_at { get; set; } = DateTime.Now;
+        public DateTime created_at { get; set; } = DateTime.Now;
         public int? assigned_by { get; set; }
 
         [ForeignKey("proj_id")]

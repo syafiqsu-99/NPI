@@ -32,17 +32,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IProjectService, ProjectService>();
-//builder.Services.AddScoped<ITaskService, TaskService>();
-builder.Services.AddScoped<FileService>();
-builder.Services.AddScoped<EnquiryService>();
+builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<IEnquiryService, EnquiryService>();
-builder.Services.AddScoped<IEnquiryService, EnquiryService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
+builder.Services.AddScoped<IProjectTeamService, ProjectTeamService>();
 builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddScoped<IGanttService, GanttService>();
-//builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IMilestoneService, MilestoneService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

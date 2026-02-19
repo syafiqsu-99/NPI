@@ -17,16 +17,16 @@
       <v-list-item to="/projects" title="Projects" prepend-icon="mdi-folder-multiple" />
       <v-list-item to="/tasks" title="Tasks" prepend-icon="mdi-check-circle" />
       <v-list-item to="/files" title="Files" prepend-icon="mdi-file-document" />
+      <v-list-item v-if="authStore.userRole === 'Admin'" to="/settings" title="Settings" prepend-icon="mdi-cog" />
     </v-list>
 
     <template #append>
       <v-divider />
-
       <v-list>
         <v-list-item :title="authStore.currentUser?.full_name"
                      :subtitle="authStore.userRole"
-                     prepend-icon="mdi-account-circle" />
-
+                     prepend-icon="mdi-account-circle"
+                     @click="$router.push('/profile')" />
         <v-list-item title="Logout"
                      prepend-icon="mdi-logout"
                      @click="handleLogout" />

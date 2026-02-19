@@ -1,6 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
+using NPI.Server.DTOs;
 using NPI.Server.Models;
+using System.Threading.Tasks;
 
 namespace NPI.Server.Services
 {
@@ -28,7 +30,6 @@ namespace NPI.Server.Services
 
             if (revisionId.HasValue)
             {
-                // Get tasks from specific revision
                 var revision = await _context.ProjectRevisions
                     .FirstOrDefaultAsync(r => r.revision_id == revisionId.Value);
 
@@ -38,21 +39,22 @@ namespace NPI.Server.Services
                     revisionNumber = revision.revision_number;
 
                     var taskRevisions = await _context.TaskRevisions
-                        .Include(tr => tr.Department)
+                        .Include(tr => tr.Task)
+                            .ThenInclude(t => t.Department)
                         .Where(tr => tr.revision_id == revisionId.Value)
                         .ToListAsync();
 
                     tasks = taskRevisions.Select(tr => new GanttTaskDto
                     {
                         task_id = tr.task_id,
-                        title = tr.title,
-                        dept_name = tr.Department?.dept_name,
-                        dept_color = GetDepartmentColor(tr.Department?.dept_name),
-                        start_date = tr.start_date,
-                        end_date = tr.end_date,
+                        title = tr.title ?? tr.Task?.title,
+                        dept_name = tr.Task?.Department?.dept_name,
+                        dept_color = GetDepartmentColor(tr.Task?.Department?.dept_name),
+                        planned_start_date = tr.new_start_date,
+                        planned_end_date = tr.new_end_date,
                         duration = tr.duration,
                         per_complete = 0,
-                        status = tr.status
+                        status = tr.status ?? "Not Started"
                     }).ToList();
                 }
                 else
@@ -62,11 +64,10 @@ namespace NPI.Server.Services
             }
             else
             {
-                // Get current tasks
                 var currentTasks = await _context.Tasks
                     .Include(t => t.Department)
                     .Where(t => t.proj_id == projectId)
-                    .OrderBy(t => t.start_date)
+                    .OrderBy(t => t.planned_start_date)
                     .ToListAsync();
 
                 tasks = currentTasks.Select(t => new GanttTaskDto
@@ -75,8 +76,8 @@ namespace NPI.Server.Services
                     title = t.title,
                     dept_name = t.Department?.dept_name,
                     dept_color = GetDepartmentColor(t.Department?.dept_name),
-                    start_date = t.start_date,
-                    end_date = t.end_date,
+                    planned_start_date = t.planned_start_date,
+                    planned_end_date = t.planned_end_date,
                     duration = t.duration,
                     per_complete = t.per_complete,
                     status = t.status,
@@ -135,7 +136,6 @@ namespace NPI.Server.Services
                 if (project == null)
                     return (false, "Project not found", null);
 
-                // Get last revision number
                 var lastRevision = await _context.ProjectRevisions
                     .Where(r => r.proj_id == projectId)
                     .OrderByDescending(r => r.revision_number)
@@ -145,7 +145,15 @@ namespace NPI.Server.Services
 
                 var oldTargetDate = project.target_completion_date;
 
-                // Create revision record
+                var previousRevisions = await _context.ProjectRevisions
+                    .Where(r => r.proj_id == projectId && r.is_active)
+                    .ToListAsync();
+
+                foreach (var prevRevision in previousRevisions)
+                {
+                    prevRevision.is_active = false;
+                }
+
                 var revision = new ProjectRevisions
                 {
                     proj_id = projectId,
@@ -160,7 +168,6 @@ namespace NPI.Server.Services
                 _context.ProjectRevisions.Add(revision);
                 await _context.SaveChangesAsync();
 
-                // Save snapshot of all tasks in this revision
                 var currentTasks = await _context.Tasks
                     .Where(t => t.proj_id == projectId)
                     .ToListAsync();
@@ -172,17 +179,21 @@ namespace NPI.Server.Services
                         revision_id = revision.revision_id,
                         task_id = task.task_id,
                         title = task.title,
-                        start_date = task.start_date,
-                        end_date = task.end_date,
+                        old_start_date = task.planned_start_date,
+                        old_end_date = task.planned_end_date,
+                        new_start_date = task.planned_start_date,
+                        new_end_date = task.planned_end_date,
                         duration = task.duration,
                         dept_id = task.dept_id,
-                        status = task.status
+                        status = task.status,
+                        revised_on = DateTime.Now
                     };
 
                     _context.TaskRevisions.Add(taskRevision);
                 }
 
-                // Update tasks with new data
+                await _context.SaveChangesAsync();
+
                 foreach (var taskUpdate in dto.tasks)
                 {
                     if (taskUpdate.task_id.HasValue)
@@ -191,8 +202,8 @@ namespace NPI.Server.Services
                         if (task != null)
                         {
                             task.title = taskUpdate.title;
-                            task.start_date = taskUpdate.start_date;
-                            task.end_date = taskUpdate.end_date;
+                            task.planned_start_date = taskUpdate.start_date;
+                            task.planned_end_date = taskUpdate.end_date;
                             task.duration = taskUpdate.duration;
 
                             if (!string.IsNullOrEmpty(taskUpdate.dept_name))
@@ -203,14 +214,25 @@ namespace NPI.Server.Services
                             }
 
                             task.updated_at = DateTime.Now;
+
+                            var taskRevision = await _context.TaskRevisions
+                                .FirstOrDefaultAsync(tr => tr.revision_id == revision.revision_id
+                                    && tr.task_id == task.task_id);
+
+                            if (taskRevision != null)
+                            {
+                                taskRevision.new_start_date = taskUpdate.start_date;
+                                taskRevision.new_end_date = taskUpdate.end_date;
+                                taskRevision.duration = taskUpdate.duration;
+                                taskRevision.title = taskUpdate.title;
+                            }
                         }
                     }
                 }
 
-                // Update project target date
                 var newTargetDate = dto.tasks
                     .Where(t => t.end_date.HasValue)
-                    .Max(t => t.end_date);
+                    .Max(t => (DateOnly?)t.end_date);
 
                 if (newTargetDate.HasValue)
                 {
@@ -232,7 +254,6 @@ namespace NPI.Server.Services
                 return (false, $"Error creating revision: {ex.Message}", null);
             }
         }
-
         private string GetDepartmentColor(string? deptName)
         {
             if (string.IsNullOrEmpty(deptName)) return "#808080";

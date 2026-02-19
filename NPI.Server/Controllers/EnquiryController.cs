@@ -31,7 +31,6 @@ namespace NPI.Server.Controllers
         [HttpGet("my-enquiries")]
         public async Task<IActionResult> GetMyEnquiries()
         {
-            Console.WriteLine("GETTING ALL ENQUIRIES . .");
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
             var enquiries = await _enquiryService.GetEnquiriesByUserAsync(userId);
             return Ok(new { success = true, data = enquiries });

@@ -23,7 +23,7 @@ namespace NPI.Server.Data
         public DbSet<Notifications> Notifications { get; set; }
         public DbSet<Projects> Projects { get; set; }
         public DbSet<Tasks> Tasks { get; set; }
-        public DbSet<ProjectTeam> ProjectTeam { get; set; }
+        public DbSet<ProjectTeams> ProjectTeams { get; set; }
         public DbSet<ProjectRevisions> ProjectRevisions { get; set; }
         public DbSet<TaskRevisions> TaskRevisions { get; set; }
         public DbSet<ProjectStatusHistory> ProjectStatusHistory { get; set; }
@@ -94,16 +94,28 @@ namespace NPI.Server.Data
                 .HasForeignKey(t => t.assigned_by)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<Milestones>()
+                .HasOne(m => m.Tasks)
+                .WithOne(t => t.Milestone)
+                .HasForeignKey<Milestones>(m => m.task_id)
+                .OnDelete(DeleteBehavior.Restrict);
+
             modelBuilder.Entity<Files>()
                 .HasOne(f => f.ReplacedByFile)
                 .WithMany()
                 .HasForeignKey(f => f.replaced_by)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<ProjectTeam>()
+            modelBuilder.Entity<ProjectTeams>()
                 .HasOne(pt => pt.AssignedByUser)
                 .WithMany()
                 .HasForeignKey(pt => pt.assigned_by)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<TaskRevisions>()
+                .HasOne(tr => tr.Revision)
+                .WithMany(pr => pr.TaskRevisions)
+                .HasForeignKey(tr => tr.revision_id)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

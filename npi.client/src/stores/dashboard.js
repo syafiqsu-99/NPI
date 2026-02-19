@@ -1,79 +1,14 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { ref, computed } from 'vue'
+import { api } from '@/utils/api'
 
 export const useDashboardStore = defineStore('dashboard', () => {
-  /* -------------------- MOCK DATA -------------------- */
-  const projects = ref([
-    {
-      proj_id: 1,
-      proj_name: 'Project A',
-      project_start_date: '2026-01-05',
-      target_completion_date: '2026-02-20',
-      status: 'In Progress',
-    },
-    {
-      proj_id: 2,
-      proj_name: 'Project B',
-      project_start_date: '2026-02-01',
-      target_completion_date: '2026-04-10',
-      status: 'On Hold',
-    },
-    {
-      proj_id: 3,
-      proj_name: 'Project C',
-      project_start_date: '2025-11-01',
-      target_completion_date: '2026-02-05',
-      status: 'Completed',
-    },
-    {
-      proj_id: 4,
-      proj_name: 'Project D',
-      project_start_date: '2026-01-20',
-      target_completion_date: '2026-05-01',
-      status: 'In Progress',
-    },
-  ])
-
-  const milestones = ref([
-    {
-      milestone_id: 1,
-      proj_id: 1,
-      milestone_name: 'Design',
-      planned_date: '2026-02-10',
-      actual_date: '2026-02-18',
-    },
-    {
-      milestone_id: 2,
-      proj_id: 1,
-      milestone_name: 'Sampling',
-      planned_date: '2026-02-05',
-      actual_date: null,
-    },
-    {
-      milestone_id: 3,
-      proj_id: 4,
-      milestone_name: 'Tooling',
-      planned_date: '2026-01-25',
-      actual_date: null,
-    },
-  ])
-
-  const overdueTasks = ref([
-    {
-      task_id: 1,
-      title: 'Customer Approval',
-      proj_name: 'Project A',
-      end_date: '2026-01-20',
-      days_overdue: 10,
-    },
-    {
-      task_id: 2,
-      title: 'Design Freeze',
-      proj_name: 'Project D',
-      end_date: '2026-01-28',
-      days_overdue: 2,
-    },
-  ])
+  /* -------------------- STATE -------------------- */
+  const projects = ref([])
+  const milestones = ref([])
+  const tasks = ref([])
+  const loading = ref(false)
+  const error = ref(null)
 
   /* -------------------- TIME AXIS -------------------- */
   const firstMonday = (() => {
@@ -108,6 +43,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const projectStatusColor = status => {
     if (status === 'Completed') return 'green'
     if (status === 'On Hold') return 'red'
+    if (status === 'Planning') return 'grey'
     return 'amber'
   }
 
@@ -146,6 +82,32 @@ export const useDashboardStore = defineStore('dashboard', () => {
     })
   })
 
+  /* -------------------- OVERDUE TASKS -------------------- */
+  const overdueTasks = computed(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    return tasks.value
+      .filter(t => {
+        if (t.status === 'Completed') return false
+        const endDate = new Date(t.end_date)
+        endDate.setHours(0, 0, 0, 0)
+        return endDate < today
+      })
+      .map(t => {
+        const endDate = new Date(t.end_date)
+        const diffTime = today - endDate
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+        return {
+          ...t,
+          days_overdue: diffDays
+        }
+      })
+      .sort((a, b) => b.days_overdue - a.days_overdue)
+      .slice(0, 10)
+  })
+
   /* -------------------- KPI -------------------- */
   const kpis = computed(() => [
     {
@@ -182,13 +144,88 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }))
   )
 
+  /* -------------------- ACTIONS -------------------- */
+  async function fetchDashboardData() {
+    loading.value = true
+    error.value = null
+
+    try {
+      // Fetch all projects
+      const projectsResult = await api.get('/project')
+      if (projectsResult?.success && projectsResult?.data) {
+        projects.value = projectsResult.data
+      } else if (Array.isArray(projectsResult)) {
+        projects.value = projectsResult
+      } else {
+        projects.value = []
+      }
+
+      // Fetch tasks for all projects
+      const tasksPromises = projects.value.map(p =>
+        api.get(`/project/${p.proj_id}/tasks`)
+          .then(result => {
+            const taskData = result?.data || result || []
+            return taskData.map(t => ({
+              ...t,
+              proj_id: p.proj_id,
+              proj_name: p.proj_name
+            }))
+          })
+          .catch(() => [])
+      )
+
+      const allTasks = await Promise.all(tasksPromises)
+      tasks.value = allTasks.flat()
+
+      // Fetch milestones for all projects
+      const milestonesPromises = projects.value.map(p =>
+        api.get(`/project/${p.proj_id}/milestones`)
+          .then(result => {
+            const milestoneData = result?.data || result || []
+            return milestoneData.map(m => ({
+              ...m,
+              proj_id: p.proj_id
+            }))
+          })
+          .catch(() => [])
+      )
+
+      const allMilestones = await Promise.all(milestonesPromises)
+      milestones.value = allMilestones.flat()
+
+      return { success: true }
+    } catch (err) {
+      error.value = err.message || 'Failed to fetch dashboard data'
+      console.error('Dashboard fetch error:', err)
+      return { success: false, error: error.value }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function refreshData() {
+    return await fetchDashboardData()
+  }
+
   return {
+    // State
+    projects,
+    milestones,
+    tasks,
+    loading,
+    error,
+
+    // Computed
     headersTimeline,
     additionalDateHeaders,
     timelineItems,
     overdueTasks,
     calendarEvents,
     kpis,
+
+    // Methods
     projectStatusColor,
+    fetchDashboardData,
+    refreshData,
   }
 })

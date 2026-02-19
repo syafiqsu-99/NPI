@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NPI.Server.DTOs;
 using NPI.Server.Services;
 using System.Security.Claims;
 
@@ -11,29 +12,12 @@ namespace NPI.Server.Controllers
     public class ProjectController : ControllerBase
     {
         private readonly IProjectService _projectService;
+        private readonly IMilestoneService _milestoneService;
 
-        public ProjectController(IProjectService projectService)
+        public ProjectController(IProjectService projectService, IMilestoneService milestoneService)
         {
             _projectService = projectService;
-        }
-
-        [HttpPost("from-enquiry/{enquiryId}")]
-        public async Task<IActionResult> CreateProjectFromEnquiry(int enquiryId)
-        {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            var (success, message, proj_id) = await _projectService.CreateProjectFromEnquiryAsync(enquiryId, userId);
-
-            if (!success)
-            {
-                return BadRequest(new { success = false, message });
-            }
-
-            return Ok(new
-            {
-                success = true,
-                message,
-                data = new { proj_id }
-            });
+            _milestoneService = milestoneService;
         }
 
         [HttpGet]
@@ -53,35 +37,223 @@ namespace NPI.Server.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetProjectById(int id)
         {
-            var project = await _projectService.GetProjectByIdAsync(id);
-
-            if (project == null)
+            try
             {
-                return NotFound(new { success = false, message = "Project not found" });
+                var project = await _projectService.GetProjectByIdAsync(id);
+                if (project == null)
+                {
+                    return NotFound(new { success = false, message = "Project not found" });
+                }
+                return Ok(new { success = true, data = project });
             }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
 
-            return Ok(new { success = true, data = project });
+        [HttpPost]
+        public async Task<IActionResult> CreateProject([FromBody] CreateProjectDto dto)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var (success, message, projId) = await _projectService.CreateProjectAsync(dto, userId);
+
+                if (!success)
+                {
+                    return BadRequest(new { success = false, message });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    message,
+                    data = new { proj_id = projId }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateProject(int id, [FromBody] UpdateProjectDto dto)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var (success, message) = await _projectService.UpdateProjectAsync(id, dto, userId);
+
+                if (!success)
+                {
+                    return BadRequest(new { success = false, message });
+                }
+
+                return Ok(new { success = true, message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteProject(int id)
+        {
+            try
+            {
+                var (success, message) = await _projectService.DeleteProjectAsync(id);
+
+                if (!success)
+                {
+                    return BadRequest(new { success = false, message });
+                }
+
+                return Ok(new { success = true, message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("from-enquiry/{enquiryId}")]
+        public async Task<IActionResult> CreateProjectFromEnquiry(int enquiryId)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var (success, message, proj_id) = await _projectService.CreateProjectFromEnquiryAsync(enquiryId, userId);
+
+                if (!success)
+                {
+                    return BadRequest(new { success = false, message });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    message,
+                    data = new { proj_id }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
         }
 
         [HttpGet("{id}/tasks")]
         public async Task<IActionResult> GetProjectTasks(int id)
         {
-            var tasks = await _projectService.GetProjectTasksAsync(id);
-            return Ok(new { success = true, data = tasks });
+            try
+            {
+                var tasks = await _projectService.GetProjectTasksAsync(id);
+                return Ok(new { success = true, data = tasks });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("{id}/milestones")]
+        public async Task<IActionResult> GetProjectMilestones(int id)
+        {
+            try
+            {
+                var milestones = await _projectService.GetProjectMilestonesAsync(id);
+                return Ok(new { success = true, data = milestones });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("{id}/launch")]
         public async Task<IActionResult> LaunchProject(int id, [FromBody] LaunchProjectDto dto)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            var (success, message) = await _projectService.LaunchProjectAsync(id, dto, userId);
-
-            if (!success)
+            try
             {
-                return BadRequest(new { success = false, message });
-            }
+                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var (success, message, folderWarnings) = await _projectService.LaunchProjectAsync(id, dto, userId);
 
-            return Ok(new { success = true, message });
+                if (!success)
+                {
+                    return BadRequest(new { success = false, message });
+                }
+
+                return Ok(new { success = true, message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPut("{id}/status")]
+        public async Task<IActionResult> UpdateProjectStatus(int id, [FromBody] UpdateProjectStatusDto dto)
+        {
+            try
+            {
+                var (success, message) = await _projectService.UpdateProjectStatusAsync(id, dto.status);
+
+                if (!success)
+                {
+                    return BadRequest(new { success = false, message });
+                }
+
+                return Ok(new { success = true, message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("by-status/{status}")]
+        public async Task<IActionResult> GetProjectsByStatus(string status)
+        {
+            try
+            {
+                var projects = await _projectService.GetProjectsByStatusAsync(status);
+                return Ok(new { success = true, data = projects });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("by-department/{deptId}")]
+        public async Task<IActionResult> GetProjectsByDepartment(int deptId)
+        {
+            try
+            {
+                var projects = await _projectService.GetProjectsByDepartmentAsync(deptId);
+                return Ok(new { success = true, data = projects });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("by-customer/{customerId}")]
+        public async Task<IActionResult> GetProjectsByCustomer(int customerId)
+        {
+            try
+            {
+                var projects = await _projectService.GetProjectsByCustomerAsync(customerId);
+                return Ok(new { success = true, data = projects });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
         }
     }
 }

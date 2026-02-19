@@ -24,5 +24,7 @@ namespace NPI.Server.Models
         public virtual ICollection<DocumentTypes>? DocumentTypes { get; set; }
         public virtual ICollection<Milestones>? Milestones { get; set; }
         public virtual ICollection<Files>? Files { get; set; }
+        public DateTime created_at { get; internal set; }
+        public DateTime updated_at { get; internal set; }
     }
 }
