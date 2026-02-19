@@ -213,6 +213,12 @@ namespace NPI.Server.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("dept_id"));
 
+                    b.Property<int?>("Projectsproj_id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("dept_code")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -226,7 +232,12 @@ namespace NPI.Server.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<DateTime>("updated_at")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("dept_id");
+
+                    b.HasIndex("Projectsproj_id");
 
                     b.ToTable("Departments");
                 });
@@ -517,6 +528,9 @@ namespace NPI.Server.Migrations
                     b.Property<DateTime>("created_at")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("description")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("milestone_name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -535,11 +549,17 @@ namespace NPI.Server.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<int>("task_id")
+                        .HasColumnType("int");
+
                     b.HasKey("milestone_id");
 
                     b.HasIndex("proj_id");
 
                     b.HasIndex("responsible_dept_id");
+
+                    b.HasIndex("task_id")
+                        .IsUnique();
 
                     b.ToTable("Milestones");
                 });
@@ -591,6 +611,48 @@ namespace NPI.Server.Migrations
                     b.ToTable("Notifications");
                 });
 
+            modelBuilder.Entity("NPI.Server.Models.ProjectRevisions", b =>
+                {
+                    b.Property<int>("revision_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("revision_id"));
+
+                    b.Property<bool>("is_active")
+                        .HasColumnType("bit");
+
+                    b.Property<DateOnly?>("new_target_date")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("previous_target_date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("proj_id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("revised_by")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("revision_date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("revision_notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("revision_number")
+                        .HasColumnType("int");
+
+                    b.HasKey("revision_id");
+
+                    b.HasIndex("proj_id");
+
+                    b.HasIndex("revised_by");
+
+                    b.ToTable("ProjectRevisions");
+                });
+
             modelBuilder.Entity("NPI.Server.Models.ProjectStatusHistory", b =>
                 {
                     b.Property<int>("history_id")
@@ -629,7 +691,7 @@ namespace NPI.Server.Migrations
                     b.ToTable("ProjectStatusHistory");
                 });
 
-            modelBuilder.Entity("NPI.Server.Models.ProjectTeam", b =>
+            modelBuilder.Entity("NPI.Server.Models.ProjectTeams", b =>
                 {
                     b.Property<int>("team_id")
                         .ValueGeneratedOnAdd()
@@ -637,11 +699,11 @@ namespace NPI.Server.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("team_id"));
 
-                    b.Property<DateTime>("assigned_at")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("assigned_by")
                         .HasColumnType("int");
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("proj_id")
                         .HasColumnType("int");
@@ -661,7 +723,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("user_id");
 
-                    b.ToTable("ProjectTeam");
+                    b.ToTable("ProjectTeams");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Projects", b =>
@@ -682,6 +744,9 @@ namespace NPI.Server.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("cust_id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("dept_id")
                         .HasColumnType("int");
 
                     b.Property<string>("description")
@@ -784,18 +849,86 @@ namespace NPI.Server.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("role_id"));
 
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("description")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("is_active")
+                        .HasColumnType("bit");
 
                     b.Property<string>("role_name")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("role_id");
 
                     b.ToTable("Roles");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.TaskRevisions", b =>
+                {
+                    b.Property<int>("task_revision_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("task_revision_id"));
+
+                    b.Property<int?>("dept_id")
+                        .HasColumnType("int");
+
+                    b.Property<float?>("duration")
+                        .HasColumnType("real");
+
+                    b.Property<DateOnly?>("new_end_date")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("new_start_date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("note")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateOnly?>("old_end_date")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("old_start_date")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("revised_on")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("revision_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("status")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("task_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("task_revision_id");
+
+                    b.HasIndex("dept_id");
+
+                    b.HasIndex("revision_id");
+
+                    b.HasIndex("task_id");
+
+                    b.ToTable("TaskRevisions");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Tasks", b =>
@@ -805,6 +938,12 @@ namespace NPI.Server.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("task_id"));
+
+                    b.Property<DateOnly?>("actual_end_date")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("actual_start_date")
+                        .HasColumnType("date");
 
                     b.Property<int?>("assigned_by")
                         .HasColumnType("int");
@@ -827,14 +966,17 @@ namespace NPI.Server.Migrations
                     b.Property<float?>("duration")
                         .HasColumnType("real");
 
-                    b.Property<DateOnly?>("end_date")
-                        .HasColumnType("date");
-
                     b.Property<int?>("parent_task_id")
                         .HasColumnType("int");
 
                     b.Property<float?>("per_complete")
                         .HasColumnType("real");
+
+                    b.Property<DateOnly?>("planned_end_date")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("planned_start_date")
+                        .HasColumnType("date");
 
                     b.Property<string>("priority")
                         .HasMaxLength(20)
@@ -842,9 +984,6 @@ namespace NPI.Server.Migrations
 
                     b.Property<int>("proj_id")
                         .HasColumnType("int");
-
-                    b.Property<DateOnly?>("start_date")
-                        .HasColumnType("date");
 
                     b.Property<string>("status")
                         .HasMaxLength(50)
@@ -925,9 +1064,7 @@ namespace NPI.Server.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("email")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("full_name")
                         .HasMaxLength(100)
@@ -946,17 +1083,21 @@ namespace NPI.Server.Migrations
                     b.Property<int?>("role_id")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("username")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("user_id");
 
                     b.HasIndex("dept_id");
 
                     b.HasIndex("email")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[email] IS NOT NULL");
 
                     b.HasIndex("role_id");
 
@@ -1031,6 +1172,13 @@ namespace NPI.Server.Migrations
                     b.Navigation("Task");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.Departments", b =>
+                {
+                    b.HasOne("NPI.Server.Models.Projects", null)
+                        .WithMany("Departments")
+                        .HasForeignKey("Projectsproj_id");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.DocumentTypes", b =>
@@ -1162,9 +1310,17 @@ namespace NPI.Server.Migrations
                         .WithMany("Milestones")
                         .HasForeignKey("responsible_dept_id");
 
+                    b.HasOne("NPI.Server.Models.Tasks", "Tasks")
+                        .WithOne("Milestone")
+                        .HasForeignKey("NPI.Server.Models.Milestones", "task_id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Project");
 
                     b.Navigation("ResponsibleDepartment");
+
+                    b.Navigation("Tasks");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Notifications", b =>
@@ -1182,6 +1338,25 @@ namespace NPI.Server.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.ProjectRevisions", b =>
+                {
+                    b.HasOne("NPI.Server.Models.Projects", "Project")
+                        .WithMany()
+                        .HasForeignKey("proj_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NPI.Server.Models.Users", "RevisedByUser")
+                        .WithMany()
+                        .HasForeignKey("revised_by")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("RevisedByUser");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.ProjectStatusHistory", b =>
@@ -1203,7 +1378,7 @@ namespace NPI.Server.Migrations
                     b.Navigation("Project");
                 });
 
-            modelBuilder.Entity("NPI.Server.Models.ProjectTeam", b =>
+            modelBuilder.Entity("NPI.Server.Models.ProjectTeams", b =>
                 {
                     b.HasOne("NPI.Server.Models.Users", "AssignedByUser")
                         .WithMany()
@@ -1264,6 +1439,31 @@ namespace NPI.Server.Migrations
                         .IsRequired();
 
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.TaskRevisions", b =>
+                {
+                    b.HasOne("NPI.Server.Models.Departments", "Department")
+                        .WithMany()
+                        .HasForeignKey("dept_id");
+
+                    b.HasOne("NPI.Server.Models.ProjectRevisions", "Revision")
+                        .WithMany("TaskRevisions")
+                        .HasForeignKey("revision_id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NPI.Server.Models.Tasks", "Task")
+                        .WithMany("TaskRevisions")
+                        .HasForeignKey("task_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Department");
+
+                    b.Navigation("Revision");
+
+                    b.Navigation("Task");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Tasks", b =>
@@ -1368,6 +1568,11 @@ namespace NPI.Server.Migrations
                     b.Navigation("Approvals");
                 });
 
+            modelBuilder.Entity("NPI.Server.Models.ProjectRevisions", b =>
+                {
+                    b.Navigation("TaskRevisions");
+                });
+
             modelBuilder.Entity("NPI.Server.Models.Projects", b =>
                 {
                     b.Navigation("Approvals");
@@ -1375,6 +1580,8 @@ namespace NPI.Server.Migrations
                     b.Navigation("AuditLogs");
 
                     b.Navigation("Comments");
+
+                    b.Navigation("Departments");
 
                     b.Navigation("Files");
 
@@ -1404,7 +1611,11 @@ namespace NPI.Server.Migrations
 
                     b.Navigation("Files");
 
+                    b.Navigation("Milestone");
+
                     b.Navigation("SubTasks");
+
+                    b.Navigation("TaskRevisions");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Users", b =>

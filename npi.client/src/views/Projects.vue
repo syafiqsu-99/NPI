@@ -35,105 +35,104 @@
               Completed
             </v-tab>
           </v-tabs>
-        </v-card>
-      </v-col>
-    </v-row>
 
-    <!-- Projects Data Table -->
-    <v-row no-gutters class="flex-grow-1 flex-shrink-1" style="min-height: 0;">
-      <v-col cols="12" class="pa-1">
-        <v-card elevation="2">
-          <v-card-title class="d-flex align-center justify-space-between">
-            <span>Projects List</span>
-            <v-text-field v-model="search"
-                          prepend-inner-icon="mdi-magnify"
-                          label="Search projects..."
-                          single-line
-                          hide-details
-                          density="compact"
-                          variant="outlined"
-                          class="ma-2"
-                          style="max-width: 300px;" />
-          </v-card-title>
+          <v-window v-model="statusFilter">
+            <v-window-item :value="statusFilter">
+              <v-card elevation="2">
+                <v-card-title class="d-flex align-center justify-space-between">
+                  <span>Projects List</span>
+                  <v-text-field v-model="search"
+                                prepend-inner-icon="mdi-magnify"
+                                label="Search projects..."
+                                single-line
+                                hide-details
+                                density="compact"
+                                variant="outlined"
+                                class="ma-2"
+                                style="max-width: 300px;" />
+                </v-card-title>
 
-          <v-card-text>
-            <v-progress-linear v-if="projectStore.loading"
-                               indeterminate
-                               color="primary" />
+                <v-card-text>
+                  <v-progress-linear v-if="projectStore.loading"
+                                     indeterminate
+                                     color="primary" />
 
-            <v-data-table v-else
-                          :items="filteredProjects"
-                          :headers="headers"
-                          :search="search"
-                          item-key="proj_id"
-                          class="elevation-1">
-              <template #item.proj_no="{ item }">
-                <v-chip color="primary" size="small" variant="outlined">
-                  {{ item.proj_no }}
-                </v-chip>
-              </template>
+                  <v-data-table v-else
+                                :items="filteredProjects"
+                                :headers="headers"
+                                :search="search"
+                                item-key="proj_id"
+                                class="elevation-1">
+                    <template #item.proj_no="{ item }">
+                      <v-chip color="primary" size="small" variant="outlined">
+                        {{ item.proj_no }}
+                      </v-chip>
+                    </template>
 
-              <template #item.priority="{ item }">
-                <v-chip :color="getPriorityColor(item.priority)"
-                        size="small"
-                        variant="tonal">
-                  {{ item.priority }}
-                </v-chip>
-              </template>
+                    <template #item.priority="{ item }">
+                      <v-chip :color="getPriorityColor(item.priority)"
+                              size="small"
+                              variant="tonal">
+                        {{ item.priority }}
+                      </v-chip>
+                    </template>
 
-              <template #item.status="{ item }">
-                <v-chip :color="getStatusColor(item.status)"
-                        size="small"
-                        variant="tonal">
-                  {{ item.status }}
-                </v-chip>
-              </template>
+                    <template #item.status="{ item }">
+                      <v-chip :color="getStatusColor(item.status)"
+                              size="small"
+                              variant="tonal">
+                        {{ item.status }}
+                      </v-chip>
+                    </template>
 
-              <template #item.project_start_date="{ item }">
-                {{ formatDate(item.project_start_date) }}
-              </template>
+                    <template #item.project_start_date="{ item }">
+                      {{ formatDate(item.project_start_date) }}
+                    </template>
 
-              <template #item.target_completion_date="{ item }">
-                {{ formatDate(item.target_completion_date) }}
-              </template>
+                    <template #item.target_completion_date="{ item }">
+                      {{ formatDate(item.target_completion_date) }}
+                    </template>
 
-              <template #item.actions="{ item }">
-                <!-- Setup/Manage Button (for Planning & In Progress) -->
-                <v-btn v-if="canManageProject(item)"
-                       icon
-                       variant="text"
-                       color="primary"
-                       @click="manageProject(item.proj_id)"
-                       title="Manage Project">
-                  <v-icon>mdi-cog</v-icon>
-                </v-btn>
+                    <template #item.actions="{ item }">
+                      <!-- Setup/Manage Button (for Planning & In Progress) -->
+                      <v-btn v-if="canManageProject(item)"
+                             icon
+                             variant="text"
+                             color="primary"
+                             @click="manageProject(item.proj_id)"
+                             title="Manage Project">
+                        <v-icon>mdi-cog</v-icon>
+                      </v-btn>
 
-                <!-- View Gantt Chart -->
-                <v-btn v-if="item.status === 'In Progress' || item.status === 'Completed'"
-                       icon
-                       variant="text"
-                       color="success"
-                       @click="viewGantt(item.proj_id)"
-                       title="View Gantt Chart">
-                  <v-icon>mdi-chart-gantt</v-icon>
-                </v-btn>
+                      <!-- View Gantt Chart -->
+                      <v-btn v-if="item.status === 'In Progress' || item.status === 'Completed'"
+                             icon
+                             variant="text"
+                             color="success"
+                             @click="viewGantt(item.proj_id)"
+                             title="View Gantt Chart">
+                        <v-icon>mdi-chart-gantt</v-icon>
+                      </v-btn>
 
-                <!-- View Details -->
-                <v-btn icon
-                       variant="text"
-                       @click="viewProject(item.proj_id)"
-                       title="View Details">
-                  <v-icon>mdi-eye</v-icon>
-                </v-btn>
-              </template>
+                      <!-- View Details -->
+                      <v-btn icon
+                             variant="text"
+                             @click="viewProject(item.proj_id)"
+                             title="View Details">
+                        <v-icon>mdi-eye</v-icon>
+                      </v-btn>
+                    </template>
 
-              <template #no-data>
-                <v-alert type="info" variant="tonal" class="ma-4">
-                  No projects found. Start a project from an approved enquiry.
-                </v-alert>
-              </template>
-            </v-data-table>
-          </v-card-text>
+                    <template #no-data>
+                      <v-alert type="info" variant="tonal" class="ma-4">
+                        No projects found. Start a project from an approved enquiry.
+                      </v-alert>
+                    </template>
+                  </v-data-table>
+                </v-card-text>
+              </v-card>
+            </v-window-item>
+          </v-window>
         </v-card>
       </v-col>
     </v-row>

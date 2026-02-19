@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NPI.Server.DTOs;
 using NPI.Server.Services;
 using System.Security.Claims;
 
@@ -17,7 +18,7 @@ namespace NPI.Server.Controllers
             _ganttService = ganttService;
         }
 
-        [HttpGet("project/{projectId}")]
+        [HttpGet("{projectId}")]
         public async Task<IActionResult> GetGanttData(int projectId, [FromQuery] int? revisionId = null)
         {
             var data = await _ganttService.GetGanttDataAsync(projectId, revisionId);
@@ -30,14 +31,14 @@ namespace NPI.Server.Controllers
             return Ok(new { success = true, data });
         }
 
-        [HttpGet("project/{projectId}/revisions")]
+        [HttpGet("{projectId}/revisions")]
         public async Task<IActionResult> GetRevisions(int projectId)
         {
             var revisions = await _ganttService.GetProjectRevisionsAsync(projectId);
             return Ok(new { success = true, data = revisions });
         }
 
-        [HttpPost("project/{projectId}/revisions")]
+        [HttpPost("{projectId}/revisions")]
         public async Task<IActionResult> CreateRevision(int projectId, [FromBody] CreateRevisionDto dto)
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);

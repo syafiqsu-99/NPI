@@ -18,8 +18,10 @@ namespace NPI.Server.Models
 
         public string? description { get; set; }
 
-        public DateOnly? start_date { get; set; }
-        public DateOnly? end_date { get; set; }
+        public DateOnly? planned_start_date { get; set; }
+        public DateOnly? planned_end_date { get; set; }
+        public DateOnly? actual_start_date { get; set; }
+        public DateOnly? actual_end_date { get; set; }
         public float? duration { get; set; }
         public float? per_complete { get; set; }
 
@@ -49,10 +51,12 @@ namespace NPI.Server.Models
         [ForeignKey("assigned_to")]
         public virtual Users? AssignedToUser { get; set; }
 
+        public virtual Milestones? Milestone { get; set; }
+
         [ForeignKey("assigned_by")]
         public virtual Users? AssignedByUser { get; set; }
-
         public virtual ICollection<Tasks>? SubTasks { get; set; }
+        public virtual ICollection<TaskRevisions>? TaskRevisions { get; set; }
         public virtual ICollection<Files>? Files { get; set; }
         public virtual ICollection<Approvals>? Approvals { get; set; }
         public virtual ICollection<Comments>? Comments { get; set; }

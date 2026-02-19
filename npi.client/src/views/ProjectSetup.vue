@@ -60,7 +60,8 @@
                           <v-select v-model="project.priority"
                                     :items="['Low', 'Medium', 'High', 'Critical']"
                                     label="Priority"
-                                    variant="outlined" />
+                                    variant="outlined"
+                                    @update:model-value="priorityChanged = true" />
                         </v-col>
 
                         <v-col cols="12" md="6">
@@ -134,10 +135,21 @@
                 <v-stepper-window-item :value="3">
                   <v-card flat>
                     <v-card-text>
-                      <h3 class="text-h6 mb-4">Default Tasks (8 Steps)</h3>
+                      <h3 class="text-h6 mb-4">Tasks</h3>
 
                       <v-alert type="info" variant="tonal" class="mb-4">
-                        These are the default NPI process tasks. You can modify dates and assignments.
+                        <div class="d-flex align-center">
+                          <v-icon class="mr-2">mdi-information</v-icon>
+                          <div>
+                            <strong>How to use:</strong>
+                            <ul class="mt-2">
+                              <li>Enter task name, department, start date, and working days</li>
+                              <li>End date will be calculated automatically (excluding weekends & Malaysian holidays)</li>
+                              <li>Check "Milestone" to mark completion milestones</li>
+                              <li v-if="!isFirstLaunch">Add revision notes when changing task dates</li>
+                            </ul>
+                          </div>
+                        </div>
                       </v-alert>
 
                       <v-btn color="primary" class="mb-3" @click="addTask">
@@ -151,9 +163,14 @@
                             <th class="col-index">#</th>
                             <th class="col-task">Task</th>
                             <th class="col-dept">Department</th>
-                            <th class="col-date">Start</th>
-                            <th class="col-date">End</th>
+                            <th class="col-date">Start Date</th>
                             <th class="col-days">Working Days</th>
+                            <th class="col-date">End Date</th>
+                            <th class="col-note" v-if="!isFirstLaunch">
+                              Revision Note
+                              <span class="text-error">*</span>
+                            </th>
+                            <th class="col-milestone">Milestone</th>
                             <th class="col-actions"></th>
                           </tr>
                         </thead>
@@ -186,21 +203,39 @@
                                             density="compact"
                                             hide-details
                                             class="table-input"
-                                            @update:model-value="recalcDurationDebounced(task)"/>
+                                            @update:model-value="onStartDateChange(task)" />
                             </td>
 
                             <td>
-                              <v-text-field v-model="task.end_date"
-                                            type="date"
+                              <v-text-field v-model.number="task.working_days"
+                                            type="number"
+                                            min="1"
                                             variant="plain"
                                             density="compact"
                                             hide-details
                                             class="table-input"
-                                            @update:model-value="recalcDurationDebounced(task)"/>
+                                            @update:model-value="onWorkingDaysChange(task)" />
                             </td>
 
                             <td class="text-center font-weight-medium">
-                              {{ task.duration }}
+                              {{ task.end_date ? formatDateShort(task.end_date) : 'N/A' }}
+                            </td>
+
+                            <td v-if="!isFirstLaunch">
+                              <v-text-field v-model="task.revision_note"
+                                            variant="plain"
+                                            density="compact"
+                                            hide-details
+                                            placeholder="Why changed?"
+                                            class="table-input"
+                                            :disabled="!task.task_id" />
+                            </td>
+
+                            <td class="text-center">
+                              <v-checkbox v-model="task.is_milestone"
+                                          hide-details
+                                          density="compact"
+                                          @update:model-value="updateMilestoneName(task)" />
                             </td>
 
                             <td class="text-center">
@@ -215,12 +250,30 @@
                           </tr>
 
                           <tr v-if="defaultTasks.length === 0">
-                            <td colspan="7" class="text-center text-grey">
+                            <td :colspan="isFirstLaunch ? 8 : 9" class="text-center text-grey">
                               No tasks defined
                             </td>
                           </tr>
                         </tbody>
                       </v-table>
+
+                      <!-- Milestones Preview -->
+                      <div v-if="generatedMilestones.length > 0" class="mt-6">
+                        <h3 class="text-h6 mb-3">
+                          <v-icon class="mr-2">mdi-flag-variant</v-icon>
+                          Generated Milestones ({{ generatedMilestones.length }})
+                        </h3>
+                        <v-list density="compact" class="border rounded">
+                          <v-list-item v-for="(milestone, index) in generatedMilestones"
+                                       :key="index"
+                                       :title="milestone.milestone_name"
+                                       :subtitle="`Planned: ${formatDate(milestone.planned_date)} | Dept: ${milestone.dept_name}`">
+                            <template #prepend>
+                              <v-icon color="warning">mdi-flag-variant</v-icon>
+                            </template>
+                          </v-list-item>
+                        </v-list>
+                      </div>
                     </v-card-text>
                   </v-card>
                 </v-stepper-window-item>
@@ -277,11 +330,12 @@
                           <v-card variant="outlined">
                             <v-card-title class="text-subtitle-1">
                               <v-icon start>mdi-clipboard-list</v-icon>
-                              Tasks Summary
+                              Tasks & Milestones Summary
                             </v-card-title>
                             <v-card-text>
                               <div><strong>Total Tasks:</strong> {{ defaultTasks.length }}</div>
-                              <div><strong>Estimated Duration:</strong> {{ totalDuration }} days</div>
+                              <div><strong>Milestones:</strong> {{ generatedMilestones.length }}</div>
+                              <div><strong>Estimated Duration:</strong> {{ totalDuration }} working days</div>
                             </v-card-text>
                           </v-card>
                         </v-col>
@@ -385,7 +439,7 @@
 </template>
 
 <script setup>
-  import { ref, computed, onMounted } from 'vue'
+  import { ref, computed, onMounted, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { useProjectStore } from '@/stores/project'
   import { api } from '@/utils/api'
@@ -394,9 +448,12 @@
   const route = useRoute()
   const projectStore = useProjectStore()
 
+  // State
   const loading = ref(false)
   const launching = ref(false)
   const step = ref(1)
+  const priorityChanged = ref(false)
+
   const project = ref({
     proj_id: null,
     proj_no: '',
@@ -407,13 +464,16 @@
   })
   const teamMembers = ref([])
   const defaultTasks = ref([])
+  const originalTaskDates = ref(new Map())
+
   const departments = ref([])
   const users = ref([])
+
   const showAddTeamDialog = ref(false)
   const snackbar = ref(false)
   const snackbarMessage = ref('')
   const snackbarColor = ref('success')
-  const recalcMap = new WeakMap()
+
   const newMember = ref({
     dept_id: null,
     user_id: null,
@@ -421,15 +481,84 @@
   })
   const holidayCache = {}
 
-  const filteredUsers = computed(() => {
-    if (!newMember.value.dept_id) return []
-    return users.value.filter(u => u.dept_id === newMember.value.dept_id)
+  // Computed
+  const filteredUsers = computed(() =>
+    users.value.filter(u => u.dept_id === newMember.value.dept_id)
+  )
+
+  const isFirstLaunch = computed(() =>
+    project.value.status === 'Planning'
+  )
+
+  const totalDuration = computed(() =>
+    defaultTasks.value.reduce((s, t) => s + (Number(t.duration) || 0), 0)
+  )
+
+  const tasksWithDateChanges = computed(() => {
+    if (isFirstLaunch.value) return []
+    return defaultTasks.value.filter(t => t.has_date_change && t.task_id)
   })
 
-  const totalDuration = computed(() => {
-    if (!defaultTasks.value || defaultTasks.value.length === 0) return 0
-    return defaultTasks.value.reduce((sum, task) => sum + (parseFloat(task.duration) || 0), 0)
+  const validationErrors = computed(() => {
+    const errors = []
+    
+    if (!isFirstLaunch.value) {
+      tasksWithDateChanges.value.forEach(task => {
+        if (!task.revision_note || task.revision_note.trim() === '') {
+          errors.push(`Task "${task.title}" has date changes but no revision note`)
+        }
+      })
+    }
+    
+    return errors
   })
+
+  const generatedMilestones = computed(() =>
+    defaultTasks.value
+      .filter(t => t.is_milestone && t.end_date)
+      .map((t, i) => ({
+        milestone_name: t.milestone_title || t.title,
+        planned_date: t.end_date,
+        dept_name: t.department,
+        order: i + 1
+      }))
+  )
+
+  // Methods
+  function formatDate(date) {
+    if (!date) return 'N/A'
+    return new Date(date).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    })
+  }
+
+  function formatDateShort(date) {
+    if (!date) return 'N/A'
+    return new Date(date).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+  }
+
+  function checkDateChange(task) {
+    if (!task.task_id || isFirstLaunch.value) {
+      task.has_date_change = false
+      return
+    }
+
+    const original = originalTaskDates.value.get(task.task_id)
+    if (!original) {
+      task.has_date_change = false
+      return
+    }
+
+    task.has_date_change = 
+      task.start_date !== original.start_date ||
+      task.end_date !== original.end_date
+  }
 
   function onDepartmentChange() {
     newMember.value.user_id = null
@@ -482,9 +611,6 @@
 
   function addTask() {
     const today = new Date().toISOString().split('T')[0]
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const tomorrowStr = tomorrow.toISOString().split('T')[0]
 
     defaultTasks.value.push({
       task_id: null,
@@ -492,9 +618,18 @@
       title: 'New Task',
       department: '',
       start_date: today,
-      end_date: tomorrowStr,
-      duration: 1
+      working_days: 5,
+      end_date: null,
+      original_start_date: null,
+      original_end_date: null,
+      is_milestone: false,
+      milestone_title: '',
+      revision_note: '',
+      has_date_change: false
     })
+
+    const newTask = defaultTasks.value[defaultTasks.value.length - 1]
+    onWorkingDaysChange(newTask)
   }
 
   function removeTask(index) {
@@ -506,6 +641,114 @@
     defaultTasks.value.forEach((t, i) => {
       t.order = i + 1
     })
+  }
+
+  function updateMilestoneName(task) {
+    if (task.is_milestone) {
+      task.milestone_title ||= task.title
+    } else {
+      task.milestone_title = ''
+    }
+  }
+
+  async function onStartDateChange(task) {
+    if (task.start_date && task.working_days) {
+      task.end_date = await calculateEndDate(task.start_date, task.working_days)
+    }
+    checkDateChange(task)
+  }
+
+  async function onWorkingDaysChange(task) {
+    if (task.start_date && task.working_days) {
+      task.end_date = await calculateEndDate(task.start_date, task.working_days)
+    }
+    checkDateChange(task)
+  }
+
+  function toMalaysiaDate(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, d, 0, 0, 0))
+  }
+
+  async function calculateEndDate(startDate, workingDays) {
+    if (!startDate || !workingDays || workingDays < 1) return null
+
+    const start = toMalaysiaDate(startDate)
+    const years = new Set()
+    
+    // Determine which years we need holidays for
+    const estimatedEnd = new Date(start)
+    estimatedEnd.setDate(estimatedEnd.getDate() + (workingDays * 2)) // Rough estimate
+    
+    for (let y = start.getFullYear(); y <= estimatedEnd.getFullYear(); y++) {
+      years.add(y)
+    }
+
+    // Fetch holidays for all relevant years
+    const holidaySets = await Promise.all(
+      Array.from(years).map(y => getHolidays(y))
+    )
+
+    let count = 0
+    const current = new Date(start)
+
+    while (count < workingDays) {
+      const day = current.getDay()
+      const iso = current.toISOString().slice(0, 10)
+
+      const isWeekend = day === 0 || day === 6
+      const isHoliday = holidaySets.some(set => set.has(iso))
+
+      if (!isWeekend && !isHoliday) {
+        count++
+      }
+
+      if (count < workingDays) {
+        current.setDate(current.getDate() + 1)
+      }
+    }
+
+    const yyyy = current.getUTCFullYear()
+    const mm = String(current.getUTCMonth() + 1).padStart(2, '0')
+    const dd = String(current.getUTCDate()).padStart(2, '0')
+
+    return `${yyyy}-${mm}-${dd}`
+  }
+
+  async function getHolidays(year) {
+    if (holidayCache[year]) return holidayCache[year]
+
+    try {
+      const res = await fetch(`https://sabah-holiday.dydxsoft.my/api/${year}.json`)
+      if (!res.ok) {
+        holidayCache[year] = new Set()
+        return holidayCache[year]
+      }
+
+      const data = await res.json()
+
+      const monthMap = {
+        Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+        Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+      }
+
+      const holidays = new Set(
+        data.map(h => {
+          const [monthStr, dayStr] = h.date.split(' ')
+          const month = monthMap[monthStr]
+          const day = parseInt(dayStr, 10)
+          const d = new Date(year, month, day)
+          return d.toISOString().slice(0, 10)
+        })
+      )
+
+      holidayCache[year] = holidays
+      return holidays
+    } catch (error) {
+      console.error('Error fetching holidays:', error)
+      holidayCache[year] = new Set()
+      return holidayCache[year]
+    }
   }
 
   async function launchProject() {
@@ -525,6 +768,16 @@
       return
     }
 
+    // Validate all tasks have required fields
+    for (const task of defaultTasks.value) {
+      if (!task.title || !task.department || !task.start_date || !task.end_date) {
+        snackbarMessage.value = 'Please complete all task fields (title, department, dates)'
+        snackbarColor.value = 'warning'
+        snackbar.value = true
+        return
+      }
+    }
+
     launching.value = true
 
     try {
@@ -535,7 +788,8 @@
         dept_name: task.department,
         start_date: formatDateForInput(task.start_date),
         end_date: formatDateForInput(task.end_date),
-        duration: parseFloat(task.duration) || 0
+        duration: parseFloat(task.working_days) || 0,
+        revision_note: task.revision_note || null
       }))
 
       // Transform team members to match backend DTO
@@ -547,18 +801,37 @@
         user_name: member.user_name
       }))
 
+      // Generate milestones from tasks marked as milestones
+      const transformedMilestones = defaultTasks.value
+        .filter(task => task.is_milestone && task.end_date && task.department)
+        .map(task => {
+          const dept = departments.value.find(d => d.dept_name === task.department)
+          return {
+            task_id: task.task_id || null,
+            milestone_name: task.milestone_title || task.title,
+            planned_date: formatDateForInput(task.end_date),
+            status: 'Pending',
+            responsible_dept_id: dept?.dept_id || null
+          }
+        })
+
       const payload = {
+        priority: project.value.priority,
         team_members: transformedTeam,
         tasks: transformedTasks,
-        milestones: []
+        milestones: transformedMilestones
       }
+
+      console.log('Launch payload:', payload)
 
       const result = await api.post(`/project/${route.params.id}/launch`, payload)
 
       const success = result?.success || result?.data?.success
 
       if (success) {
-        snackbarMessage.value = 'Project launched successfully!'
+        snackbarMessage.value = isFirstLaunch.value 
+          ? 'Project launched successfully!' 
+          : 'Project updated successfully!'
         snackbarColor.value = 'success'
         snackbar.value = true
 
@@ -590,92 +863,14 @@
     return `${yyyy}-${mm}-${dd}`
   }
 
-  async function holiday(year) {
-    if (holidayCache[year]) return holidayCache[year]
-
-    const res = await fetch(`https://sabah-holiday.dydxsoft.my/api/${year}.json`)
-    if (!res.ok) {
-      holidayCache[year] = new Set()
-      return holidayCache[year]
-    }
-
-    const data = await res.json()
-
-    const monthMap = {
-      Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
-      Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
-    }
-
-    const holidays = new Set(
-      data.map(h => {
-        const [monthStr, dayStr] = h.date.split(' ')
-        const month = monthMap[monthStr]
-        const day = parseInt(dayStr, 10)
-        const d = new Date(year, month, day)
-        return d.toISOString().slice(0, 10)
-      })
-    )
-
-    holidayCache[year] = holidays
-    return holidays
-  }
-
-  function recalcDurationDebounced(task) {
-    clearTimeout(recalcMap.get(task))
-    recalcMap.set(task, setTimeout(() => recalcDuration(task), 200))
-  }
-
-  async function recalcDuration(task) {
-    if (!task.start_date || !task.end_date) {
-      task.duration = 0
-      return
-    }
-
-    const start = toMalaysiaDate(task.start_date)
-    const end = toMalaysiaDate(task.end_date)
-
-    if (start > end) {
-      task.duration = 0
-      return
-    }
-
-    const years = new Set()
-    for (let y = start.getFullYear(); y <= end.getFullYear(); y++) years.add(y)
-
-    const holidaySets = await Promise.all(
-      Array.from(years).map(y => holiday(y))
-    )
-
-    let count = 0
-    const current = new Date(start)
-
-    while (current <= end) {
-      const day = current.getDay()
-      const iso = current.toISOString().slice(0, 10)
-
-      const isWeekend = day === 0 || day === 6
-      const isHoliday = holidaySets.some(set => set.has(iso))
-
-      if (!isWeekend && !isHoliday) count++
-
-      current.setDate(current.getDate() + 1)
-    }
-
-    task.duration = count
-  }
-
-  function toMalaysiaDate(dateStr) {
-    const [y, m, d] = dateStr.split('-').map(Number)
-    return new Date(Date.UTC(y, m - 1, d, 0, 0, 0))
-  }
-
   onMounted(async () => {
     loading.value = true
 
     try {
-      // Load projects
+      // Load project
       const projectResult = await projectStore.fetchProjectById(route.params.id)
-      console.log("Project Result: ", projectResult.data);
+      console.log('Project Result:', projectResult.data)
+
       if (projectResult?.success && projectResult?.data) {
         project.value = {
           proj_id: projectResult.data.proj_id,
@@ -686,6 +881,7 @@
           description: projectResult.data.description || ''
         }
 
+        console.log("Team Members? ", projectResult.data.team_members);
         // Load team members
         if (projectResult.data.team_members) {
           teamMembers.value = projectResult.data.team_members.map(m => ({
@@ -696,6 +892,7 @@
             role_in_project: m.role || m.role_in_project || 'Team Member'
           }))
         }
+        console.log("Team Members: ", teamMembers.value);
       } else {
         snackbarMessage.value = 'Failed to load project'
         snackbarColor.value = 'error'
@@ -731,27 +928,39 @@
 
         defaultTasks.value = await Promise.all(
           tasksData.map(async (task, index) => {
-            const transformed = {
+            const startDate = formatDateForInput(task.planned_start_date)
+            const endDate = formatDateForInput(task.planned_end_date)
+
+            if (task.task_id) {
+              originalTaskDates.value.set(task.task_id, {
+                start_date: startDate,
+                end_date: endDate
+              })
+            }
+
+            const taskObj = {
               task_id: task.task_id,
               order: task.order || index + 1,
               title: task.title || '',
               department: task.dept_name || '',
-              start_date: formatDateForInput(task.start_date),
-              end_date: formatDateForInput(task.end_date),
-              duration: 0
+              start_date: startDate,
+              working_days: task.duration || 1,
+              end_date: endDate,
+              original_start_date: startDate,
+              original_end_date: endDate,
+              is_milestone: task.is_milestone,
+              milestone_title: '',
+              revision_note: '',
+              has_date_change: false
             }
 
-            await recalcDuration(transformed)
-
-            return transformed
+            return taskObj
           })
         )
 
+        console.log('Original task dates stored:', originalTaskDates.value)
       } catch (error) {
         console.error('Tasks load error:', error)
-        snackbarMessage.value = 'Warning: Could not load tasks'
-        snackbarColor.value = 'warning'
-        snackbar.value = true
       }
 
     } catch (error) {
@@ -765,43 +974,60 @@
   })
 </script>
 
-<style setup>
-  .tasks-table th,
-  .tasks-table td {
-    vertical-align: middle;
+<style scoped>
+  .tasks-table {
+    width: 100%;
+    border-collapse: collapse;
   }
 
-  .tasks-table .col-index {
-    width: 48px;
+    .tasks-table :deep(th),
+    .tasks-table :deep(td) {
+      padding: 8px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+    }
+
+  .table-input :deep(.v-field__input) {
+    min-height: 32px;
+    padding: 4px 8px;
   }
 
-  .tasks-table .col-task {
-    width: 40%;
-  }
-
-  .tasks-table .col-dept {
-    width: 16%;
-  }
-
-  .tasks-table .col-date {
-    width: 12%;
-  }
-
-  .tasks-table .col-days {
-    width: 64px;
+  .col-index {
+    width: 50px;
     text-align: center;
   }
 
-  .tasks-table .col-actions {
-    width: 48px;
+  .col-task {
+    min-width: 200px;
   }
 
-  .tasks-table .table-input .v-field {
-    padding-top: 0;
-    padding-bottom: 0;
+  .col-dept {
+    min-width: 150px;
   }
 
-  .tasks-table .table-input input {
-    text-align: left;
+  .col-date {
+    min-width: 140px;
+  }
+
+  .col-days {
+    width: 100px;
+    text-align: center;
+  }
+
+  .col-milestone {
+    width: 120px;
+  }
+
+  .col-actions {
+    width: 80px;
+    text-align: center;
+  }
+
+  .col-note {
+    min-width: 180px;
+  }
+
+  .col-actions {
+    width: 80px;
+    text-align: center;
   }
 </style>
