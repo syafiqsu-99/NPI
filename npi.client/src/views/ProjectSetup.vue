@@ -419,7 +419,7 @@
                           <v-card variant="outlined">
                             <v-card-title class="text-subtitle-1">
                               <v-icon start>mdi-clipboard-list</v-icon>
-                              Tasks Summary
+                              Tasks & Milestones Summary
                             </v-card-title>
                             <v-card-text>
                               <div><strong>Total Tasks:</strong> {{ allTasks.length }}</div>
@@ -552,7 +552,7 @@
 </template>
 
 <script setup>
-  import { ref, computed, onMounted } from 'vue'
+  import { ref, computed, onMounted, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { useProjectStore } from '@/stores/project'
   import { NPI_STAGES } from '@/stores/stageTemplate'
@@ -562,6 +562,7 @@
   const route = useRoute()
   const projectStore = useProjectStore()
 
+  // State
   const loading = ref(false)
   const launching = ref(false)
   const step = ref(1)
@@ -858,8 +859,10 @@
           role: m.role_in_project, dept_name: m.dept_name, user_name: m.user_name
         })),
         tasks: transformedTasks,
-        milestones: []
+        milestones: transformedMilestones
       }
+
+      console.log('Launch payload:', payload)
 
       const result = await api.post(`/project/${route.params.id}/launch`, payload)
       const success = result?.success || result?.data?.success

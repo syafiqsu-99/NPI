@@ -112,6 +112,12 @@ namespace NPI.Server.Data
                 .HasForeignKey<Milestones>(m => m.task_id)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<Milestones>()
+                .HasOne(m => m.Tasks)
+                .WithOne(t => t.Milestone)
+                .HasForeignKey<Milestones>(m => m.task_id)
+                .OnDelete(DeleteBehavior.Restrict);
+
             modelBuilder.Entity<Files>()
                 .HasOne(f => f.Task)
                 .WithMany(t => t.Files)

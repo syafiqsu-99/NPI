@@ -667,6 +667,87 @@ namespace NPI.Server.Services
                             priority = "Medium",
                             assigned_by = userId,
                             created_at = DateTime.Now
+                        };
+
+                        _context.Tasks.Add(newTask);
+                        newTasks.Add(newTask);
+                    }
+                }
+                await _context.SaveChangesAsync();
+
+                /* =========================
+                 * PROJECT REVISION TRACKING
+                 * ========================= */
+                if (hasTaskRevisions)
+                {
+                    // Get the latest revision number for this project
+                    var latestRevisionNumber = await _context.ProjectRevisions
+                        .Where(pr => pr.proj_id == projectId)
+                        .OrderByDescending(pr => pr.revision_number)
+                        .Select(pr => pr.revision_number)
+                        .FirstOrDefaultAsync();
+
+                    var newRevisionNumber = latestRevisionNumber + 1;
+
+                    // Mark all previous revisions as inactive
+                    var previousRevisions = await _context.ProjectRevisions
+                        .Where(pr => pr.proj_id == projectId && pr.is_active)
+                        .ToListAsync();
+
+                    foreach (var rev in previousRevisions)
+                    {
+                        rev.is_active = false;
+                    }
+
+                    // Calculate new target completion date from tasks
+                    DateOnly? newTargetDate = null;
+                    if (dto.tasks != null && dto.tasks.Any())
+                    {
+                        var maxEndDate = dto.tasks
+                            .Where(t => t.end_date.HasValue)
+                            .Max(t => (DateOnly?)t.end_date);
+
+                        if (maxEndDate.HasValue)
+                        {
+                            newTargetDate = maxEndDate.Value;
+                        }
+                    }
+
+                    // Create new ProjectRevision
+                    var projectRevision = new ProjectRevisions
+                    {
+                        proj_id = projectId,
+                        revision_number = newRevisionNumber,
+                        revision_date = DateTime.Now,
+                        revised_by = userId,
+                        revision_notes = $"Project updated with {taskRevisionsToAdd.Count} task date changes",
+                        previous_target_date = project.target_completion_date,
+                        new_target_date = newTargetDate,
+                        is_active = true
+                    };
+
+                    _context.ProjectRevisions.Add(projectRevision);
+
+                    // Save to get the revision_id
+                    await _context.SaveChangesAsync();
+
+                    // Now add all TaskRevisions linked to this ProjectRevision
+                    foreach (var taskRev in taskRevisionsToAdd)
+                    {
+                        _context.TaskRevisions.Add(new TaskRevisions
+                        {
+                            revision_id = projectRevision.revision_id,
+                            task_id = taskRev.taskId,
+                            title = taskRev.title,
+                            old_start_date = taskRev.oldStart,
+                            old_end_date = taskRev.oldEnd,
+                            new_start_date = taskRev.newStart,
+                            new_end_date = taskRev.newEnd,
+                            note = taskRev.note,
+                            revised_on = DateTime.Now,
+                            duration = taskRev.duration,
+                            dept_id = taskRev.deptId,
+                            status = "Revised"
                         });
                     }
                 }

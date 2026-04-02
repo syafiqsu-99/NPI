@@ -5,7 +5,7 @@
         <v-card class="page-header-card" elevation="2">
           <v-card-title class="bg-primary text-white d-flex align-center justify-space-between">
             <div class="page-title">
-              <v-icon class="mr-2">mdi-cog</v-icon>
+          <v-icon class="mr-2">mdi-cog</v-icon>
               Settings
             </div>
           </v-card-title>

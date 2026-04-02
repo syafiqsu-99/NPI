@@ -207,8 +207,11 @@ namespace NPI.Server.Services
                 if (task == null)
                     return (false, "Task not found");
 
+                // Check if task has subtasks
                 if (task.SubTasks != null && task.SubTasks.Any())
+                {
                     return (false, "Cannot delete task with subtasks. Delete subtasks first.");
+                }
 
                 // Resolve folder BEFORE removing from DB
                 var folderPath = task.Project != null
@@ -235,6 +238,7 @@ namespace NPI.Server.Services
             int taskId, DateOnly newStart, DateOnly newEnd, string note)
         {
             var task = await _context.Tasks.FindAsync(taskId);
+
             if (task == null)
                 return (false, "Task not found");
 
@@ -256,6 +260,7 @@ namespace NPI.Server.Services
             task.updated_at = DateTime.Now;
 
             await _context.SaveChangesAsync();
+
             return (true, "Planned dates updated with revision history");
         }
 
@@ -264,25 +269,39 @@ namespace NPI.Server.Services
             try
             {
                 var task = await _context.Tasks.FindAsync(taskId);
+
                 if (task == null)
+                {
                     return (false, "Task not found");
+                }
 
                 var validStatuses = new[] { "Not Started", "In Progress", "On Hold", "Completed", "Cancelled" };
                 if (!validStatuses.Contains(status))
+                {
                     return (false, "Invalid status value");
+                }
 
                 task.status = status;
                 task.updated_at = DateTime.Now;
 
+                // Auto-update progress based on status
                 if (status == "Completed" && task.per_complete < 100)
+                {
                     task.per_complete = 100;
+                }
                 else if (status == "In Progress" && task.per_complete == 0)
+                {
                     task.per_complete = 10;
+                }
                 else if (status == "Not Started")
+                {
                     task.per_complete = 0;
+                }
 
                 if (status == "In Progress" && task.actual_start_date == null)
+                {
                     task.actual_start_date = DateOnly.FromDateTime(DateTime.Now);
+                }
 
                 if (status == "Completed" && task.actual_end_date == null)
                 {
@@ -291,6 +310,7 @@ namespace NPI.Server.Services
                 }
 
                 await _context.SaveChangesAsync();
+
                 return (true, "Task status updated successfully");
             }
             catch (Exception ex)
@@ -304,15 +324,21 @@ namespace NPI.Server.Services
             try
             {
                 var task = await _context.Tasks.FindAsync(taskId);
+
                 if (task == null)
+                {
                     return (false, "Task not found");
+                }
 
                 if (progress < 0 || progress > 100)
+                {
                     return (false, "Progress must be between 0 and 100");
+                }
 
                 task.per_complete = progress;
                 task.updated_at = DateTime.Now;
 
+                // Auto-update status based on progress
                 if (progress == 100 && task.status != "Completed")
                 {
                     task.status = "Completed";
@@ -331,6 +357,7 @@ namespace NPI.Server.Services
                 }
 
                 await _context.SaveChangesAsync();
+
                 return (true, "Task progress updated successfully");
             }
             catch (Exception ex)
@@ -374,48 +401,49 @@ namespace NPI.Server.Services
         // ── Mapper ────────────────────────────────────────────────────────────
 
         private static TaskResponseDto MapToResponseDto(Tasks task) => new()
-        {
-            task_id = task.task_id,
-            proj_id = task.proj_id,
+            {
+                task_id = task.task_id,
+                proj_id = task.proj_id,
             proj_no = task.Project?.proj_no,
             proj_name = task.Project?.proj_name,
             proj_status = task.Project?.status,
             proj_priority = task.Project?.priority,
-            parent_task_id = task.parent_task_id,
-            order = 0,
+                parent_task_id = task.parent_task_id,
+                order = 0,
             stage_id = task.stage_id,
             task_code = task.task_code,
-            title = task.title,
-            description = task.description,
-            dept_id = task.dept_id,
-            dept_name = task.Department?.dept_name,
-            assigned_to = task.assigned_to,
-            assigned_to_name = task.AssignedToUser?.full_name,
-            assigned_by = task.assigned_by,
-            assigned_by_name = task.AssignedByUser?.full_name,
-            planned_start_date = task.planned_start_date,
-            planned_end_date = task.planned_end_date,
-            actual_start_date = task.actual_start_date,
-            actual_end_date = task.actual_end_date,
-            duration = task.duration,
-            status = task.status,
-            priority = task.priority,
-            per_complete = task.per_complete,
-            created_at = task.created_at,
-            updated_at = task.updated_at,
-            completed_at = task.completed_at,
-            planned_revisions = task.TaskRevisions?
-                .OrderBy(r => r.revised_on)
-                .Select((r, index) => new TaskRevisionDto
-                {
-                    revision_no = index + 1,
-                    old_start_date = r.old_start_date,
-                    old_end_date = r.old_end_date,
-                    new_start_date = r.new_start_date,
-                    new_end_date = r.new_end_date,
-                    note = r.note,
-                    revised_on = r.revised_on
-                }).ToList() ?? new List<TaskRevisionDto>()
-        };
+                title = task.title,
+                description = task.description,
+                dept_id = task.dept_id,
+                dept_name = task.Department?.dept_name,
+                assigned_to = task.assigned_to,
+                assigned_to_name = task.AssignedToUser?.full_name,
+                assigned_by = task.assigned_by,
+                assigned_by_name = task.AssignedByUser?.full_name,
+                planned_start_date = task.planned_start_date,
+                planned_end_date = task.planned_end_date,
+                actual_start_date = task.actual_start_date,
+                actual_end_date = task.actual_end_date,
+                duration = task.duration,
+                status = task.status,
+                priority = task.priority,
+                per_complete = task.per_complete,
+                created_at = task.created_at,
+                updated_at = task.updated_at,
+                completed_at = task.completed_at,
+                planned_revisions = task.TaskRevisions?
+                    .OrderBy(r => r.revised_on)
+                    .Select((r, index) => new TaskRevisionDto
+                    {
+                        revision_no = index + 1,
+                        old_start_date = r.old_start_date,
+                        old_end_date = r.old_end_date,
+                        new_start_date = r.new_start_date,
+                        new_end_date = r.new_end_date,
+                        note = r.note,
+                        revised_on = r.revised_on
+                    }).ToList() ?? new List<TaskRevisionDto>()
+            };
+        }
     }
 }

@@ -101,6 +101,20 @@
                 <v-col cols="auto">
                   <v-checkbox v-model="showAllStages" label="Show all stages" hide-details density="compact" />
                 </v-col>
+                <v-col cols="auto">
+                  <v-checkbox v-model="showDependencies"
+                              label="Show Dependencies"
+                              hide-details
+                              density="compact"></v-checkbox>
+                </v-col>
+                <v-spacer></v-spacer>
+                <v-col cols="auto">
+                  <div class="text-caption">
+                    Total Tasks: <strong>{{ tasks.length }}</strong> |
+                    Completed: <strong>{{ completedTasks }}</strong> |
+                    Progress: <strong>{{ overallProgress }}%</strong>
+                  </div>
+                </v-col>
               </v-row>
             </v-sheet>
 
@@ -137,7 +151,7 @@
                     <v-progress-linear :model-value="item.stageProgress"
                                        :color="getStageColor(item.stage_id)"
                                        height="4" rounded style="max-width:60px" />
-                  </div>
+                    </div>
                   <div v-else class="d-flex align-center ga-1 py-1">
                     <v-chip v-if="item.task_code"
                             :color="getStageColor(item.stage_id)"
@@ -145,6 +159,7 @@
                       {{ item.task_code }}
                     </v-chip>
                     <span class="text-body-2 font-weight-medium text-truncate">{{ item.title }}</span>
+                    </div>
                   </div>
                 </template>
 
@@ -176,7 +191,7 @@
                       </template>
                       <v-card min-width="200" class="pa-2">
                         <div class="text-caption mb-2 px-2">Update Progress</div>
-                        <v-slider :model-value="item.per_complete || 0"
+                          <v-slider :model-value="item.per_complete || 0"
                                   @update:model-value="val => updateTaskProgress(item, val)"
                                   :min="0" :max="100" :step="5"
                                   thumb-label show-ticks="always"
@@ -210,7 +225,14 @@
                           #[`item.${col.value}`]="{ item }">
                   <div class="gantt-empty-cell"
                        :class="{ 'is-today': col.isToday, 'is-stage-header': item.rowType === 'stage-header' }" />
-                </template>
+                        </template>
+                        <div>
+                          <strong>{{ item.title }}</strong><br>
+                          Type: {{ item.rowType === 'planned' ? 'Planned' : 'Actual' }}<br>
+                          Start: {{ formatDate(getRowStart(item)) }}<br>
+                          End: {{ formatDate(getRowEnd(item)) }}<br>
+                          Progress: {{ item.per_complete || 0 }}%<br>
+                          Status: {{ item.status }}
 
               </v-data-table>
 
@@ -223,29 +245,29 @@
               <div class="gantt-bar-overlay" ref="barOverlay" :style="overlayStyle">
 
                 <template v-for="bar in barLayout" :key="bar.barId">
-                  <v-tooltip location="top">
-                    <template #activator="{ props }">
+                      <v-tooltip location="top">
+                        <template #activator="{ props }">
                       <div v-bind="props" :class="bar.cssClass" :style="bar.style">
                         <span v-if="bar.label" class="gantt-bar-label">{{ bar.label }}</span>
                       </div>
-                    </template>
+                        </template>
                     <div class="tooltip-content">
                       <div class="font-weight-bold mb-1">{{ bar.task_code ? bar.task_code + ' · ' : '' }}{{ bar.title }}</div>
                       <div>
                         <span class="bar-type-dot" :style="{ background: bar.type === 'planned' ? '#64B5F6' : '#81C784' }" />
                         {{ bar.type === 'planned' ? 'Planned' : 'Actual' }}
-                      </div>
+                    </div>
                       <div>Start: {{ formatDate(bar.start) }}</div>
                       <div>End: {{ formatDate(bar.end) }}</div>
                       <div>Progress: {{ bar.per_complete || 0 }}%</div>
                       <div>Status: {{ bar.status }}</div>
-                    </div>
+                  </div>
                   </v-tooltip>
                 </template>
 
                 <!-- Today vertical line -->
                 <div class="today-line" :style="todayLineStyle" />
-              </div>
+            </div>
 
             </div><!-- /gantt-wrapper -->
             <!-- Legend strip -->
@@ -254,15 +276,35 @@
               <div class="d-flex align-center ga-1">
                 <div class="legend-swatch legend-planned" />
                 <span>Planned</span>
-              </div>
+                          </div>
               <div class="d-flex align-center ga-1">
                 <div class="legend-swatch legend-actual" />
                 <span>Actual</span>
-              </div>
+                          </div>
               <div class="d-flex align-center ga-1">
                 <div style="width:2px;height:14px;background:rgba(33,150,243,0.7);border-radius:1px" />
                 <span>Today</span>
-              </div>
+                          </div>
+                        </div>
+                        <div>
+                          <v-chip v-if="milestone.actual_date"
+                                  :color="milestone.is_delayed ? 'error' : 'success'"
+                                  size="small">
+                            {{ milestone.is_delayed ? 'Delayed' : 'On Time' }}
+                          </v-chip>
+                          <v-btn v-else
+                                 size="small"
+                                 color="primary"
+                                 variant="tonal"
+                                 @click="completeMilestone(milestone)">
+                            Mark Complete
+                          </v-btn>
+                        </div>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
             </v-sheet>
 
           </v-card-text>
@@ -270,6 +312,7 @@
       </v-col>
     </v-row>
 
+    <!-- Success Snackbar -->
     <v-snackbar v-model="snackbar" :color="snackbarColor">
       {{ snackbarMessage }}
       <template #actions>
@@ -296,6 +339,7 @@
   const snackbar = ref(false)
   const snackbarMessage = ref('')
   const snackbarColor = ref('success')
+  const ganttContainer = ref(null)
 
   const ganttWrapper = ref(null)
   const barOverlay = ref(null)
@@ -347,7 +391,7 @@
         border: allDone ? '#4CAF50' : anyActive ? STAGE_COLORS_HEX[id] : '#BDBDBD',
         textColor: allDone ? '#2E7D32' : anyActive ? STAGE_COLORS_HEX[id] : '#9E9E9E',
       }
-    })
+  })
   })
 
   const currentStageId = computed(() => projectStages.value.find(s => s.status !== 'completed')?.id ?? projectStages.value.at(-1)?.id ?? '1.0')
@@ -370,7 +414,7 @@
 
       if (showAllStages.value) {
         const done = stageTasks.filter(t => t.status === 'Completed').length
-        rows.push({
+      rows.push({
           rowId: `stage_${stageId}_header`,
           rowType: 'stage-header',
           stage_id: stageId,
@@ -378,17 +422,17 @@
           taskCount: stageTasks.length,
           completedCount: done,
           stageProgress: Math.round((done / stageTasks.length) * 100),
-        })
+      })
       }
 
       stageTasks.forEach(task => {
-        rows.push({
-          ...task,
+      rows.push({
+        ...task,
           rowId: `task_${task.task_id}`,
           rowType: 'task',
           stage_id: stageId,
-        })
       })
+    })
     })
 
     return rows
@@ -401,6 +445,7 @@
     if (!dates.length) return new Date()
     const min = new Date(Math.min(...dates)); min.setDate(min.getDate() - 3); return min
   })
+
   const timelineEnd = computed(() => {
     const vis = showAllStages.value ? tasks.value : tasks.value.filter(t => resolvedStageId(t) === currentStageId.value)
     const dates = vis.map(t => new Date(t.planned_end_date)).filter(d => !isNaN(d))
@@ -477,6 +522,33 @@
     })
   }
 
+  function shouldShowTaskBar(task, column) {
+    const start = getRowStart(task)
+    const end = getRowEnd(task)
+
+    if (!start || !end) return false
+
+    const taskStart = new Date(start)
+    const taskEnd = new Date(end)
+
+    const colStart = new Date(column.date)
+    const colEnd = column.endDate ? new Date(column.endDate) : new Date(column.date)
+
+    return taskStart <= colEnd && taskEnd >= colStart
+  }
+
+  function getRowStart(task) {
+    return task.rowType === 'planned'
+      ? task.planned_start_date
+      : task.actual_start_date
+  }
+
+  function getRowEnd(task) {
+    return task.rowType === 'planned'
+      ? task.planned_end_date
+      : task.actual_end_date
+  }
+
   // ── Bar layout — TWO BARS PER TASK ROW (planned upper, actual lower) ─────────
   const barLayout = computed(() => {
     if (!overlayWidth.value || !timelineMs.value) return []
@@ -527,16 +599,17 @@
             height: `${barH}px`,
             '--bar-progress': `${row.per_complete || 0}%`,
             '--bar-color': stageHex,
-          }
+  }
         })
-      }
+  }
 
       makeBar('planned', row.planned_start_date, row.planned_end_date)
       makeBar('actual', row.actual_start_date, row.actual_end_date)
     })
 
     return bars
-  })
+    })
+  }
 
   // Today line
   const todayLineStyle = computed(() => {
@@ -561,7 +634,7 @@
     if (item.rowType === 'stage-header') return { class: 'gantt-row-stage-header' }
     if (item.rowType === 'task') return { class: 'gantt-row-task' }
     return {}
-  }
+        }
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
   function getStatusColor(s) { return { Planning: 'grey', 'Not Started': 'grey', 'In Progress': 'blue', 'On Hold': 'orange', Completed: 'green', Cancelled: 'red' }[s] ?? 'grey' }
@@ -571,7 +644,7 @@
   function formatDate(d) {
     if (!d) return 'N/A'
     return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-  }
+    }
   function fmtShort(d) {
     if (!d) return null
     return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
@@ -581,15 +654,42 @@
   async function updateTaskProgress(task, progress) {
     try {
       const result = await api.put(`/task/${task.task_id}/progress`, { per_complete: progress })
+
+      if (result?.success) {
+        task.per_complete = progress
+
+        // Auto-update status based on progress
+        if (progress === 100 && task.status !== 'Completed') {
+          task.status = 'Completed'
+        } else if (progress > 0 && progress < 100 && task.status === 'Not Started') {
+          task.status = 'In Progress'
+        }
+
+        snackbarMessage.value = 'Progress updated'
+        snackbarColor.value = 'success'
+        snackbar.value = true
+      }
+    } catch (error) {
+      console.error('Error updating task progress:', error)
+      snackbarMessage.value = 'Failed to update progress'
+      snackbarColor.value = 'error'
+      snackbar.value = true
+    }
+  }
+
+  async function completeMilestone(milestone) {
+    try {
+      const result = await api.patch(`/project/${route.params.id}/milestones/${milestone.milestone_id}/complete`)
+
       if (result?.success) {
         const t = tasks.value.find(t => t.task_id === task.task_id)
         if (t) {
           t.per_complete = progress
           if (progress === 100) t.status = 'Completed'
           else if (progress > 0 && progress < 100 && t.status === 'Not Started') t.status = 'In Progress'
-        }
+    }
         showSnack('Progress updated', 'success')
-      }
+  }
     } catch { showSnack('Failed to update progress', 'error') }
   }
 
@@ -621,7 +721,7 @@
       console.error(err)
       showSnack('Failed to load project data', 'error')
     } finally { loading.value = false }
-  }
+      }
 
   watch([viewMode, displayRows, showAllStages], () => nextTick(measureOverlay))
   if (typeof window !== 'undefined') window.addEventListener('resize', measureOverlay)
@@ -688,19 +788,19 @@
     .gantt-empty-cell.is-stage-header {
       height: 30px;
       background-color: rgba(0,0,0,0.02);
-    }
+  }
 
     .gantt-empty-cell.is-today {
       background-color: rgba(33,150,243,0.06);
       border-left: 2px solid rgba(33,150,243,0.35);
-    }
+  }
 
   /* ── Overlay ─────────────────────────────────────────────────────────────── */
   .gantt-bar-overlay {
     pointer-events: none;
     position: absolute;
     overflow: visible;
-  }
+    }
 
   /* ── Bars ─────────────────────────────────────────────────────────────────── */
   .gantt-bar {
@@ -745,7 +845,7 @@
   .gantt-bar-planned-cancelled {
     background: rgba(244,67,54,0.38);
     border: 1px solid rgba(244,67,54,0.70);
-  }
+    }
 
   /* Actual (lower bar) — more opaque / solid */
   .gantt-bar-actual-not-started {

@@ -123,6 +123,7 @@ namespace NPI.Server.DTOs
         public string? dept_name { get; set; }
         public int? assigned_to { get; set; }
         public string? assigned_to_name { get; set; }
+        public Boolean is_milestone { get; set; }
         public int? assigned_by { get; set; }
         public string? assigned_by_name { get; set; }
         public DateOnly? planned_start_date { get; set; }

@@ -653,6 +653,48 @@ namespace NPI.Server.Migrations
                     b.ToTable("ProjectRevisions", (string)null);
                 });
 
+            modelBuilder.Entity("NPI.Server.Models.ProjectRevisions", b =>
+                {
+                    b.Property<int>("revision_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("revision_id"));
+
+                    b.Property<bool>("is_active")
+                        .HasColumnType("bit");
+
+                    b.Property<DateOnly?>("new_target_date")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("previous_target_date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("proj_id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("revised_by")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("revision_date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("revision_notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("revision_number")
+                        .HasColumnType("int");
+
+                    b.HasKey("revision_id");
+
+                    b.HasIndex("proj_id");
+
+                    b.HasIndex("revised_by");
+
+                    b.ToTable("ProjectRevisions");
+                });
+
             modelBuilder.Entity("NPI.Server.Models.ProjectStatusHistory", b =>
                 {
                     b.Property<int>("history_id")
@@ -935,6 +977,65 @@ namespace NPI.Server.Migrations
                     b.HasIndex("task_id");
 
                     b.ToTable("TaskRevisions", (string)null);
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.TaskRevisions", b =>
+                {
+                    b.Property<int>("task_revision_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("task_revision_id"));
+
+                    b.Property<int?>("dept_id")
+                        .HasColumnType("int");
+
+                    b.Property<float?>("duration")
+                        .HasColumnType("real");
+
+                    b.Property<DateOnly?>("new_end_date")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("new_start_date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("note")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateOnly?>("old_end_date")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("old_start_date")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("revised_on")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("revision_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("status")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("task_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("task_revision_id");
+
+                    b.HasIndex("dept_id");
+
+                    b.HasIndex("revision_id");
+
+                    b.HasIndex("task_id");
+
+                    b.ToTable("TaskRevisions");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Tasks", b =>

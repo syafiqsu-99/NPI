@@ -57,6 +57,7 @@ namespace NPI.Server.Controllers
             {
                 var task = await _taskService.GetTaskByIdAsync(taskId);
                 if (task == null)
+                {
                     return NotFound(new { success = false, message = "Task not found" });
 
                 return Ok(new { success = true, data = task });
@@ -76,7 +77,9 @@ namespace NPI.Server.Controllers
                 var (success, message, taskId) = await _taskService.CreateTaskAsync(dto, userId);
 
                 if (!success)
+                {
                     return BadRequest(new { success = false, message });
+                }
 
                 return Ok(new { success = true, message, data = new { task_id = taskId } });
             }
@@ -95,7 +98,9 @@ namespace NPI.Server.Controllers
                 var (success, message) = await _taskService.UpdateTaskAsync(taskId, dto, userId);
 
                 if (!success)
+                {
                     return BadRequest(new { success = false, message });
+                }
 
                 return Ok(new { success = true, message });
             }
@@ -113,7 +118,9 @@ namespace NPI.Server.Controllers
                 var (success, message) = await _taskService.DeleteTaskAsync(taskId);
 
                 if (!success)
+                {
                     return BadRequest(new { success = false, message });
+                }
 
                 return Ok(new { success = true, message });
             }
@@ -131,7 +138,9 @@ namespace NPI.Server.Controllers
                 var result = await _taskService.UpdateTaskStatusAsync(taskId, dto.status);
 
                 if (result.success)
+                {
                     return Ok(new { success = true, message = result.message });
+                }
 
                 return BadRequest(new { success = false, message = result.message });
             }
@@ -149,7 +158,9 @@ namespace NPI.Server.Controllers
                 var result = await _taskService.UpdateTaskProgressAsync(taskId, dto.per_complete);
 
                 if (result.success)
+                {
                     return Ok(new { success = true, message = result.message });
+                }
 
                 return BadRequest(new { success = false, message = result.message });
             }
@@ -168,9 +179,24 @@ namespace NPI.Server.Controllers
                     taskId, dto.new_start_date, dto.new_end_date, dto.note);
 
                 if (result.success)
+                {
                     return Ok(new { success = true, message = result.message });
 
                 return BadRequest(new { success = false, message = result.message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("by-project/{projectId}")]
+        public async Task<IActionResult> GetTasksByProject(int projectId)
+        {
+            try
+            {
+                var tasks = await _taskService.GetTasksByProjectAsync(projectId);
+                return Ok(new { success = true, data = tasks });
             }
             catch (Exception ex)
             {
