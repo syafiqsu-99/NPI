@@ -57,6 +57,11 @@ export default defineConfig({
         https: {
             key: fs.readFileSync(keyFilePath),
             cert: fs.readFileSync(certFilePath),
-        }
+        },
+        hmr: {
+          protocol: 'wss',
+          host: 'localhost',
+          clientPort: parseInt(env.DEV_SERVER_PORT || '59725')
+        },
     }
 })

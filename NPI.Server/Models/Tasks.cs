@@ -12,6 +12,12 @@ namespace NPI.Server.Models
         public int proj_id { get; set; }
         public int? parent_task_id { get; set; }
 
+        [StringLength(10)]
+        public string? stage_id { get; set; }
+
+        [StringLength(20)]
+        public string? task_code { get; set; }
+
         [Required]
         [StringLength(200)]
         public string title { get; set; }

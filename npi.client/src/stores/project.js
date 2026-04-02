@@ -55,6 +55,21 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  async function deleteProject(id) {
+    loading.value = true
+    error.value = null
+    try {
+      await api.delete(`/project/${id}`)
+      projects.value = projects.value.filter(p => p.proj_id !== id)
+      return { success: true }
+    } catch (err) {
+      error.value = err.message
+      return { success: false, message: err.message }
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     projects,
     currentProject,
@@ -62,6 +77,7 @@ export const useProjectStore = defineStore('project', () => {
     error,
     createProjectFromEnquiry,
     fetchProjectById,
-    fetchProjects
+    fetchProjects,
+    deleteProject,
   }
 })

@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
+using NPI.Server.DTOs;
 using NPI.Server.Models;
 
 namespace NPI.Server.Services
@@ -380,13 +381,13 @@ namespace NPI.Server.Services
             return $"ENQ-{year}-{nextNumber:D4}";
         }
 
-        // Helper method to map entity to response DTO
         private EnquiryResponseDto MapToResponseDto(Enquiries enquiry)
         {
             return new EnquiryResponseDto
             {
                 enquiry_id = enquiry.enquiry_id,
                 enquiry_no = enquiry.enquiry_no,
+                proj_id = enquiry.proj_id,
                 cust_id = enquiry.cust_id,
                 customer_name = enquiry.Customer?.comp_name,
                 npi_category = enquiry.npi_category,

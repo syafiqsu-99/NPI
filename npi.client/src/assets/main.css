@@ -14,3 +14,35 @@ html, body, #app {
   padding: 0;
 }
 
+.page-container {
+  min-height: 100%;
+}
+
+.page-header-card {
+  border-radius: 16px;
+}
+
+.page-card {
+  border-radius: 16px;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+
+.page-section-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dialog-card {
+  border-radius: 20px;
+}
+
+.section-divider {
+  margin-top: 8px;
+  margin-bottom: 16px;
+}

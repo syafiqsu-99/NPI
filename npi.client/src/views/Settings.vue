@@ -1,17 +1,14 @@
 <template>
-  <v-container fluid fill-height class="d-flex flex-column">
-    <v-row no-gutters align="center" justify="center">
-      <v-col cols="12" class="text-center">
-        <h2 class="font-weight-bold">
-          <v-icon class="mr-2">mdi-cog</v-icon>
-          System Settings
-        </h2>
-      </v-col>
-    </v-row>
-
-    <v-row no-gutters class="mb-4">
+  <v-container fluid class="page-container pa-6 d-flex flex-column">
+    <v-row class="mb-4">
       <v-col cols="12">
-        <v-card elevation="2">
+        <v-card class="page-header-card" elevation="2">
+          <v-card-title class="bg-primary text-white d-flex align-center justify-space-between">
+            <div class="page-title">
+              <v-icon class="mr-2">mdi-cog</v-icon>
+              Settings
+            </div>
+          </v-card-title>
           <v-card-text class="pa-0">
             <v-tabs v-model="activeTab" bg-color="primary">
               <v-tab value="users">
@@ -55,6 +52,11 @@
             </v-window>
           </v-card-text>
         </v-card>
+      </v-col>
+    </v-row>
+
+    <v-row no-gutters class="mb-4">
+      <v-col cols="12">
       </v-col>
     </v-row>
   </v-container>

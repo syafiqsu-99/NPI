@@ -83,15 +83,27 @@ namespace NPI.Server.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Tasks>()
-                .HasOne(t => t.ParentTask)
-                .WithMany(t => t.SubTasks)
-                .HasForeignKey(t => t.parent_task_id)
+                .HasOne(t => t.AssignedByUser)
+                .WithMany(u => u.AssignedTasks)
+                .HasForeignKey(t => t.assigned_by)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Tasks>()
-                .HasOne(t => t.AssignedByUser)
-                .WithMany()
-                .HasForeignKey(t => t.assigned_by)
+                .HasOne(t => t.Project)
+                .WithMany(p => p.Tasks)
+                .HasForeignKey(t => t.proj_id)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ProjectTeams>()
+                .HasOne(pt => pt.Project)
+                .WithMany(p => p.ProjectTeams)
+                .HasForeignKey(pt => pt.proj_id)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Tasks>()
+                .HasOne(t => t.ParentTask)
+                .WithMany(t => t.SubTasks)
+                .HasForeignKey(t => t.parent_task_id)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Milestones>()
@@ -99,6 +111,12 @@ namespace NPI.Server.Data
                 .WithOne(t => t.Milestone)
                 .HasForeignKey<Milestones>(m => m.task_id)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Files>()
+                .HasOne(f => f.Task)
+                .WithMany(t => t.Files)
+                .HasForeignKey(f => f.task_id)
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Files>()
                 .HasOne(f => f.ReplacedByFile)

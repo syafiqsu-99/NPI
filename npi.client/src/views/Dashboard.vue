@@ -1,216 +1,257 @@
 <template>
-  <v-container fluid fill-height class="d-flex flex-column">
-    <v-row no-gutters align="center" justify="center">
-      <v-col cols="12" class="text-center">
-        <h2 class="font-weight-bold">
-          <v-icon class="mr-2">mdi-clipboard-list-outline</v-icon>
-          Dashboard
-        </h2>
-      </v-col>
-    </v-row>
+  <v-container fluid class="pa-0 dashboard-root">
 
-    <!-- Loading State -->
-    <v-row v-if="loading" no-gutters class="fill-height" align="center" justify="center">
-      <v-col cols="auto">
-        <v-progress-circular indeterminate color="primary" size="64"></v-progress-circular>
-      </v-col>
-    </v-row>
-
-    <template v-else>
-      <!-- KPI ROW -->
-      <v-row no-gutters>
-        <v-col v-for="kpi in kpis" :key="kpi.title" cols="3">
-          <v-card class="fill-height ms-1" :color="kpi.color" variant="tonal">
-            <v-card-title class="text-caption">
-              {{ kpi.title }}
-            </v-card-title>
-            <v-card-text class="text-h4 font-weight-bold">
-              {{ kpi.value }}
-            </v-card-text>
+    <!-- KPI strip -->
+    <div class="kpi-strip px-4 pt-4 pb-2">
+      <v-row dense>
+        <v-col v-for="kpi in kpis" :key="kpi.title" cols="12" sm="6" md="3">
+          <v-card class="kpi-card d-flex flex-column justify-center" variant="tonal" :color="kpi.color">
+            <div class="text-caption text-uppercase text-medium-emphasis">{{ kpi.title }}</div>
+            <div class="text-h4 font-weight-bold">{{ kpi.value }}</div>
           </v-card>
         </v-col>
       </v-row>
+    </div>
 
-      <!-- MAIN CONTENT -->
-      <v-row no-gutters>
-        <!-- LEFT COLUMN -->
-        <v-col cols="4" class="fill-height d-flex flex-column">
-          <!-- CALENDAR -->
-          <v-card class="flex-grow-1 ma-1 d-flex flex-column">
-            <v-sheet class="d-flex" tile>
-              <v-btn class="ma-2"
-                     variant="text"
-                     icon
-                     @click="$refs.calendar.prev()">
-                <v-icon>mdi-chevron-left</v-icon>
-              </v-btn>
-              <v-spacer></v-spacer>
-              <v-card-title>Project Calendar</v-card-title>
-              <v-spacer></v-spacer>
-              <v-btn class="ma-2"
-                     variant="text"
-                     icon
-                     @click="$refs.calendar.next()">
-                <v-icon>mdi-chevron-right</v-icon>
-              </v-btn>
-            </v-sheet>
+    <!-- Loading -->
+    <div v-if="loading" class="d-flex align-center justify-center" style="height:400px">
+      <v-progress-circular indeterminate color="primary" size="64" />
+    </div>
 
-            <v-sheet class="flex-grow-1" height="450">
-              <v-calendar ref="calendar"
-                          type="month"
-                          :event-height="20"
-                          :event-margin-bottom="0"
-                          :weekdays="[0, 1, 2, 3, 4, 5, 6]"
-                          :events="calendarEvents"
-                          :event-color="e => e.color"
-                          class="fill-height"
-                          @click:event="onCalendarClick" />
-            </v-sheet>
-          </v-card>
+    <div v-else class="dashboard-body px-4 pb-4">
+      <v-row dense style="height:100%">
 
-          <!-- OVERDUE TASKS -->
-          <v-card class="flex-grow-1 ma-1">
-            <v-card-title>
-              <div class="d-flex align-center justify-space-between w-100">
-                <span>Overdue Tasks</span>
-                <v-chip size="small" color="error" v-if="overdueTasks.length > 0">
-                  {{ overdueTasks.length }}
-                </v-chip>
-              </div>
+        <!-- ── LEFT COLUMN ─────────────────────────────────────────────────── -->
+        <v-col cols="12" md="4" class="d-flex flex-column" style="gap:12px">
+
+          <!-- Calendar card -->
+          <v-card class="d-flex flex-column" style="min-height:0">
+            <v-card-title class="section-title d-flex align-center pa-3 pb-2">
+              <v-icon class="mr-2" size="18">mdi-calendar</v-icon>
+              Project Calendar
             </v-card-title>
+
             <v-divider />
 
-            <v-list v-if="overdueTasks.length > 0" density="compact">
+            <!-- Toolbar -->
+            <v-sheet height="56">
+              <v-toolbar flat density="compact">
+                <v-btn class="me-2"
+                       size="small"
+                       variant="outlined"
+                       @click="setToday">
+                  Today
+                </v-btn>
+
+                <v-btn icon size="small" variant="text" @click="prev">
+                  <v-icon size="18">mdi-chevron-left</v-icon>
+                </v-btn>
+
+                <v-btn icon size="small" variant="text" @click="next">
+                  <v-icon size="18">mdi-chevron-right</v-icon>
+                </v-btn>
+
+                <v-toolbar-title v-if="calendarRef">
+                  {{ calendarTitle }}
+                </v-toolbar-title>
+              </v-toolbar>
+            </v-sheet>
+
+            <!-- Calendar -->
+            <v-sheet height="500">
+              <v-calendar ref="calendarRef"
+                          v-model="calendarFocus"
+                          :events="calendarEvents"
+                          :type="calendarType"
+                          :event-color="getEventColor"
+                          color="primary"
+                          @click:event="showEvent"/>
+            </v-sheet>
+
+            <!-- Tooltip Menu -->
+            <v-menu v-model="selectedOpen"
+                    :activator="selectedElement"
+                    :close-on-content-click="false"
+                    location="end">
+              <v-card min-width="320" flat>
+                <v-toolbar :color="selectedEvent.color" density="compact">
+                  <v-toolbar-title>
+                    {{ selectedEvent.name }}
+                  </v-toolbar-title>
+                </v-toolbar>
+
+                <v-card-text class="text-body-2">
+                  <div><strong>Status:</strong> {{ selectedEvent.status }}</div>
+                  <div><strong>Progress:</strong> {{ selectedEvent.progress }}%</div>
+                  <div>
+                    <strong>Duration:</strong>
+                    {{ formatDate(selectedEvent.start) }}
+                    →
+                    {{ formatDate(selectedEvent.end) }}
+                  </div>
+                </v-card-text>
+
+                <v-card-actions>
+                  <v-spacer />
+                  <v-btn size="small"
+                         variant="text"
+                         @click="goToProject(selectedEvent.proj_id)">
+                    Open
+                  </v-btn>
+                  <v-btn size="small"
+                         variant="text"
+                         @click="selectedOpen = false">
+                    Close
+                  </v-btn>
+                </v-card-actions>
+              </v-card>
+            </v-menu>
+          </v-card>
+
+          <!-- Overdue tasks card — fixed height with internal scroll -->
+          <v-card style="flex-shrink:0">
+            <v-card-title class="section-title d-flex align-center justify-space-between pa-3 pb-2">
+              <div class="d-flex align-center">
+                <v-icon class="mr-2" size="18">mdi-alert-circle-outline</v-icon>
+                Overdue Tasks
+              </div>
+              <v-chip v-if="overdueTasks.length" size="small" color="error">
+                {{ overdueTasks.length }}
+              </v-chip>
+            </v-card-title>
+            <v-divider />
+            <v-list v-if="overdueTasks.length"
+                    density="compact"
+                    style="max-height:220px; overflow-y:auto">
               <v-list-item v-for="t in overdueTasks"
                            :key="t.task_id"
-                           @click="goToProject(t.proj_id)">
-                <v-list-item-title>
-                  {{ t.title }}
-                </v-list-item-title>
-                <v-list-item-subtitle>
-                  {{ t.proj_name }} · Due {{ formatDate(t.end_date) }}
+                           @click="goToProject(t.proj_id)"
+                           style="cursor:pointer">
+                <v-list-item-title class="text-body-2">{{ t.title }}</v-list-item-title>
+                <v-list-item-subtitle class="text-caption">
+                  {{ t.proj_name }} · Due {{ formatDate(t.planned_end_date) }}
                 </v-list-item-subtitle>
-
                 <template #append>
-                  <v-chip color="red" size="small">
-                    {{ t.days_overdue }}d
-                  </v-chip>
+                  <v-chip size="small" color="error" variant="tonal">{{ t.days_overdue }}d</v-chip>
                 </template>
               </v-list-item>
             </v-list>
-
-            <v-card-text v-else class="text-center text-grey">
-              <v-icon size="large" class="mb-2">mdi-check-circle-outline</v-icon>
-              <div>No overdue tasks</div>
-            </v-card-text>
+            <div v-else
+                 class="d-flex flex-column align-center justify-center text-medium-emphasis py-8">
+              <v-icon size="40">mdi-check-circle-outline</v-icon>
+              <div class="mt-2 text-caption">No overdue tasks</div>
+            </div>
           </v-card>
+
         </v-col>
 
-        <!-- RIGHT COLUMN - PROJECT TIMELINE -->
-        <v-col cols="8" class="fill-height">
-          <v-card class="fill-height">
-            <v-card-title>
-              <div class="d-flex align-center justify-space-between w-100">
-                <span>Projects Overview Timeline</span>
-                <v-btn size="small" variant="outlined" @click="loadDashboardData">
-                  <v-icon start>mdi-refresh</v-icon>
-                  Refresh
-                </v-btn>
+        <!-- ── RIGHT COLUMN — timeline ──────────────────────────────────────── -->
+        <v-col cols="12" md="8">
+          <v-card class="d-flex flex-column" style="height:100%; min-height:500px">
+
+            <v-card-title class="section-title d-flex align-center justify-space-between pa-3 pb-2">
+              <div class="d-flex align-center">
+                <v-icon class="mr-2" size="18">mdi-timeline-outline</v-icon>
+                Projects Timeline
               </div>
+              <v-btn size="small" variant="outlined" @click="loadDashboardData">
+                <v-icon start>mdi-refresh</v-icon>Refresh
+              </v-btn>
             </v-card-title>
-            <v-card-subtitle class="text-caption">
-              Click on a project to view detailed Gantt chart
-            </v-card-subtitle>
             <v-divider />
 
-            <v-data-table-virtual v-if="projectTimeline.length > 0"
-                                  fixed-header
-                                  :headers="timelineHeaders"
-                                  :items="projectTimeline"
-                                  height="100%"
-                                  class="project-timeline-table fill-height"
-                                  @click:row="(_, row) => goToProject(row.item.proj_id)">
+            <div class="timeline-wrapper" ref="timelineWrapper">
 
-              <!-- Project Name Column -->
-              <template #item.proj_name="{ item }">
-                <div class="d-flex align-center">
-                  <v-chip :color="projectStatusColor(item.status)"
-                          variant="tonal"
-                          size="small"
-                          class="mr-2">
-                    {{ item.status }}
-                  </v-chip>
-                  <span class="text-body-2">{{ item.proj_name }}</span>
-                </div>
-              </template>
+              <v-data-table v-if="projectTimeline.length"
+                            :headers="timelineHeaders"
+                            :items="projectTimeline"
+                            item-value="proj_id"
+                            class="timeline-table"
+                            density="compact"
+                            fixed-header
+                            height="100%"
+                            hide-default-footer
+                            :items-per-page="-1"
+                            @click:row="(_, row) => goToProject(row.item.proj_id)">
 
-              <!-- Progress Column -->
-              <template #item.progress="{ item }">
-                <div class="d-flex align-center" style="min-width: 100px;">
-                  <v-progress-linear :model-value="item.progress"
-                                     :color="getProgressColor(item.progress)"
-                                     height="6"
-                                     rounded
-                                     class="mr-2"
-                                     style="width: 60px;">
-                  </v-progress-linear>
-                  <span class="text-caption">{{ item.progress }}%</span>
-                </div>
-              </template>
+                <!-- Project column (fixed) -->
+                <template #item.proj_name="{ item }">
+                  <div class="d-flex flex-column py-1">
+                    <span class="text-body-2 font-weight-medium text-truncate">
+                      {{ item.proj_name }}
+                    </span>
+                    <div class="d-flex align-center mt-1" style="gap:4px">
+                      <v-chip :color="statusColor(item.status)" size="x-small" variant="tonal">
+                        {{ item.status }}
+                      </v-chip>
+                      <v-chip v-if="item.priority" :color="priorityColor(item.priority)" size="x-small" variant="tonal">
+                        {{ item.priority }}
+                      </v-chip>
+                    </div>
+                  </div>
+                </template>
 
-              <!-- Timeline Columns - Project Duration Bars -->
-              <template v-for="col in timelineWeeks"
-                        :key="col.value"
-                        #[`item.${col.value}`]="{ item }">
-                <div class="timeline-cell" :class="{ 'is-today': col.isToday }">
-                  <div v-if="shouldShowProjectBar(item, col)"
-                       class="project-bar"
-                       :class="getProjectBarClass(item)"
-                       :style="getProjectBarStyle(item, col)">
-                    <v-tooltip location="top">
-                      <template #activator="{ props }">
-                        <div v-bind="props" class="project-bar-content"></div>
-                      </template>
-                      <div>
-                        <strong>{{ item.proj_name }}</strong><br>
-                        Start: {{ formatDate(item.project_start_date) }}<br>
-                        Target: {{ formatDate(item.target_completion_date) }}<br>
-                        Progress: {{ item.progress }}%<br>
-                        Status: {{ item.status }}
+                <!-- Progress column (fixed) -->
+                <template #item.progress="{ item }">
+                  <div class="d-flex align-center" style="gap:6px; min-width:90px">
+                    <v-progress-linear :model-value="item.progress"
+                                       :color="progressColor(item.progress)"
+                                       height="8"
+                                       rounded
+                                       style="width:52px; flex-shrink:0" />
+                    <span class="text-caption" style="white-space:nowrap">{{ item.progress }}%</span>
+                  </div>
+                </template>
+
+                <!-- Empty date cells — bars drawn on overlay -->
+                <template v-for="col in timelineWeeks"
+                          :key="col.value"
+                          #[`item.${col.value}`]="{}">
+                  <div class="tl-empty-cell" :class="{ 'is-today': col.isToday }" />
+                </template>
+
+              </v-data-table>
+
+              <div v-if="!projectTimeline.length"
+                   class="d-flex flex-column align-center justify-center text-medium-emphasis"
+                   style="min-height:200px">
+                <v-icon size="56">mdi-folder-open-outline</v-icon>
+                <div class="mt-2">No projects available</div>
+              </div>
+
+              <!-- Bar overlay — positioned over date columns only -->
+              <div class="tl-bar-overlay" ref="tlBarOverlay" :style="tlOverlayStyle">
+                <template v-for="bar in tlBarLayout" :key="bar.proj_id">
+                  <v-tooltip location="top">
+                    <template #activator="{ props }">
+                      <div v-bind="props"
+                           :class="bar.cssClass"
+                           :style="bar.style"
+                           @click.stop="goToProject(bar.proj_id)">
+                        <span v-if="bar.label" class="tl-bar-label">{{ bar.label }}</span>
                       </div>
-                    </v-tooltip>
-                  </div>
+                    </template>
+                    <div style="font-size:12px; line-height:1.6">
+                      <strong>{{ bar.proj_name }}</strong><br>
+                      {{ bar.status }} · {{ bar.progress }}%<br>
+                      {{ formatDate(bar.start) }} → {{ formatDate(bar.end) }}
+                    </div>
+                  </v-tooltip>
+                </template>
+                <!-- Today vertical line -->
+                <div class="tl-today-line" :style="tlTodayLineStyle" />
+              </div>
 
-                  <!-- Milestone markers -->
-                  <div v-if="hasUpcomingMilestone(item, col)"
-                       class="timeline-milestone">
-                    <v-tooltip location="top">
-                      <template #activator="{ props }">
-                        <v-icon v-bind="props" size="x-small" color="warning">
-                          mdi-flag-variant
-                        </v-icon>
-                      </template>
-                      Upcoming Milestone
-                    </v-tooltip>
-                  </div>
-                </div>
-              </template>
-
-            </v-data-table-virtual>
-
-            <v-card-text v-else class="text-center text-grey pa-8">
-              <v-icon size="64" class="mb-4">mdi-folder-open-outline</v-icon>
-              <div>No projects to display</div>
-            </v-card-text>
+            </div>
           </v-card>
         </v-col>
-      </v-row>
-    </template>
 
-    <!-- Snackbar for errors -->
+      </v-row>
+    </div>
+
     <v-snackbar v-model="snackbar" :color="snackbarColor">
       {{ snackbarMessage }}
-      <template v-slot:actions>
+      <template #actions>
         <v-btn variant="text" @click="snackbar = false">Close</v-btn>
       </template>
     </v-snackbar>
@@ -218,311 +259,302 @@
 </template>
 
 <script setup>
-  import { ref, computed, onMounted } from 'vue'
+  import { ref, computed, onMounted, nextTick, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { api } from '@/utils/api'
 
   const router = useRouter()
 
-  // State
+  // ── State ─────────────────────────────────────────────────────────────────────
   const loading = ref(false)
   const projects = ref([])
-  const milestones = ref([])
-  const tasks = ref([])
+  const myTasks = ref([])
   const snackbar = ref(false)
   const snackbarMessage = ref('')
   const snackbarColor = ref('success')
 
-  // Navigation
-  const goToProject = projId => {
-    router.push(`/projects/${projId}/gantt`)
-  }
+  // v-calendar model — array of Date objects (current view anchor)
+  const calendarRef = ref(null)
+  const calendarFocus = ref('')
+  const calendarType = ref('month')
+  const selectedEvent = ref({})
+  const selectedOpen = ref(false)
+  const selectedElement = ref(null)
 
-  const onCalendarClick = ({ event }) => {
-    router.push(`/projects/${event.proj_id}/gantt`)
-  }
+  // Timeline overlay
+  const timelineWrapper = ref(null)
+  const tlBarOverlay = ref(null)
+  const tlOverlayLeft = ref(0)
+  const tlOverlayWidth = ref(0)
+  const tlRowHeight = ref(52)
+  const tlHeaderHeight = ref(36)
+  const TL_FIXED_COLS = 2
 
-  // Date formatting
-  const formatDate = d => {
+  // ── Navigation ────────────────────────────────────────────────────────────────
+  const goToProject = id => router.push(`/projects/${id}/gantt`)
+
+  // ── Helpers ───────────────────────────────────────────────────────────────────
+  function formatDate(d) {
     if (!d) return 'N/A'
-    return new Date(d).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    })
+    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+  function toMs(d) { return d ? new Date(d).getTime() : NaN }
+
+  function statusColor(s) {
+    return { Completed: 'success', 'In Progress': 'primary', 'On Hold': 'warning', Planning: 'grey', Cancelled: 'error' }[s] ?? 'grey'
+  }
+  function priorityColor(p) {
+    return { Low: 'grey', Medium: 'blue', High: 'orange', Critical: 'red' }[p] ?? 'grey'
+  }
+  function progressColor(v) {
+    if (v >= 100) return 'success'; if (v >= 50) return 'primary'; if (v > 0) return 'warning'; return 'grey'
+  }
+  function statusHex(s) {
+    return { Completed: '#4CAF50', 'In Progress': '#1976D2', 'On Hold': '#FF9800', Planning: '#9E9E9E', Cancelled: '#F44336' }[s] ?? '#9E9E9E'
   }
 
-  // Status color
-  const projectStatusColor = status => {
-    if (status === 'Completed') return 'green'
-    if (status === 'On Hold') return 'red'
-    if (status === 'Planning') return 'grey'
-    return 'amber'
-  }
-
-  const getProgressColor = (progress) => {
-    if (progress >= 100) return 'success'
-    if (progress >= 50) return 'primary'
-    if (progress > 0) return 'warning'
-    return 'grey'
-  }
-
-  // KPIs
+  // ── KPIs ──────────────────────────────────────────────────────────────────────
   const kpis = computed(() => [
-    {
-      title: 'In Progress',
-      value: projects.value.filter(p => p.status === 'In Progress').length,
-      color: 'amber',
-    },
-    {
-      title: 'On Hold',
-      value: projects.value.filter(p => p.status === 'On Hold').length,
-      color: 'red',
-    },
-    {
-      title: 'Completed',
-      value: projects.value.filter(p => p.status === 'Completed').length,
-      color: 'green',
-    },
-    {
-      title: 'Total Projects',
-      value: projects.value.length,
-      color: 'blue',
-    },
+    { title: 'In Progress', value: projects.value.filter(p => p.status === 'In Progress').length, color: 'blue' },
+    { title: 'On Hold', value: projects.value.filter(p => p.status === 'On Hold').length, color: 'orange' },
+    { title: 'Completed', value: projects.value.filter(p => p.status === 'Completed').length, color: 'green' },
+    { title: 'Total Projects', value: projects.value.length, color: 'primary' },
   ])
 
-  // Overdue Tasks
+  // ── Overdue tasks ─────────────────────────────────────────────────────────────
   const overdueTasks = computed(() => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    return tasks.value
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    return myTasks.value
       .filter(t => {
-        if (t.status === 'Completed') return false
-        const endDate = new Date(t.end_date)
-        endDate.setHours(0, 0, 0, 0)
-        return endDate < today
+        if (['Completed', 'Cancelled'].includes(t.status)) return false
+        if (!t.planned_end_date) return false
+        const end = new Date(t.planned_end_date); end.setHours(0, 0, 0, 0)
+        return end < today
       })
       .map(t => {
-        const endDate = new Date(t.end_date)
-        const diffTime = today - endDate
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-        return {
-          ...t,
-          days_overdue: diffDays
-        }
+        const end = new Date(t.planned_end_date); end.setHours(0, 0, 0, 0)
+        return { ...t, days_overdue: Math.ceil((today - end) / 86400000) }
       })
       .sort((a, b) => b.days_overdue - a.days_overdue)
-      .slice(0, 10) // Show top 10
+      .slice(0, 15)
   })
 
-  // Calendar Events
+  const calendarTitle = computed(() => {
+    return calendarRef.value?.title ?? ''
+  })
+
   const calendarEvents = computed(() =>
-    projects.value.map(p => ({
-      name: p.proj_name,
-      start: p.project_start_date,
-      end: p.target_completion_date,
-      color: projectStatusColor(p.status),
-      allDay: true,
-      proj_id: p.proj_id,
-    }))
+    projectTimeline.value
+      .filter(p => p.project_start_date && p.target_completion_date)
+      .map(p => ({
+        name: p.proj_name,
+        start: new Date(p.project_start_date),
+        end: new Date(p.target_completion_date),
+        color: statusHex(p.status),
+        proj_id: p.proj_id,
+        status: p.status,
+        progress: p.progress,
+        timed: false,
+      }))
   )
 
-  // Timeline for Projects (Weeks view)
-  const firstMonday = computed(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - d.getDay() + 1)
-    d.setDate(d.getDate() - 14) // Start 2 weeks ago
+  // ── Calendar methods ───────────────────────────────────────────
+  function getEventColor(event) {
+    return event.color
+  }
+
+  function setToday() {
+    calendarFocus.value = ''
+  }
+
+  function prev() {
+    calendarRef.value?.prev()
+  }
+
+  function next() {
+    calendarRef.value?.next()
+  }
+
+  function showEvent(nativeEvent, { event }) {
+    const open = () => {
+      selectedEvent.value = event
+      selectedElement.value = nativeEvent.target
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => (selectedOpen.value = true))
+      )
+    }
+
+    if (selectedOpen.value) {
+      selectedOpen.value = false
+      requestAnimationFrame(() =>
+        requestAnimationFrame(open)
+      )
+    } else {
+      open()
+    }
+
+    nativeEvent.stopPropagation()
+  }
+
+  // ── Timeline ──────────────────────────────────────────────────────────────────
+  // Span: 4 weeks before today → 20 weeks after (week columns)
+  const tlFirstMonday = computed(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 28) // back to Mon, -4 weeks
     return d
   })
 
   const timelineWeeks = computed(() => {
-    const weeks = []
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    for (let i = 0; i < 20; i++) {
-      const weekStart = new Date(firstMonday.value)
-      weekStart.setDate(firstMonday.value.getDate() + i * 7)
-
-      const weekEnd = new Date(weekStart)
-      weekEnd.setDate(weekStart.getDate() + 6)
-
-      const isToday = today >= weekStart && today <= weekEnd
-
-      weeks.push({
-        title: weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-        value: `week_${i}`,
-        width: '50px',
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    return Array.from({ length: 24 }, (_, i) => {
+      const ws = new Date(tlFirstMonday.value); ws.setDate(ws.getDate() + i * 7)
+      const we = new Date(ws); we.setDate(we.getDate() + 6)
+      return {
+        title: ws.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+        value: `tlw_${i}`,
+        width: '72px',
         align: 'center',
         sortable: false,
-        weekStart,
-        weekEnd,
-        isToday
-      })
-    }
-
-    return weeks
+        date: ws,
+        endDate: we,
+        isToday: today >= ws && today <= we,
+      }
+    })
   })
 
+  // Both Project and Progress columns are fixed (sticky) so they don't scroll away
   const timelineHeaders = computed(() => [
-    {
-      title: 'PROJECT',
-      value: 'proj_name',
-      width: '300px',
-      fixed: true,
-      sortable: false
-    },
-    {
-      title: 'PROGRESS',
-      value: 'progress',
-      width: '120px',
-      sortable: false
-    },
+    { title: 'Project', value: 'proj_name', width: '220px', sortable: false, fixed: true },
+    { title: 'Progress', value: 'progress', width: '110px', sortable: false, fixed: true },
     ...timelineWeeks.value,
   ])
 
-  // Project Timeline with Progress
-  const projectTimeline = computed(() => {
-    return projects.value.map(p => {
-      // Calculate project progress from tasks
-      const projectTasks = tasks.value.filter(t => t.proj_id === p.proj_id)
-      let progress = 0
+  const tlStart = computed(() => tlFirstMonday.value)
+  const tlEnd = computed(() => {
+    const e = new Date(tlFirstMonday.value); e.setDate(e.getDate() + 24 * 7); return e
+  })
+  const tlMs = computed(() => tlEnd.value - tlStart.value)
 
-      if (projectTasks.length > 0) {
-        const totalProgress = projectTasks.reduce((sum, t) => sum + (t.per_complete || 0), 0)
-        progress = Math.round(totalProgress / projectTasks.length)
-      }
+  const projectTimeline = computed(() =>
+    projects.value.map(p => {
+      const pt = myTasks.value.filter(t => t.proj_id === p.proj_id)
+      const progress = pt.length
+        ? Math.round(pt.reduce((s, t) => s + (t.per_complete || 0), 0) / pt.length)
+        : 0
+      return { ...p, progress }
+    })
+  )
 
-      return {
-        proj_id: p.proj_id,
-        proj_name: p.proj_name,
-        status: p.status,
-        project_start_date: p.project_start_date,
-        target_completion_date: p.target_completion_date,
-        progress
-      }
+  // ── Timeline overlay measurement ──────────────────────────────────────────────
+  function measureTlOverlay() {
+    nextTick(() => {
+      const wrapper = timelineWrapper.value
+      if (!wrapper) return
+      const table = wrapper.querySelector('table')
+      if (!table) return
+
+      const allTh = Array.from(table.querySelectorAll('thead tr th'))
+      if (allTh.length <= TL_FIXED_COLS) return
+
+      const scrollable = wrapper.querySelector('.v-table__wrapper')
+      const wrapperRect = wrapper.getBoundingClientRect()
+      const firstDateTh = allTh[TL_FIXED_COLS]
+      const lastDateTh = allTh[allTh.length - 1]
+
+      // overlayLeft is measured relative to wrapper + current scrollLeft
+      tlOverlayLeft.value = firstDateTh.getBoundingClientRect().left
+        - wrapperRect.left
+        + (scrollable?.scrollLeft ?? 0)
+      tlOverlayWidth.value = lastDateTh.getBoundingClientRect().right
+        - firstDateTh.getBoundingClientRect().left
+
+      const firstTr = table.querySelector('tbody tr')
+      if (firstTr) tlRowHeight.value = firstTr.getBoundingClientRect().height || 52
+
+      const headerTr = table.querySelector('thead tr')
+      if (headerTr) tlHeaderHeight.value = headerTr.getBoundingClientRect().height || 36
+    })
+  }
+
+  // ── Bar layout ────────────────────────────────────────────────────────────────
+  const tlBarLayout = computed(() => {
+    if (!tlOverlayWidth.value || !tlMs.value) return []
+
+    const tsMs = tlStart.value.getTime()
+    const totMs = tlMs.value
+    const barH = Math.max(8, Math.floor(tlRowHeight.value * 0.42))
+
+    return projectTimeline.value.flatMap((p, idx) => {
+      if (!p.project_start_date || !p.target_completion_date) return []
+      const sMs = toMs(p.project_start_date)
+      const eMs = toMs(p.target_completion_date) + 86400000 // include end day
+      if (isNaN(sMs) || isNaN(eMs) || eMs <= sMs) return []
+
+      const leftPct = Math.max(0, (sMs - tsMs) / totMs) * 100
+      const widthPct = Math.min(100 - leftPct, ((eMs - sMs) / totMs) * 100)
+      if (widthPct <= 0) return []
+
+      const topOffset = idx * tlRowHeight.value + Math.floor(tlRowHeight.value * 0.28)
+      const slug = (p.status ?? 'planning').toLowerCase().replace(/\s+/g, '-')
+
+      return [{
+        proj_id: p.proj_id, proj_name: p.proj_name,
+        status: p.status, start: p.project_start_date,
+        end: p.target_completion_date, progress: p.progress,
+        cssClass: `tl-bar tl-bar-${slug}`,
+        label: widthPct > 5 ? p.proj_name : '',
+        style: {
+          top: `${topOffset}px`,
+          left: `${leftPct}%`,
+          width: `${widthPct}%`,
+          height: `${barH}px`,
+          '--tl-progress': `${p.progress}%`,
+        }
+      }]
     })
   })
+  
+  const tlOverlayStyle = computed(() => ({
+    position: 'absolute',
+    top: `${tlHeaderHeight.value}px`,
+    left: `${tlOverlayLeft.value}px`,
+    width: `${tlOverlayWidth.value}px`,
+    pointerEvents: 'none',
+    overflow: 'visible',
+    zIndex: 5,
+  }))
 
-  // Timeline Helper Functions
-  function shouldShowProjectBar(project, week) {
-    if (!project.project_start_date || !project.target_completion_date) return false
+  const tlTodayLineStyle = computed(() => {
+    if (!tlOverlayWidth.value || !tlMs.value) return { display: 'none' }
+    const pct = ((new Date().setHours(0, 0, 0, 0) - tlStart.value.getTime()) / tlMs.value) * 100
+    if (pct < 0 || pct > 100) return { display: 'none' }
+    return { display: 'block', left: `${pct}%`, top: '0', height: '100%' }
+  })
 
-    const projectStart = new Date(project.project_start_date)
-    const projectEnd = new Date(project.target_completion_date)
-    projectStart.setHours(0, 0, 0, 0)
-    projectEnd.setHours(23, 59, 59, 999)
-
-    return projectStart <= week.weekEnd && projectEnd >= week.weekStart
-  }
-
-  function getProjectBarStyle(project, week) {
-    const projectStart = new Date(project.project_start_date)
-    const projectEnd = new Date(project.target_completion_date)
-    projectStart.setHours(0, 0, 0, 0)
-    projectEnd.setHours(23, 59, 59, 999)
-
-    const weekDuration = week.weekEnd.getTime() - week.weekStart.getTime()
-
-    let left = 0
-    let width = 100
-
-    // Project starts and ends within this week
-    if (projectStart >= week.weekStart && projectEnd <= week.weekEnd) {
-      left = ((projectStart.getTime() - week.weekStart.getTime()) / weekDuration) * 100
-      width = ((projectEnd.getTime() - projectStart.getTime()) / weekDuration) * 100
-    }
-    // Project starts before week
-    else if (projectStart < week.weekStart && projectEnd <= week.weekEnd) {
-      left = 0
-      width = ((projectEnd.getTime() - week.weekStart.getTime()) / weekDuration) * 100
-    }
-    // Project ends after week
-    else if (projectStart >= week.weekStart && projectEnd > week.weekEnd) {
-      left = ((projectStart.getTime() - week.weekStart.getTime()) / weekDuration) * 100
-      width = ((week.weekEnd.getTime() - projectStart.getTime()) / weekDuration) * 100
-    }
-    // Project spans entire week
-    else {
-      left = 0
-      width = 100
-    }
-
-    return {
-      left: `${left}%`,
-      width: `${width}%`,
-      '--progress': `${project.progress}%`
-    }
-  }
-
-  function getProjectBarClass(project) {
-    const status = project.status?.toLowerCase().replace(' ', '-')
-    return [`project-bar-${status}`]
-  }
-
-  function hasUpcomingMilestone(project, week) {
-    return milestones.value.some(m => {
-      if (m.proj_id !== project.proj_id || !m.planned_date || m.actual_date) return false
-
-      const mDate = new Date(m.planned_date)
-      mDate.setHours(0, 0, 0, 0)
-
-      return mDate >= week.weekStart && mDate <= week.weekEnd
+  function attachScrollSync() {
+    nextTick(() => {
+      const tw = timelineWrapper.value?.querySelector('.v-table__wrapper')
+      const ov = tlBarOverlay.value
+      if (!tw || !ov) return
+      tw.addEventListener('scroll', () => {
+        ov.style.left = `${tlOverlayLeft.value - tw.scrollLeft}px`
+        ov.style.top = `${tlHeaderHeight.value - tw.scrollTop}px`
+      })
     })
   }
 
-  // Data Loading
+  // ── Data loading ──────────────────────────────────────────────────────────────
   async function loadDashboardData() {
     loading.value = true
-
     try {
-      // Load all projects
-      const projectsResult = await api.get('/project')
-      if (projectsResult?.success && projectsResult?.data) {
-        projects.value = projectsResult.data
-      } else if (Array.isArray(projectsResult)) {
-        projects.value = projectsResult
-      } else {
-        projects.value = []
-      }
-
-      // Load all tasks for overdue calculation and progress
-      const tasksPromises = projects.value.map(p =>
-        api.get(`/project/${p.proj_id}/tasks`)
-          .then(result => {
-            const taskData = result?.data || result || []
-            return taskData.map(t => ({
-              ...t,
-              proj_id: p.proj_id,
-              proj_name: p.proj_name
-            }))
-          })
-          .catch(() => [])
-      )
-
-      const allTasks = await Promise.all(tasksPromises)
-      tasks.value = allTasks.flat()
-
-      // Load all milestones
-      const milestonesPromises = projects.value.map(p =>
-        api.get(`/project/${p.proj_id}`)
-          .then(result => {
-            const milestoneData = result?.data || result || []
-            return milestoneData.map(m => ({
-              ...m,
-              proj_id: p.proj_id
-            }))
-          })
-          .catch(() => [])
-      )
-
-      const allMilestones = await Promise.all(milestonesPromises)
-      milestones.value = allMilestones.flat()
-
-    } catch (error) {
-      console.error('Error loading dashboard data:', error)
+      const [pr, tr] = await Promise.all([
+        api.get('/project'),
+        api.get('/task/my-tasks'),
+      ])
+      projects.value = pr?.success ? (pr.data ?? []) : (Array.isArray(pr) ? pr : [])
+      myTasks.value = tr?.data ?? (Array.isArray(tr) ? tr : [])
+    } catch (err) {
+      console.error(err)
       snackbarMessage.value = 'Failed to load dashboard data'
       snackbarColor.value = 'error'
       snackbar.value = true
@@ -531,86 +563,195 @@
     }
   }
 
-  onMounted(() => {
-    loadDashboardData()
+  watch(projectTimeline, () => nextTick(measureTlOverlay))
+  if (typeof window !== 'undefined') window.addEventListener('resize', measureTlOverlay)
+
+  onMounted(async () => {
+    await loadDashboardData()
+    measureTlOverlay()
+    attachScrollSync()
+
+    console.log("Projects Data: ", projects.value);
   })
 </script>
 
 <style scoped>
-  .project-timeline-table :deep(.v-table__wrapper) {
-    cursor: pointer;
+  .dashboard-root {
+    background: #f5f6f8;
+    min-height: 100vh;
   }
 
-  .project-timeline-table :deep(tbody tr:hover) {
-    background-color: rgba(0, 0, 0, 0.04);
+  .dashboard-body {
+    padding-top: 0;
   }
 
-  .project-timeline-table :deep(th),
-  .project-timeline-table :deep(td) {
-    border-right: 1px solid rgba(0, 0, 0, 0.05);
+  .kpi-card {
+    height: 88px;
+    border-radius: 12px;
+    padding: 14px 16px;
   }
 
-  .timeline-cell {
+  .section-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .timeline-wrapper {
     position: relative;
-    height: 32px;
-    min-width: 100%;
-  }
-
-    .timeline-cell.is-today {
-      background-color: rgba(33, 150, 243, 0.08);
-      border-left: 2px solid rgba(33, 150, 243, 0.4);
-    }
-
-  .project-bar {
-    position: absolute;
-    height: 20px;
-    border-radius: 10px;
-    top: 6px;
-    display: flex;
-    align-items: center;
     overflow: hidden;
-    transition: all 0.2s;
-    cursor: pointer;
+    flex: 1;
+    min-height: 0;
   }
 
-    .project-bar:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-      z-index: 10;
-      height: 22px;
-      top: 5px;
-    }
-
-  .project-bar-planning {
-    background: linear-gradient(to right, rgba(158, 158, 158, 0.7) 0%, rgba(158, 158, 158, 0.4) 100% );
-    border: 1px solid rgba(158, 158, 158, 0.8);
-  }
-
-  .project-bar-in-progress {
-    background: linear-gradient(to right, rgba(33, 150, 243, 0.9) 0%, rgba(33, 150, 243, 0.9) var(--progress), rgba(33, 150, 243, 0.3) var(--progress), rgba(33, 150, 243, 0.3) 100% );
-    border: 1px solid rgba(33, 150, 243, 1);
-  }
-
-  .project-bar-completed {
-    background: rgba(76, 175, 80, 0.8);
-    border: 1px solid rgba(76, 175, 80, 1);
-  }
-
-  .project-bar-on-hold {
-    background: rgba(255, 152, 0, 0.8);
-    border: 1px solid rgba(255, 152, 0, 1);
-  }
-
-  .project-bar-content {
-    width: 100%;
+  .timeline-table :deep(.v-table__wrapper) {
+    overflow-x: auto;
+    overflow-y: auto;
     height: 100%;
   }
 
-  .timeline-milestone {
+  .timeline-table :deep(th),
+  .timeline-table :deep(td) {
+    white-space: nowrap;
+    border-right: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 0 8px !important;
+  }
+
+  .timeline-table :deep(tbody tr) {
+    cursor: pointer;
+  }
+
+  .timeline-table :deep(tbody tr:hover td) {
+    background-color: rgba(0, 0, 0, 0.025) !important;
+  }
+
+  .timeline-wrapper {
+    position: relative;
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .timeline-table :deep(.v-table__wrapper) {
+    overflow-x: auto;
+    overflow-y: auto;
+    height: 100%;
+  }
+
+  .timeline-table :deep(th),
+  .timeline-table :deep(td) {
+    white-space: nowrap;
+    border-right: 1px solid rgba(0,0,0,0.05);
+    padding: 0 8px !important;
+  }
+
+  .timeline-table :deep(tbody tr:hover td) {
+    background-color: rgba(0,0,0,0.025) !important;
+  }
+
+  .timeline-table :deep(th:nth-child(1)),
+  .timeline-table :deep(td:nth-child(1)),
+  .timeline-table :deep(th:nth-child(2)),
+  .timeline-table :deep(td:nth-child(2)) {
+    background: #ffffff !important;
+    position: sticky;
+    z-index: 15;
+  }
+
+  .timeline-table :deep(th) {
+    z-index: 16;
+  }
+
+  .timeline-table :deep(tbody tr td) {
+    height: 52px !important;
+    vertical-align: middle;
+  }
+
+  .tl-empty-cell {
+    height: 52px;
+    width: 100%;
+  }
+
+  .tl-empty-cell.is-today {
+    background-color: rgba(33,150,243,0.06);
+    border-left: 2px solid rgba(33,150,243,0.35);
+  }
+
+  .tl-empty-cell {
+    height: 52px;
+    width: 100%;
+  }
+
+  .tl-empty-cell.is-today {
+    background-color: rgba(33, 150, 243, 0.05);
+    border-left: 2px solid rgba(33, 150, 243, 0.35);
+  }
+
+  .tl-bar-overlay {
+    pointer-events: none;
     position: absolute;
-    bottom: 2px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 5;
+    overflow: visible;
+  }
+
+  .tl-bar {
+    position: absolute;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    pointer-events: all;
+    cursor: pointer;
+    transition: filter 0.12s, box-shadow 0.12s;
+    min-width: 4px;
+  }
+
+  .tl-bar:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+    z-index: 20;
+  }
+
+  .tl-bar-planning {
+    background: rgba(158, 158, 158, 0.45);
+    border: 1px solid rgba(158, 158, 158, 0.75);
+  }
+
+  .tl-bar-in-progress {
+    background: linear-gradient( to right, rgba(25, 118, 210, 0.9) var(--tl-progress), rgba(25, 118, 210, 0.25) var(--tl-progress) );
+    border: 1px solid rgba(25, 118, 210, 1);
+  }
+
+  .tl-bar-completed {
+    background: rgba(76, 175, 80, 0.85);
+    border: 1px solid rgba(76, 175, 80, 1);
+  }
+
+  .tl-bar-on-hold {
+    background: rgba(255, 152, 0, 0.85);
+    border: 1px solid rgba(255, 152, 0, 1);
+  }
+
+  .tl-bar-cancelled {
+    background: rgba(244, 67, 54, 0.6);
+    border: 1px solid rgba(244, 67, 54, 0.9);
+  }
+
+  .tl-bar-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 5px;
+  }
+
+  /* Today vertical line */
+  .tl-today-line {
+    position: absolute;
+    width: 2px;
+    background: rgba(33, 150, 243, 0.72);
+    pointer-events: none;
+    z-index: 10;
   }
 </style>

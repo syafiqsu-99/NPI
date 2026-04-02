@@ -20,9 +20,8 @@ namespace NPI.Server.Services
             _context = context;
             _taskService = taskService;
             _configuration = configuration;
-            _basePath = configuration["FileStorage:BasePath"] ?? @"D:\NPI_Projects";
+            _basePath = configuration["FileStorage:BasePath"];
         }
-
 
         public async Task<(bool success, string message, List<int> fileIds)> UploadFilesAsync(
             List<IFormFile> files,
@@ -35,14 +34,14 @@ namespace NPI.Server.Services
             var uploadedFileIds = new List<int>();
             try
             {
-                var taskFolderPath = await _taskService.GetTaskFolderPathAsync(taskId);
+                var folderPath = await _taskService.GetTaskFolderPathAsync(taskId);
 
-                if (taskFolderPath == null)
+                if (folderPath == null)
                     return (false,
                         $"Could not resolve upload folder for task {taskId}. " +
-                        "Ensure the task and its project exist.", uploadedFileIds);
+                        "Ensure the task and its project/department exist.", uploadedFileIds);
 
-                Directory.CreateDirectory(taskFolderPath);
+                Directory.CreateDirectory(folderPath);
 
                 var task = await _context.Tasks.FindAsync(taskId);
                 if (task == null)
@@ -52,7 +51,7 @@ namespace NPI.Server.Services
                 {
                     if (file.Length == 0) continue;
 
-                    var destPath = BuildUniqueFilePath(taskFolderPath, file.FileName);
+                    var destPath = BuildUniqueFilePath(folderPath, file.FileName);
 
                     using (var stream = new FileStream(destPath, FileMode.Create))
                         await file.CopyToAsync(stream);
@@ -89,7 +88,6 @@ namespace NPI.Server.Services
             }
         }
 
-
         public async Task<(bool Success, string Message, Files? File)> UploadFileAsync(
             IFormFile file,
             int projId,
@@ -108,26 +106,23 @@ namespace NPI.Server.Services
 
                 if (taskId.HasValue)
                 {
-                    // Task upload — resolve via TaskService, never via proj_id
-                    var taskFolderPath = await _taskService.GetTaskFolderPathAsync(taskId.Value);
-                    if (taskFolderPath == null)
+                    var folderPath = await _taskService.GetTaskFolderPathAsync(taskId.Value);
+                    if (folderPath == null)
                         return (false,
                             $"Could not resolve upload folder for task {taskId.Value}. " +
-                            "Ensure the task and its project exist.", null);
+                            "Ensure the task and its project/department exist.", null);
 
-                    Directory.CreateDirectory(taskFolderPath);
-                    filePath = BuildUniqueFilePath(taskFolderPath, file.FileName);
+                    Directory.CreateDirectory(folderPath);
+                    filePath = BuildUniqueFilePath(folderPath, file.FileName);
                 }
                 else if (enquiryId.HasValue)
                 {
-                    // Enquiry upload — enquiry folder is keyed by enquiry_id (unchanged)
                     var enquiryPath = Path.Combine(_basePath, "enquiries", enquiryId.Value.ToString());
                     Directory.CreateDirectory(enquiryPath);
                     filePath = BuildUniqueFilePath(enquiryPath, file.FileName);
                 }
                 else
                 {
-                    // Project-level upload (no task) — use proj_name folder
                     var project = await _context.Projects.FindAsync(projId);
                     if (project == null)
                         return (false, "Project not found", null);
@@ -170,7 +165,6 @@ namespace NPI.Server.Services
             }
         }
 
-
         public async Task<List<FileResponseDto>> GetFilesByTaskAsync(int taskId)
         {
             var files = await _context.Files
@@ -204,7 +198,6 @@ namespace NPI.Server.Services
 
             return files.Select(MapToResponseDto).ToList();
         }
-
 
         public async Task<(bool Success, byte[]? FileData, string? ContentType)> DownloadFileAsync(int fileId)
         {
@@ -268,6 +261,8 @@ namespace NPI.Server.Services
                 .Where(f => f.task_id == taskId && f.is_latest)
                 .CountAsync();
         }
+
+        // ── Helpers ───────────────────────────────────────────────────────────
 
         private static string BuildUniqueFilePath(string folderPath, string originalFileName)
         {

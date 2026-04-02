@@ -120,24 +120,18 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost("from-enquiry/{enquiryId}")]
-        public async Task<IActionResult> CreateProjectFromEnquiry(int enquiryId)
+        public async Task<IActionResult> CreateProjectFromEnquiry(int enquiryId, [FromBody] CreateProjectFromEnquiryDto? dto = null)
         {
             try
             {
                 var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-                var (success, message, proj_id) = await _projectService.CreateProjectFromEnquiryAsync(enquiryId, userId);
+                var (success, message, proj_id) =
+                    await _projectService.CreateProjectFromEnquiryAsync(enquiryId, userId, dto);
 
                 if (!success)
-                {
                     return BadRequest(new { success = false, message });
-                }
 
-                return Ok(new
-                {
-                    success = true,
-                    message,
-                    data = new { proj_id }
-                });
+                return Ok(new { success = true, message, data = new { proj_id } });
             }
             catch (Exception ex)
             {
@@ -182,11 +176,14 @@ namespace NPI.Server.Controllers
                 var (success, message, folderWarnings) = await _projectService.LaunchProjectAsync(id, dto, userId);
 
                 if (!success)
-                {
                     return BadRequest(new { success = false, message });
-                }
 
-                return Ok(new { success = true, message });
+                return Ok(new
+                {
+                    success = true,
+                    message,
+                    folder_warnings = folderWarnings ?? new List<string>()
+                });
             }
             catch (Exception ex)
             {

@@ -78,7 +78,10 @@ namespace NPI.Server.DTOs
         public string? storage_path { get; set; }
         public DateTime created_at { get; set; }
         public DateTime? updated_at { get; set; }
+        public bool pilot_mould_required { get; set; }
+        public bool machine_purchase_required { get; set; }
         public List<TeamMemberDto> team_members { get; set; } = new();
+        public Dictionary<string, StageProgressDto>? stage_progress { get; set; }
     }
 
     public class TeamMemberDto
@@ -106,6 +109,9 @@ namespace NPI.Server.DTOs
 
         [StringLength(50)]
         public string? priority { get; set; }
+        public string? description { get; set; }
+        public bool pilot_mould_required { get; set; } = false;
+        public bool machine_purchase_required { get; set; } = false;
     }
 
     public class TeamMemberInputDto
@@ -124,6 +130,8 @@ namespace NPI.Server.DTOs
     public class TaskUpdateDto
     {
         public int? task_id { get; set; }
+        public string? stage_id { get; set; }
+        public string? task_code { get; set; }
 
         [Required(ErrorMessage = "Task title is required")]
         [StringLength(200, ErrorMessage = "Title cannot exceed 200 characters")]
@@ -157,8 +165,26 @@ namespace NPI.Server.DTOs
         public string? status { get; set; }
 
         public int task_id { get; set; }
+        public string? stage_id { get; set; }
+        public string? task_code { get; set; }
 
         public int? responsible_dept_id { get; set; }
         public string? dept_name { get; set; }
+    }
+
+    public class StageProgressDto
+    {
+        public bool completed { get; set; }
+        public bool in_progress { get; set; }
+        public int task_count { get; set; }
+        public int completed_count { get; set; }
+    }
+
+    public class CreateProjectFromEnquiryDto
+    {
+        public string? project_name { get; set; }
+        public string? priority { get; set; }
+        public string? description { get; set; }
+        public DateOnly? expected_completion { get; set; }
     }
 }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NPI.Server.Data;
 
@@ -11,9 +12,11 @@ using NPI.Server.Data;
 namespace NPI.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260302092054_NPI8")]
+    partial class NPI8
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -78,7 +81,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("task_id");
 
-                    b.ToTable("Approvals", (string)null);
+                    b.ToTable("Approvals");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.AuditLogs", b =>
@@ -125,7 +128,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("user_id");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Comments", b =>
@@ -163,7 +166,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("user_id");
 
-                    b.ToTable("Comments", (string)null);
+                    b.ToTable("Comments");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Customers", b =>
@@ -202,7 +205,7 @@ namespace NPI.Server.Migrations
 
                     b.HasKey("cust_id");
 
-                    b.ToTable("Customers", (string)null);
+                    b.ToTable("Customers");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Departments", b =>
@@ -239,7 +242,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("Projectsproj_id");
 
-                    b.ToTable("Departments", (string)null);
+                    b.ToTable("Departments");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.DocumentTypes", b =>
@@ -269,7 +272,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("dept_id");
 
-                    b.ToTable("DocumentTypes", (string)null);
+                    b.ToTable("DocumentTypes");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Enquiries", b =>
@@ -327,7 +330,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("proj_id");
 
-                    b.ToTable("Enquiries", (string)null);
+                    b.ToTable("Enquiries");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.EnquiryCustomerRef", b =>
@@ -341,7 +344,7 @@ namespace NPI.Server.Migrations
 
                     b.HasKey("enquiry_id");
 
-                    b.ToTable("EnquiryCustomerRef", (string)null);
+                    b.ToTable("EnquiryCustomerRef");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.EnquiryGeneralInfo", b =>
@@ -403,7 +406,7 @@ namespace NPI.Server.Migrations
 
                     b.HasKey("enquiry_id");
 
-                    b.ToTable("EnquiryGeneralInfo", (string)null);
+                    b.ToTable("EnquiryGeneralInfo");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.EnquirySealInfo", b =>
@@ -433,7 +436,7 @@ namespace NPI.Server.Migrations
 
                     b.HasKey("enquiry_id");
 
-                    b.ToTable("EnquirySealInfo", (string)null);
+                    b.ToTable("EnquirySealInfo");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Files", b =>
@@ -511,7 +514,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("upload_by");
 
-                    b.ToTable("Files", (string)null);
+                    b.ToTable("Files");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Milestones", b =>
@@ -561,7 +564,7 @@ namespace NPI.Server.Migrations
                     b.HasIndex("task_id")
                         .IsUnique();
 
-                    b.ToTable("Milestones", (string)null);
+                    b.ToTable("Milestones");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Notifications", b =>
@@ -608,7 +611,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("user_id");
 
-                    b.ToTable("Notifications", (string)null);
+                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.ProjectRevisions", b =>
@@ -650,7 +653,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("revised_by");
 
-                    b.ToTable("ProjectRevisions", (string)null);
+                    b.ToTable("ProjectRevisions");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.ProjectStatusHistory", b =>
@@ -688,7 +691,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("proj_id");
 
-                    b.ToTable("ProjectStatusHistory", (string)null);
+                    b.ToTable("ProjectStatusHistory");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.ProjectTeams", b =>
@@ -723,7 +726,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("user_id");
 
-                    b.ToTable("ProjectTeams", (string)null);
+                    b.ToTable("ProjectTeams");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Projects", b =>
@@ -806,7 +809,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("updated_by");
 
-                    b.ToTable("Projects", (string)null);
+                    b.ToTable("Projects");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.RolePermissions", b =>
@@ -844,7 +847,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("role_id");
 
-                    b.ToTable("RolePermissions", (string)null);
+                    b.ToTable("RolePermissions");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Roles", b =>
@@ -875,7 +878,7 @@ namespace NPI.Server.Migrations
 
                     b.HasKey("role_id");
 
-                    b.ToTable("Roles", (string)null);
+                    b.ToTable("Roles");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.TaskRevisions", b =>
@@ -934,7 +937,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("task_id");
 
-                    b.ToTable("TaskRevisions", (string)null);
+                    b.ToTable("TaskRevisions");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Tasks", b =>
@@ -1023,7 +1026,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("proj_id");
 
-                    b.ToTable("Tasks", (string)null);
+                    b.ToTable("Tasks");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.UserSessions", b =>
@@ -1060,7 +1063,7 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("user_id");
 
-                    b.ToTable("UserSessions", (string)null);
+                    b.ToTable("UserSessions");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Users", b =>
@@ -1118,7 +1121,7 @@ namespace NPI.Server.Migrations
                     b.HasIndex("username")
                         .IsUnique();
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Approvals", b =>

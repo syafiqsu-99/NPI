@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NPI.Server.DTOs;
-
 namespace NPI.Server.Services
 {
     public interface ITaskService
@@ -15,6 +14,8 @@ namespace NPI.Server.Services
         Task<(bool success, string message)> UpdatePlannedDatesAsync(int taskId, DateOnly newStart, DateOnly newEnd, string note);
         Task<List<TaskResponseDto>> GetTasksByUserAsync(int userId);
         Task<List<TaskResponseDto>> GetTasksByDepartmentAsync(int deptId);
-        Task<string> GetTaskFolderPathAsync(int value);
+        Task<string?> GetTaskFolderPathAsync(int taskId);
+        string GetTaskFolderPath(string projName, string? deptName);
+        Task<List<TaskResponseDto>> GetTasksByProjectTeamsAsync(int userId, string userRole);
     }
 }

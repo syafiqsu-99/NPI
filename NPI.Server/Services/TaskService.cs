@@ -27,43 +27,38 @@ namespace NPI.Server.Services
             return result;
         }
 
+        // ── Folder path: basePath/projects/proj_name/dept_name/ ──────────────
+
         public async Task<string?> GetTaskFolderPathAsync(int taskId)
         {
-            // Load task + its project
             var task = await _context.Tasks
                 .Include(t => t.Project)
+                .Include(t => t.Department)
                 .FirstOrDefaultAsync(t => t.task_id == taskId);
 
             if (task?.Project == null)
                 return null;
 
-            var siblingIds = await _context.Tasks
-                .Where(t => t.proj_id == task.proj_id)
-                .OrderBy(t => t.task_id)
-                .Select(t => t.task_id)
-                .ToListAsync();
-
-            var oneBased = siblingIds.IndexOf(taskId) + 1;
-            if (oneBased == 0)
-                return null;
-
             var projectFolder = SanitizeFolderName(task.Project.proj_name);
-            var projectPath = Path.Combine(_basePath, "projects", projectFolder);
+            var deptFolder = task.Department != null
+                                    ? SanitizeFolderName(task.Department.dept_name)
+                                    : "General";
 
-            var taskFolderName = $"{oneBased:D2}_{SanitizeFolderName(task.title)}";
-            return Path.Combine(projectPath, taskFolderName);
+            return Path.Combine(_basePath, "projects", projectFolder, deptFolder);
         }
 
-        private string? GetTaskFolderPath(Tasks task, string projName, List<int> orderedSiblingIds)
+        // Synchronous overload used internally (no extra DB call needed when
+        // caller already has the names in memory).
+        public string GetTaskFolderPath(string projName, string? deptName)
         {
-            var oneBased = orderedSiblingIds.IndexOf(task.task_id) + 1;
-            if (oneBased == 0) return null;
-
             var projectFolder = SanitizeFolderName(projName);
-            var projectPath = Path.Combine(_basePath, "projects", projectFolder);
-            var taskFolderName = $"{oneBased:D2}_{SanitizeFolderName(task.title)}";
-            return Path.Combine(projectPath, taskFolderName);
+            var deptFolder = !string.IsNullOrWhiteSpace(deptName)
+                                    ? SanitizeFolderName(deptName)
+                                    : "General";
+            return Path.Combine(_basePath, "projects", projectFolder, deptFolder);
         }
+
+        // ── Queries ───────────────────────────────────────────────────────────
 
         public async Task<List<TaskResponseDto>> GetAllTasksAsync()
         {
@@ -89,11 +84,39 @@ namespace NPI.Server.Services
                 .Include(t => t.TaskRevisions)
                 .FirstOrDefaultAsync(t => t.task_id == taskId);
 
-            if (task == null)
-                return null;
-
-            return MapToResponseDto(task);
+            return task == null ? null : MapToResponseDto(task);
         }
+
+        /// <summary>
+        /// Returns all tasks that belong to projects the given user is a member of
+        /// (via ProjectTeams). Admins receive every task in the system.
+        /// </summary>
+        public async Task<List<TaskResponseDto>> GetTasksByProjectTeamsAsync(int userId, string userRole)
+        {
+            IQueryable<Tasks> query = _context.Tasks
+                .Include(t => t.Department)
+                .Include(t => t.Project)
+                .Include(t => t.AssignedToUser)
+                .Include(t => t.AssignedByUser)
+                .Include(t => t.TaskRevisions);
+
+            if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+            {
+                // Get project IDs the user belongs to
+                var projectIds = await _context.ProjectTeams
+                    .Where(pt => pt.user_id == userId)
+                    .Select(pt => pt.proj_id)
+                    .Distinct()
+                    .ToListAsync();
+
+                query = query.Where(t => projectIds.Contains(t.proj_id));
+            }
+
+            var tasks = await query.OrderBy(t => t.planned_start_date).ToListAsync();
+            return tasks.Select(MapToResponseDto).ToList();
+        }
+
+        // ── CRUD ──────────────────────────────────────────────────────────────
 
         public async Task<(bool success, string message, int taskId)> CreateTaskAsync(CreateTaskDto dto, int userId)
         {
@@ -140,20 +163,11 @@ namespace NPI.Server.Services
             {
                 var task = await _context.Tasks
                     .Include(t => t.Project)
+                    .Include(t => t.Department)
                     .FirstOrDefaultAsync(t => t.task_id == taskId);
 
                 if (task == null)
                     return (false, "Task not found");
-
-                var orderedSiblingIds = await _context.Tasks
-                    .Where(t => t.proj_id == task.proj_id)
-                    .OrderBy(t => t.task_id)
-                    .Select(t => t.task_id)
-                    .ToListAsync();
-
-                var oldFolderPath = task.Project != null
-                    ? GetTaskFolderPath(task, task.Project.proj_name, orderedSiblingIds)
-                    : null;
 
                 task.parent_task_id = dto.parent_task_id;
                 task.title = dto.title;
@@ -172,18 +186,6 @@ namespace NPI.Server.Services
 
                 await _context.SaveChangesAsync();
 
-                // Rename folder if title changed
-                if (oldFolderPath != null && task.Project != null)
-                {
-                    var newFolderPath = GetTaskFolderPath(task, task.Project.proj_name, orderedSiblingIds);
-                    if (newFolderPath != null &&
-                        !string.Equals(oldFolderPath, newFolderPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (Directory.Exists(oldFolderPath) && !Directory.Exists(newFolderPath))
-                            Directory.Move(oldFolderPath, newFolderPath);
-                    }
-                }
-
                 return (true, "Task updated successfully");
             }
             catch (Exception ex)
@@ -199,6 +201,7 @@ namespace NPI.Server.Services
                 var task = await _context.Tasks
                     .Include(t => t.SubTasks)
                     .Include(t => t.Project)
+                    .Include(t => t.Department)
                     .FirstOrDefaultAsync(t => t.task_id == taskId);
 
                 if (task == null)
@@ -208,35 +211,16 @@ namespace NPI.Server.Services
                     return (false, "Cannot delete task with subtasks. Delete subtasks first.");
 
                 // Resolve folder BEFORE removing from DB
-                var orderedSiblingIds = await _context.Tasks
-                    .Where(t => t.proj_id == task.proj_id)
-                    .OrderBy(t => t.task_id)
-                    .Select(t => t.task_id)
-                    .ToListAsync();
-
                 var folderPath = task.Project != null
-                    ? GetTaskFolderPath(task, task.Project.proj_name, orderedSiblingIds)
+                    ? GetTaskFolderPath(task.Project.proj_name, task.Department?.dept_name)
                     : null;
 
                 _context.Tasks.Remove(task);
                 await _context.SaveChangesAsync();
 
-                // Try to delete folder — warn if it has files
-                if (folderPath != null && Directory.Exists(folderPath))
-                {
-                    bool hasContent = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories).Any()
-                                   || Directory.GetDirectories(folderPath).Any();
-
-                    if (hasContent)
-                    {
-                        return (true,
-                            $"Task deleted, but its folder '{Path.GetFileName(folderPath)}' still contains files. " +
-                            "Please remove those files manually.");
-                    }
-
-                    Directory.Delete(folderPath, recursive: true);
-                }
-
+                // Folders are now shared by department — do NOT auto-delete them,
+                // as other tasks in the same dept may have files there.
+                // Just report success.
                 return (true, "Task deleted successfully");
             }
             catch (Exception ex)
@@ -244,6 +228,8 @@ namespace NPI.Server.Services
                 return (false, $"Error deleting task: {ex.Message}");
             }
         }
+
+        // ── Status / progress / dates ─────────────────────────────────────────
 
         public async Task<(bool success, string message)> UpdatePlannedDatesAsync(
             int taskId, DateOnly newStart, DateOnly newEnd, string note)
@@ -353,6 +339,8 @@ namespace NPI.Server.Services
             }
         }
 
+        // ── Legacy user / dept filters (kept for other callers) ───────────────
+
         public async Task<List<TaskResponseDto>> GetTasksByUserAsync(int userId)
         {
             var tasks = await _context.Tasks
@@ -383,12 +371,20 @@ namespace NPI.Server.Services
             return tasks.Select(MapToResponseDto).ToList();
         }
 
+        // ── Mapper ────────────────────────────────────────────────────────────
+
         private static TaskResponseDto MapToResponseDto(Tasks task) => new()
         {
             task_id = task.task_id,
             proj_id = task.proj_id,
+            proj_no = task.Project?.proj_no,
+            proj_name = task.Project?.proj_name,
+            proj_status = task.Project?.status,
+            proj_priority = task.Project?.priority,
             parent_task_id = task.parent_task_id,
             order = 0,
+            stage_id = task.stage_id,
+            task_code = task.task_code,
             title = task.title,
             description = task.description,
             dept_id = task.dept_id,

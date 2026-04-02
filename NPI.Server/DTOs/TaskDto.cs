@@ -109,15 +109,20 @@ namespace NPI.Server.DTOs
     {
         public int task_id { get; set; }
         public int proj_id { get; set; }
+        public string? proj_no { get; set; }
+        public string? proj_name { get; set; }
+        public string? proj_status { get; set; }
+        public string? proj_priority { get; set; }
         public int? parent_task_id { get; set; }
         public int order { get; set; }
+        public string? stage_id { get; set; }
+        public string? task_code { get; set; }
         public string title { get; set; }
         public string? description { get; set; }
         public int? dept_id { get; set; }
         public string? dept_name { get; set; }
         public int? assigned_to { get; set; }
         public string? assigned_to_name { get; set; }
-        public Boolean is_milestone { get; set; }
         public int? assigned_by { get; set; }
         public string? assigned_by_name { get; set; }
         public DateOnly? planned_start_date { get; set; }
@@ -141,7 +146,7 @@ namespace NPI.Server.DTOs
         public DateOnly? old_end_date { get; set; }
         public DateOnly? new_start_date { get; set; }
         public DateOnly? new_end_date { get; set; }
-        public string note { get; set; }
+        public string? note { get; set; }
         public DateTime revised_on { get; set; }
     }
 }
