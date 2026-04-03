@@ -151,7 +151,7 @@
                     <v-progress-linear :model-value="item.stageProgress"
                                        :color="getStageColor(item.stage_id)"
                                        height="4" rounded style="max-width:60px" />
-                    </div>
+                  </div>
                   <div v-else class="d-flex align-center ga-1 py-1">
                     <v-chip v-if="item.task_code"
                             :color="getStageColor(item.stage_id)"
@@ -159,7 +159,6 @@
                       {{ item.task_code }}
                     </v-chip>
                     <span class="text-body-2 font-weight-medium text-truncate">{{ item.title }}</span>
-                    </div>
                   </div>
                 </template>
 
@@ -225,15 +224,7 @@
                           #[`item.${col.value}`]="{ item }">
                   <div class="gantt-empty-cell"
                        :class="{ 'is-today': col.isToday, 'is-stage-header': item.rowType === 'stage-header' }" />
-                        </template>
-                        <div>
-                          <strong>{{ item.title }}</strong><br>
-                          Type: {{ item.rowType === 'planned' ? 'Planned' : 'Actual' }}<br>
-                          Start: {{ formatDate(getRowStart(item)) }}<br>
-                          End: {{ formatDate(getRowEnd(item)) }}<br>
-                          Progress: {{ item.per_complete || 0 }}%<br>
-                          Status: {{ item.status }}
-
+                </template>
               </v-data-table>
 
               <!-- ── Bar overlay ─────────────────────────────────────────────
@@ -276,37 +267,16 @@
               <div class="d-flex align-center ga-1">
                 <div class="legend-swatch legend-planned" />
                 <span>Planned</span>
-                          </div>
+              </div>
               <div class="d-flex align-center ga-1">
                 <div class="legend-swatch legend-actual" />
                 <span>Actual</span>
-                          </div>
+              </div>
               <div class="d-flex align-center ga-1">
                 <div style="width:2px;height:14px;background:rgba(33,150,243,0.7);border-radius:1px" />
                 <span>Today</span>
-                          </div>
-                        </div>
-                        <div>
-                          <v-chip v-if="milestone.actual_date"
-                                  :color="milestone.is_delayed ? 'error' : 'success'"
-                                  size="small">
-                            {{ milestone.is_delayed ? 'Delayed' : 'On Time' }}
-                          </v-chip>
-                          <v-btn v-else
-                                 size="small"
-                                 color="primary"
-                                 variant="tonal"
-                                 @click="completeMilestone(milestone)">
-                            Mark Complete
-                          </v-btn>
-                        </div>
-                      </div>
-                    </v-card-text>
-                  </v-card>
-                </v-col>
-              </v-row>
+              </div>
             </v-sheet>
-
           </v-card-text>
         </v-card>
       </v-col>
@@ -323,7 +293,7 @@
 </template>
 
 <script setup>
-  import { ref, computed, onMounted, nextTick, watch } from 'vue'
+  import { ref, computed, onMounted, nextTick, watch, onBeforeUnmount } from 'vue'
   import { useRoute } from 'vue-router'
   import { NPI_STAGES } from '@/stores/stageTemplate'
   import { api } from '@/utils/api'
@@ -336,6 +306,7 @@
   const tasks = ref([])
   const viewMode = ref('week')
   const showAllStages = ref(false)
+  const showDependencies = ref(false)
   const snackbar = ref(false)
   const snackbarMessage = ref('')
   const snackbarColor = ref('success')
@@ -370,6 +341,32 @@
   }
   function resolvedStageId(task) {
     return task.stage_id || deriveStageFromCode(task.task_code)
+  }
+
+  function handleResize() {
+    measureOverlay()
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', handleResize)
+  }
+
+  let scrollTarget = null;
+  function handleScroll() {
+    const tw = ganttWrapper.value?.querySelector('.v-table__wrapper')
+    const ov = barOverlay.value
+    if (!tw || !ov) return
+    ov.style.transform = `translateX(-${tw.scrollLeft}px)`
+    ov.style.top = `${headerHeight.value - tw.scrollTop}px`
+  }
+
+  function attachScrollSync() {
+    nextTick(() => {
+      scrollTarget = ganttWrapper.value?.querySelector('.v-table__wrapper')
+      if (scrollTarget) {
+        scrollTarget.addEventListener('scroll', handleScroll)
+      }
+    })
   }
 
   // ── Pipeline ──────────────────────────────────────────────────────────────────
@@ -414,25 +411,25 @@
 
       if (showAllStages.value) {
         const done = stageTasks.filter(t => t.status === 'Completed').length
-      rows.push({
-          rowId: `stage_${stageId}_header`,
-          rowType: 'stage-header',
-          stage_id: stageId,
-          stageName: NPI_STAGES[stageId]?.name ?? stageId,
-          taskCount: stageTasks.length,
-          completedCount: done,
-          stageProgress: Math.round((done / stageTasks.length) * 100),
-      })
+        rows.push({
+            rowId: `stage_${stageId}_header`,
+            rowType: 'stage-header',
+            stage_id: stageId,
+            stageName: NPI_STAGES[stageId]?.name ?? stageId,
+            taskCount: stageTasks.length,
+            completedCount: done,
+            stageProgress: Math.round((done / stageTasks.length) * 100),
+        })
       }
 
       stageTasks.forEach(task => {
-      rows.push({
-        ...task,
-          rowId: `task_${task.task_id}`,
-          rowType: 'task',
-          stage_id: stageId,
+        rows.push({
+          ...task,
+            rowId: `task_${task.task_id}`,
+            rowType: 'task',
+            stage_id: stageId,
+        })
       })
-    })
     })
 
     return rows
@@ -599,17 +596,16 @@
             height: `${barH}px`,
             '--bar-progress': `${row.per_complete || 0}%`,
             '--bar-color': stageHex,
-  }
+          }
         })
-  }
+      }
 
       makeBar('planned', row.planned_start_date, row.planned_end_date)
       makeBar('actual', row.actual_start_date, row.actual_end_date)
     })
 
     return bars
-    })
-  }
+  })
 
   // Today line
   const todayLineStyle = computed(() => {
@@ -677,22 +673,6 @@
     }
   }
 
-  async function completeMilestone(milestone) {
-    try {
-      const result = await api.patch(`/project/${route.params.id}/milestones/${milestone.milestone_id}/complete`)
-
-      if (result?.success) {
-        const t = tasks.value.find(t => t.task_id === task.task_id)
-        if (t) {
-          t.per_complete = progress
-          if (progress === 100) t.status = 'Completed'
-          else if (progress > 0 && progress < 100 && t.status === 'Not Started') t.status = 'In Progress'
-    }
-        showSnack('Progress updated', 'success')
-  }
-    } catch { showSnack('Failed to update progress', 'error') }
-  }
-
   function scrollToToday() {
     const wrapper = ganttWrapper.value?.querySelector('.v-table__wrapper')
     if (!wrapper || !overlayWidth.value || !timelineMs.value) return
@@ -725,18 +705,6 @@
 
   watch([viewMode, displayRows, showAllStages], () => nextTick(measureOverlay))
   if (typeof window !== 'undefined') window.addEventListener('resize', measureOverlay)
-
-  function attachScrollSync() {
-    nextTick(() => {
-      const tw = ganttWrapper.value?.querySelector('.v-table__wrapper')
-      const ov = barOverlay.value
-      if (!tw || !ov) return
-      tw.addEventListener('scroll', () => {
-        ov.style.transform = `translateX(-${tw.scrollLeft}px)`
-        ov.style.top = `${headerHeight.value - tw.scrollTop}px`
-      })
-    })
-  }
 
   onMounted(async () => { await loadProjectData(); attachScrollSync() })
 </script>

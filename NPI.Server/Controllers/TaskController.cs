@@ -59,7 +59,7 @@ namespace NPI.Server.Controllers
                 if (task == null)
                 {
                     return NotFound(new { success = false, message = "Task not found" });
-
+                }
                 return Ok(new { success = true, data = task });
             }
             catch (Exception ex)
@@ -181,7 +181,7 @@ namespace NPI.Server.Controllers
                 if (result.success)
                 {
                     return Ok(new { success = true, message = result.message });
-
+                }
                 return BadRequest(new { success = false, message = result.message });
             }
             catch (Exception ex)

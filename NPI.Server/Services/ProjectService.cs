@@ -539,7 +539,7 @@ namespace NPI.Server.Services
         }
 
         public async Task<(bool success, string message, List<string>? folderWarnings)> LaunchProjectAsync(
-            int projectId, LaunchProjectDto dto, int userId)
+    int projectId, LaunchProjectDto dto, int userId)
         {
             using var tx = await _context.Database.BeginTransactionAsync();
             try
@@ -559,6 +559,7 @@ namespace NPI.Server.Services
                 project.pilot_mould_required = dto.pilot_mould_required;
                 project.machine_purchase_required = dto.machine_purchase_required;
 
+                // Replace team
                 var existingTeam = await _context.ProjectTeams
                     .Where(pt => pt.proj_id == projectId)
                     .ToListAsync();
@@ -580,52 +581,38 @@ namespace NPI.Server.Services
                     .ToListAsync();
 
                 var existingTaskDict = existingTasks.ToDictionary(t => t.task_id);
-
                 var incomingTaskIds = new HashSet<int>(
-                    dto.tasks
-                        .Where(t => t.task_id.HasValue)
-                        .Select(t => t.task_id!.Value));
+                    dto.tasks.Where(t => t.task_id.HasValue).Select(t => t.task_id!.Value));
 
-                ProjectRevisions? projectRevision = null;
-
-                if (projectRevision == null)
-                {
-                    projectRevision = new ProjectRevisions
-                    {
-                        proj_id = projectId,
-                        revision_notes = "Launch/Update revision",
-                        revised_by = userId,
-                    };
-
-                    _context.ProjectRevisions.Add(projectRevision);
-                    await _context.SaveChangesAsync();
-                }
+                // Track date changes for revision history
+                var taskRevisionsToAdd = new List<(int taskId, string title, DateOnly? oldStart,
+                    DateOnly? oldEnd, DateOnly? newStart, DateOnly? newEnd, string? note,
+                    float? duration, int? deptId)>();
 
                 foreach (var taskDto in dto.tasks)
                 {
                     if (taskDto.task_id.HasValue &&
                         existingTaskDict.TryGetValue(taskDto.task_id.Value, out var existing))
                     {
-                        var oldStart = existing.planned_start_date;
-                        var oldEnd = existing.planned_end_date;
-                        var oldTitle = existing.title;
+                        // Track changes before updating
+                        bool datesChanged = existing.planned_start_date != taskDto.start_date
+                                         || existing.planned_end_date != taskDto.end_date;
 
-                        if (!string.IsNullOrWhiteSpace(taskDto.revision_note) && (oldStart != taskDto.start_date || oldEnd != taskDto.end_date))
+                        if (datesChanged && !string.IsNullOrWhiteSpace(taskDto.revision_note))
                         {
-                            _context.TaskRevisions.Add(new TaskRevisions
-                            {
-                                revision_id = projectRevision.revision_id,
-                                task_id = existing.task_id,
-                                title = oldTitle,
-                                old_start_date = oldStart,
-                                old_end_date = oldEnd,
-                                new_start_date = taskDto.start_date,
-                                new_end_date = taskDto.end_date,
-                                note = taskDto.revision_note,
-                                revised_on = DateTime.Now
-                            });
+                            var dept = !string.IsNullOrEmpty(taskDto.dept_name)
+                                ? await _context.Departments
+                                    .FirstOrDefaultAsync(d => d.dept_name == taskDto.dept_name)
+                                : null;
+
+                            taskRevisionsToAdd.Add((
+                                existing.task_id, existing.title,
+                                existing.planned_start_date, existing.planned_end_date,
+                                taskDto.start_date, taskDto.end_date,
+                                taskDto.revision_note, taskDto.duration, dept?.dept_id));
                         }
 
+                        // Update existing task
                         existing.title = taskDto.title;
                         existing.planned_start_date = taskDto.start_date;
                         existing.planned_end_date = taskDto.end_date;
@@ -644,6 +631,7 @@ namespace NPI.Server.Services
                     }
                     else
                     {
+                        // Add new task
                         var dept = await _context.Departments
                             .FirstOrDefaultAsync(d => d.dept_name == taskDto.dept_name);
 
@@ -667,99 +655,76 @@ namespace NPI.Server.Services
                             priority = "Medium",
                             assigned_by = userId,
                             created_at = DateTime.Now
-                        };
-
-                        _context.Tasks.Add(newTask);
-                        newTasks.Add(newTask);
+                        });
                     }
                 }
+
                 await _context.SaveChangesAsync();
 
-                /* =========================
-                 * PROJECT REVISION TRACKING
-                 * ========================= */
-                if (hasTaskRevisions)
+                // Create project revision if any task dates changed
+                if (taskRevisionsToAdd.Count > 0)
                 {
-                    // Get the latest revision number for this project
-                    var latestRevisionNumber = await _context.ProjectRevisions
+                    var lastRevNumber = await _context.ProjectRevisions
                         .Where(pr => pr.proj_id == projectId)
-                        .OrderByDescending(pr => pr.revision_number)
-                        .Select(pr => pr.revision_number)
-                        .FirstOrDefaultAsync();
+                        .Select(pr => (int?)pr.revision_number)
+                        .MaxAsync() ?? 0;
 
-                    var newRevisionNumber = latestRevisionNumber + 1;
-
-                    // Mark all previous revisions as inactive
                     var previousRevisions = await _context.ProjectRevisions
                         .Where(pr => pr.proj_id == projectId && pr.is_active)
                         .ToListAsync();
 
                     foreach (var rev in previousRevisions)
-                    {
                         rev.is_active = false;
-                    }
 
-                    // Calculate new target completion date from tasks
-                    DateOnly? newTargetDate = null;
-                    if (dto.tasks != null && dto.tasks.Any())
-                    {
-                        var maxEndDate = dto.tasks
-                            .Where(t => t.end_date.HasValue)
-                            .Max(t => (DateOnly?)t.end_date);
+                    var newTargetDate = dto.tasks
+                        .Where(t => t.end_date.HasValue)
+                        .Max(t => (DateOnly?)t.end_date);
 
-                        if (maxEndDate.HasValue)
-                        {
-                            newTargetDate = maxEndDate.Value;
-                        }
-                    }
-
-                    // Create new ProjectRevision
                     var projectRevision = new ProjectRevisions
                     {
                         proj_id = projectId,
-                        revision_number = newRevisionNumber,
+                        revision_number = lastRevNumber + 1,
                         revision_date = DateTime.Now,
                         revised_by = userId,
-                        revision_notes = $"Project updated with {taskRevisionsToAdd.Count} task date changes",
+                        revision_notes = $"Launch update — {taskRevisionsToAdd.Count} task(s) rescheduled",
                         previous_target_date = project.target_completion_date,
                         new_target_date = newTargetDate,
                         is_active = true
                     };
 
                     _context.ProjectRevisions.Add(projectRevision);
+                    await _context.SaveChangesAsync(); // flush to get revision_id
 
-                    // Save to get the revision_id
-                    await _context.SaveChangesAsync();
-
-                    // Now add all TaskRevisions linked to this ProjectRevision
-                    foreach (var taskRev in taskRevisionsToAdd)
+                    foreach (var (tId, title, oldStart, oldEnd, newStart, newEnd, note, dur, deptId)
+                        in taskRevisionsToAdd)
                     {
                         _context.TaskRevisions.Add(new TaskRevisions
                         {
                             revision_id = projectRevision.revision_id,
-                            task_id = taskRev.taskId,
-                            title = taskRev.title,
-                            old_start_date = taskRev.oldStart,
-                            old_end_date = taskRev.oldEnd,
-                            new_start_date = taskRev.newStart,
-                            new_end_date = taskRev.newEnd,
-                            note = taskRev.note,
+                            task_id = tId,
+                            title = title,
+                            old_start_date = oldStart,
+                            old_end_date = oldEnd,
+                            new_start_date = newStart,
+                            new_end_date = newEnd,
+                            note = note ?? string.Empty,
                             revised_on = DateTime.Now,
-                            duration = taskRev.duration,
-                            dept_id = taskRev.deptId,
+                            duration = dur,
+                            dept_id = deptId,
                             status = "Revised"
                         });
                     }
                 }
 
+                // Remove tasks no longer in the incoming list (non-stage-0 only)
                 var tasksToDelete = existingTasks
-                    .Where(t => !incomingTaskIds.Contains(t.task_id))
+                    .Where(t => !incomingTaskIds.Contains(t.task_id) && t.stage_id != "0.0")
                     .ToList();
-                if (tasksToDelete.Any())
+
+                if (tasksToDelete.Count > 0)
                     _context.Tasks.RemoveRange(tasksToDelete);
 
-                await _context.SaveChangesAsync();
-
+                // Folder structure
                 var projectPath = GetProjectPath(project.proj_name);
                 Directory.CreateDirectory(projectPath);
                 project.storage_path = projectPath;
@@ -813,13 +778,9 @@ namespace NPI.Server.Services
                 await _context.SaveChangesAsync();
                 await tx.CommitAsync();
 
-                return folderWarnings.Any()
-                    ? (true,
-                       "Project saved. Some folders could not be removed — they still contain files.",
-                       folderWarnings)
-                    : (true,
-                       isFirstLaunch ? "Project launched successfully" : "Project updated successfully",
-                       null);
+                return folderWarnings.Count > 0
+                    ? (true, "Project saved. Some folders could not be removed — they still contain files.", folderWarnings)
+                    : (true, isFirstLaunch ? "Project launched successfully" : "Project updated successfully", null);
             }
             catch (Exception ex)
             {

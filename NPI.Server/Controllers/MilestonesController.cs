@@ -18,7 +18,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetProjectMilestones(int projectId)
+        public async Task<IActionResult> GetProjectMilestones([FromQuery] int projectId)
         {
             try
             {

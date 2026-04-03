@@ -87,6 +87,19 @@ namespace NPI.Server.Services
             return task == null ? null : MapToResponseDto(task);
         }
 
+        public async Task<TaskResponseDto?> GetTasksByProjectAsync(int projId)
+        {
+            var task = await _context.Tasks
+                .Include(t => t.Department)
+                .Include(t => t.Project)
+                .Include(t => t.AssignedToUser)
+                .Include(t => t.AssignedByUser)
+                .Include(t => t.TaskRevisions)
+                .FirstOrDefaultAsync(t => t.proj_id == projId);
+
+            return task == null ? null : MapToResponseDto(task);
+        }
+
         /// <summary>
         /// Returns all tasks that belong to projects the given user is a member of
         /// (via ProjectTeams). Admins receive every task in the system.
@@ -401,49 +414,48 @@ namespace NPI.Server.Services
         // ── Mapper ────────────────────────────────────────────────────────────
 
         private static TaskResponseDto MapToResponseDto(Tasks task) => new()
-            {
-                task_id = task.task_id,
-                proj_id = task.proj_id,
+        {
+            task_id = task.task_id,
+            proj_id = task.proj_id,
             proj_no = task.Project?.proj_no,
             proj_name = task.Project?.proj_name,
             proj_status = task.Project?.status,
             proj_priority = task.Project?.priority,
-                parent_task_id = task.parent_task_id,
-                order = 0,
+            parent_task_id = task.parent_task_id,
+            order = 0,
             stage_id = task.stage_id,
             task_code = task.task_code,
-                title = task.title,
-                description = task.description,
-                dept_id = task.dept_id,
-                dept_name = task.Department?.dept_name,
-                assigned_to = task.assigned_to,
-                assigned_to_name = task.AssignedToUser?.full_name,
-                assigned_by = task.assigned_by,
-                assigned_by_name = task.AssignedByUser?.full_name,
-                planned_start_date = task.planned_start_date,
-                planned_end_date = task.planned_end_date,
-                actual_start_date = task.actual_start_date,
-                actual_end_date = task.actual_end_date,
-                duration = task.duration,
-                status = task.status,
-                priority = task.priority,
-                per_complete = task.per_complete,
-                created_at = task.created_at,
-                updated_at = task.updated_at,
-                completed_at = task.completed_at,
-                planned_revisions = task.TaskRevisions?
-                    .OrderBy(r => r.revised_on)
-                    .Select((r, index) => new TaskRevisionDto
-                    {
-                        revision_no = index + 1,
-                        old_start_date = r.old_start_date,
-                        old_end_date = r.old_end_date,
-                        new_start_date = r.new_start_date,
-                        new_end_date = r.new_end_date,
-                        note = r.note,
-                        revised_on = r.revised_on
-                    }).ToList() ?? new List<TaskRevisionDto>()
-            };
-        }
+            title = task.title,
+            description = task.description,
+            dept_id = task.dept_id,
+            dept_name = task.Department?.dept_name,
+            assigned_to = task.assigned_to,
+            assigned_to_name = task.AssignedToUser?.full_name,
+            assigned_by = task.assigned_by,
+            assigned_by_name = task.AssignedByUser?.full_name,
+            planned_start_date = task.planned_start_date,
+            planned_end_date = task.planned_end_date,
+            actual_start_date = task.actual_start_date,
+            actual_end_date = task.actual_end_date,
+            duration = task.duration,
+            status = task.status,
+            priority = task.priority,
+            per_complete = task.per_complete,
+            created_at = task.created_at,
+            updated_at = task.updated_at,
+            completed_at = task.completed_at,
+            planned_revisions = task.TaskRevisions?
+                .OrderBy(r => r.revised_on)
+                .Select((r, index) => new TaskRevisionDto
+                {
+                    revision_no = index + 1,
+                    old_start_date = r.old_start_date,
+                    old_end_date = r.old_end_date,
+                    new_start_date = r.new_start_date,
+                    new_end_date = r.new_end_date,
+                    note = r.note,
+                    revised_on = r.revised_on
+                }).ToList() ?? new List<TaskRevisionDto>()
+        };
     }
 }
