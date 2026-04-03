@@ -87,17 +87,19 @@ namespace NPI.Server.Services
             return task == null ? null : MapToResponseDto(task);
         }
 
-        public async Task<TaskResponseDto?> GetTasksByProjectAsync(int projId)
+        public async Task<List<TaskResponseDto>> GetTasksByProjectAsync(int projId)
         {
-            var task = await _context.Tasks
+            var tasks = await _context.Tasks
                 .Include(t => t.Department)
                 .Include(t => t.Project)
                 .Include(t => t.AssignedToUser)
                 .Include(t => t.AssignedByUser)
                 .Include(t => t.TaskRevisions)
-                .FirstOrDefaultAsync(t => t.proj_id == projId);
+                .Where(t => t.proj_id == projId)
+                .OrderBy(t => t.planned_start_date)
+                .ToListAsync();
 
-            return task == null ? null : MapToResponseDto(task);
+            return tasks.Select(MapToResponseDto).ToList();
         }
 
         /// <summary>

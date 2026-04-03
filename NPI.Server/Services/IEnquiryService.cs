@@ -12,6 +12,6 @@ namespace NPI.Server.Services
         Task<List<EnquiryResponseDto>> GetEnquiriesByUserAsync(int userId);
         Task<(bool Success, string Message)> SubmitEnquiryAsync(int enquiryId, int userId);
         Task<(bool Success, string Message)> DeleteEnquiryAsync(int enquiryId);
-        string GenerateEnquiryNo();
+        Task<string> GenerateEnquiryNo();
     }
 }

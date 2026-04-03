@@ -1,3 +1,5 @@
+import router from '@/router'
+
 const API_BASE_URL = '/api'
 
 class ApiError extends Error {
@@ -34,7 +36,9 @@ async function fetchApi(endpoint, options = {}) {
     // Handle 401 Unauthorized
     if (response.status === 401) {
       localStorage.removeItem('token')
-      window.location.href = '/login'
+      if (window.location.pathname !== '/login') {
+        router.push('/login')
+      }
       throw new ApiError('Unauthorized', 401, null)
     }
 

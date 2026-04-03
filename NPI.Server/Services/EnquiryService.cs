@@ -64,7 +64,7 @@ namespace NPI.Server.Services
 
                 var enquiry = new Enquiries
                 {
-                    enquiry_no = GenerateEnquiryNo(),
+                    enquiry_no = await GenerateEnquiryNo(),
                     cust_id = customerId,
                     npi_category = dto.npi_category,
                     status = "Draft",
@@ -360,25 +360,21 @@ namespace NPI.Server.Services
             }
         }
 
-        public string GenerateEnquiryNo()
+        public async Task<string> GenerateEnquiryNo()
         {
             var year = DateTime.Now.Year;
-            var lastEnquiry = _context.Enquiries
-                .Where(e => e.enquiry_no.StartsWith($"ENQ-{year}-"))
-                .OrderByDescending(e => e.enquiry_no)
-                .FirstOrDefault();
+            var prefix = $"ENQ-{year}-";
 
-            int nextNumber = 1;
-            if (lastEnquiry != null)
-            {
-                var parts = lastEnquiry.enquiry_no.Split('-');
-                if (parts.Length == 3 && int.TryParse(parts[2], out int lastNumber))
-                {
-                    nextNumber = lastNumber + 1;
-                }
-            }
+            var lastNumber = await _context.Enquiries
+                .Where(e => e.enquiry_no.StartsWith(prefix))
+                .Select(e => e.enquiry_no.Substring(prefix.Length))
+                .ToListAsync()
+                .ContinueWith(t => t.Result
+                    .Select(s => int.TryParse(s, out var n) ? n : 0)
+                    .DefaultIfEmpty(0)
+                    .Max());
 
-            return $"ENQ-{year}-{nextNumber:D4}";
+            return $"{prefix}{(lastNumber + 1):D4}";
         }
 
         private EnquiryResponseDto MapToResponseDto(Enquiries enquiry)

@@ -283,12 +283,32 @@ namespace NPI.Server.Services
 
         private static string SanitizeFileName(string fileName)
         {
-            var name = Path.GetFileNameWithoutExtension(fileName)
-                           .Replace(" ", "_")
-                           .Replace("/", "_");
-            name = string.Concat(name.Select(c =>
+            var nameOnly = Path.GetFileName(fileName);
+            var stem = Path.GetFileNameWithoutExtension(nameOnly)
+                           .Replace("..", "_")
+                           .Replace(" ", "_");
+
+            stem = string.Concat(stem.Select(c =>
                 Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
-            return name + Path.GetExtension(fileName);
+
+            var ext = Path.GetExtension(nameOnly);
+
+            var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png", ".jpg", ".jpeg",
+              ".dwg", ".step", ".stp", ".txt", ".csv" };
+
+            if (!allowedExtensions.Contains(ext))
+                ext = ".bin";
+
+            return stem + ext;
+        }
+
+        private void ValidatePathWithinBase(string path)
+        {
+            var fullPath = Path.GetFullPath(path);
+            var fullBase = Path.GetFullPath(_basePath);
+            if (!fullPath.StartsWith(fullBase, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Path traversal attempt detected.");
         }
 
         private static string SanitizeFolderName(string name)

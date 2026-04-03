@@ -37,8 +37,11 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                               ?? throw new Exception("User ID claim missing"));
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                {
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                }
                 var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
 
                 var tasks = await _taskService.GetTasksByProjectTeamsAsync(userId, userRole);
@@ -73,7 +76,11 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                {
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                }
                 var (success, message, taskId) = await _taskService.CreateTaskAsync(dto, userId);
 
                 if (!success)
@@ -94,7 +101,11 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                {
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                }
                 var (success, message) = await _taskService.UpdateTaskAsync(taskId, dto, userId);
 
                 if (!success)

@@ -13,7 +13,7 @@ namespace NPI.Server.Services
         Task<(bool success, string message)> UpdateTaskStatusAsync(int taskId, string status);
         Task<(bool success, string message)> UpdateTaskProgressAsync(int taskId, float progress);
         Task<(bool success, string message)> UpdatePlannedDatesAsync(int taskId, DateOnly newStart, DateOnly newEnd, string note);
-        Task<TaskResponseDto> GetTasksByProjectAsync(int projectId);
+        Task<List<TaskResponseDto>> GetTasksByProjectAsync(int projectId);
         Task<List<TaskResponseDto>> GetTasksByUserAsync(int userId);
         Task<List<TaskResponseDto>> GetTasksByDepartmentAsync(int deptId);
         Task<string?> GetTaskFolderPathAsync(int taskId);

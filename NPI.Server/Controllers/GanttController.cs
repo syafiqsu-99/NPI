@@ -41,7 +41,11 @@ namespace NPI.Server.Controllers
         [HttpPost("{projectId}/revisions")]
         public async Task<IActionResult> CreateRevision(int projectId, [FromBody] CreateRevisionDto dto)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+            {
+                return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+            }
             var (success, message, revisionId) = await _ganttService.CreateRevisionAsync(projectId, dto, userId);
 
             if (!success)

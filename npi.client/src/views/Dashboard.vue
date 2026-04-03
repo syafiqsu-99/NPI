@@ -259,7 +259,7 @@
 </template>
 
 <script setup>
-  import { ref, computed, onMounted, nextTick, watch } from 'vue'
+  import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { api } from '@/utils/api'
 
@@ -567,11 +567,16 @@
   if (typeof window !== 'undefined') window.addEventListener('resize', measureTlOverlay)
 
   onMounted(async () => {
+    window.addEventListener('resize', measureTlOverlay)
     await loadDashboardData()
     measureTlOverlay()
     attachScrollSync()
 
     console.log("Projects Data: ", projects.value);
+  })
+
+  onBeforeUnmount(() => {
+    window.removeEventListener('resize', measureTlOverlay)
   })
 </script>
 

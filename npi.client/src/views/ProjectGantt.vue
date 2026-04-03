@@ -706,7 +706,20 @@
   watch([viewMode, displayRows, showAllStages], () => nextTick(measureOverlay))
   if (typeof window !== 'undefined') window.addEventListener('resize', measureOverlay)
 
-  onMounted(async () => { await loadProjectData(); attachScrollSync() })
+  onMounted(async () => {
+    await loadProjectData()
+    attachScrollSync()
+  })
+
+  onBeforeUnmount(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', measureOverlay)
+      window.removeEventListener('resize', handleResize)
+    }
+    if (scrollTarget) {
+      scrollTarget.removeEventListener('scroll', handleScroll)
+    }
+  })
 </script>
 
 <style scoped>

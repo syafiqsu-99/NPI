@@ -30,7 +30,11 @@ namespace NPI.Server.Controllers
             Console.WriteLine($"Files count received: {files?.Count}");
             try
             {
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                {
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                }
 
                 if (files == null || files.Count == 0)
                     return BadRequest(new { success = false, message = "No files provided" });
@@ -75,7 +79,11 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                {
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                }
 
                 if (file == null || file.Length == 0)
                 {

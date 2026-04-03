@@ -154,6 +154,12 @@ namespace NPI.Server.Services
                     prevRevision.is_active = false;
                 }
 
+                var newTargetDate = dto.tasks
+                    .Where(t => t.end_date.HasValue)
+                    .Select(t => t.end_date)
+                    .DefaultIfEmpty(null)
+                    .Max();
+
                 var revision = new ProjectRevisions
                 {
                     proj_id = projectId,
@@ -162,6 +168,7 @@ namespace NPI.Server.Services
                     revised_by = userId,
                     revision_notes = dto.revision_notes,
                     previous_target_date = oldTargetDate,
+                    new_target_date = newTargetDate,
                     is_active = true
                 };
 
@@ -229,10 +236,6 @@ namespace NPI.Server.Services
                         }
                     }
                 }
-
-                var newTargetDate = dto.tasks
-                    .Where(t => t.end_date.HasValue)
-                    .Max(t => (DateOnly?)t.end_date);
 
                 if (newTargetDate.HasValue)
                 {

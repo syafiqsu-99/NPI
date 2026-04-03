@@ -858,8 +858,7 @@
           user_id: m.user_id, dept_id: m.dept_id,
           role: m.role_in_project, dept_name: m.dept_name, user_name: m.user_name
         })),
-        tasks: transformedTasks,
-        milestones: transformedMilestones
+        tasks: transformedTasks
       }
 
       console.log('Launch payload:', payload)

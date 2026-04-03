@@ -32,7 +32,11 @@ namespace NPI.Server.Controllers
         [HttpGet("my-enquiries")]
         public async Task<IActionResult> GetMyEnquiries()
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+            {
+                return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+            }
             var enquiries = await _enquiryService.GetEnquiriesByUserAsync(userId);
             return Ok(new { success = true, data = enquiries });
         }
@@ -53,7 +57,11 @@ namespace NPI.Server.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateEnquiry([FromBody] EnquiryCreateDto dto)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+            {
+                return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+            }
             var (success, message, enquiry) = await _enquiryService.CreateEnquiryAsync(dto, userId);
 
             if (!success)
@@ -67,7 +75,11 @@ namespace NPI.Server.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateEnquiry(int id, [FromBody] EnquiryCreateDto dto)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+            {
+                return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+            }
             var (success, message) = await _enquiryService.UpdateEnquiryAsync(id, dto, userId);
 
             if (!success)
@@ -81,7 +93,11 @@ namespace NPI.Server.Controllers
         [HttpPost("{id}/submit")]
         public async Task<IActionResult> SubmitEnquiry(int id)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+            {
+                return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+            }
             var (success, message) = await _enquiryService.SubmitEnquiryAsync(id, userId);
 
             if (!success)
@@ -108,7 +124,11 @@ namespace NPI.Server.Controllers
         [HttpPost("{id}/upload")]
         public async Task<IActionResult> UploadFile(int id, IFormFile file)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+            {
+                return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+            }
 
             var (success, message, uploadedFile) = await _fileService.UploadFileAsync(
                 file, 0, null, null, userId, null, id);

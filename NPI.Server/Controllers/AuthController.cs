@@ -17,6 +17,17 @@ public class AuthController : ControllerBase
         _authService = authService;
     }
 
+    protected int GetCurrentUserId()
+    {
+        var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+            throw new UnauthorizedAccessException("Invalid user identity claim.");
+        return userId;
+    }
+
+    protected string GetCurrentUserRole()
+        => User.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
+
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
@@ -71,7 +82,7 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Logout()
     {
-        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+        var userId = GetCurrentUserId();
         var sessionId = User.FindFirst("SessionId")?.Value;
 
         await _authService.LogoutAsync(userId, sessionId);
@@ -83,7 +94,7 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GetCurrentUser()
     {
-        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+        var userId = GetCurrentUserId();
         var user = await _authService.GetUserByIdAsync(userId);
 
         if (user == null)

@@ -10,7 +10,7 @@ namespace NPI.Server.Models
 
         public int proj_id { get; set; }
 
-        public int task_id { get; set; }
+        public int? task_id { get; set; }
 
         [Required]
         [StringLength(100)]

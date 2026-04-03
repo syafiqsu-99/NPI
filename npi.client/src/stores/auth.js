@@ -46,8 +46,23 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function isTokenExpired(token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      return payload.exp * 1000 < Date.now()
+    } catch {
+      return true
+    }
+  }
+
+
   async function checkAuth() {
-    if (!token.value) {
+    if (!token.value) return false
+
+    if (isTokenExpired(token.value)) {
+      user.value = null
+      token.value = null
+      localStorage.removeItem('token')
       return false
     }
 
@@ -56,9 +71,11 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = response
       return true
     } catch (err) {
-      user.value = null
-      token.value = null
-      localStorage.removeItem('token')
+      if (err.status === 401) {
+        user.value = null
+        token.value = null
+        localStorage.removeItem('token')
+      }
       return false
     }
   }

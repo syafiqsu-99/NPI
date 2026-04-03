@@ -57,7 +57,11 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                {
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                }
                 var (success, message, projId) = await _projectService.CreateProjectAsync(dto, userId);
 
                 if (!success)
@@ -83,7 +87,11 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                {
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                }
                 var (success, message) = await _projectService.UpdateProjectAsync(id, dto, userId);
 
                 if (!success)
@@ -124,7 +132,11 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                {
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                }
                 var (success, message, proj_id) =
                     await _projectService.CreateProjectFromEnquiryAsync(enquiryId, userId, dto);
 
@@ -172,7 +184,11 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                {
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                }
                 var (success, message, folderWarnings) = await _projectService.LaunchProjectAsync(id, dto, userId);
 
                 if (!success)

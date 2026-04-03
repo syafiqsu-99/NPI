@@ -530,6 +530,28 @@ namespace NPI.Server.Services
                 return (false, $"Error creating project: {ex.Message}", 0);
             }
         }
+
+        private async Task<string> GenerateProjectNo()
+        {
+            var year = DateTime.Now.Year;
+            var prefix = $"PRJ{year}";
+
+            var lastProject = await _context.Projects
+                .Where(p => p.proj_no.StartsWith(prefix))
+                .OrderByDescending(p => p.proj_id)
+                .FirstOrDefaultAsync();
+
+            int nextNum = 1;
+            if (lastProject != null)
+            {
+                var suffix = lastProject.proj_no[prefix.Length..];
+                if (int.TryParse(suffix, out var last))
+                    nextNum = last + 1;
+            }
+
+            return $"{prefix}{nextNum:D3}";
+        }
+
         private static void EnsureDeptFolder(
             string projectPath, string? deptName, HashSet<string> created)
         {
@@ -539,7 +561,7 @@ namespace NPI.Server.Services
         }
 
         public async Task<(bool success, string message, List<string>? folderWarnings)> LaunchProjectAsync(
-    int projectId, LaunchProjectDto dto, int userId)
+        int projectId, LaunchProjectDto dto, int userId)
         {
             using var tx = await _context.Database.BeginTransactionAsync();
             try
