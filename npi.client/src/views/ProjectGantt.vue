@@ -706,19 +706,19 @@
   watch([viewMode, displayRows, showAllStages], () => nextTick(measureOverlay))
   if (typeof window !== 'undefined') window.addEventListener('resize', measureOverlay)
 
+  let resizeObserver = null
+
   onMounted(async () => {
     await loadProjectData()
     attachScrollSync()
+
+    resizeObserver = new ResizeObserver(() => measureOverlay())
+    if (ganttWrapper.value) resizeObserver.observe(ganttWrapper.value)
   })
 
   onBeforeUnmount(() => {
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('resize', measureOverlay)
-      window.removeEventListener('resize', handleResize)
-    }
-    if (scrollTarget) {
-      scrollTarget.removeEventListener('scroll', handleScroll)
-    }
+    resizeObserver?.disconnect()
+    if (scrollTarget) scrollTarget.removeEventListener('scroll', handleScroll)
   })
 </script>
 

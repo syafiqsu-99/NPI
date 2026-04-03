@@ -10,13 +10,15 @@ namespace NPI.Server.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
+        private readonly INotificationService _notificationService;
         private readonly string _basePath;
 
-        public TaskService(ApplicationDbContext context, IConfiguration configuration)
+        public TaskService(ApplicationDbContext context, IConfiguration configuration, INotificationService notificationService)
         {
             _context = context;
             _configuration = configuration;
             _basePath = configuration["FileStorage:BasePath"] ?? @"D:\NPI_Projects";
+            _notificationService = notificationService;
         }
 
         private static string SanitizeFolderName(string name)
@@ -325,6 +327,30 @@ namespace NPI.Server.Services
                 }
 
                 await _context.SaveChangesAsync();
+
+                if (status == "Completed" && task.stage_id != null)
+                {
+                    var stageComplete = !await _context.Tasks.AnyAsync(t =>
+                        t.proj_id == task.proj_id &&
+                        t.stage_id == task.stage_id &&
+                        t.status != "Completed" &&
+                        t.task_id != taskId);
+
+                    if (stageComplete)
+                    {
+                        var project = await _context.Projects
+                            .Include(p => p.CreatedByUser)
+                            .FirstOrDefaultAsync(p => p.proj_id == task.proj_id);
+
+                        if (project?.created_by != null)
+                            await _notificationService.NotifyAsync(
+                                project.created_by,
+                                "stage_complete",
+                                $"Stage {task.stage_id} completed",
+                                $"All tasks in stage {task.stage_id} for {project.proj_name} are done.",
+                                task.proj_id, taskId);
+                    }
+                }
 
                 return (true, "Task status updated successfully");
             }

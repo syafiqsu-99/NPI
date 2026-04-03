@@ -13,11 +13,13 @@ namespace NPI.Server.Controllers
     {
         private readonly IProjectService _projectService;
         private readonly IMilestoneService _milestoneService;
+        private readonly IPdfService _pdfService;
 
-        public ProjectController(IProjectService projectService, IMilestoneService milestoneService)
+        public ProjectController(IProjectService projectService, IMilestoneService milestoneService, IPdfService pdfservice)
         {
             _projectService = projectService;
             _milestoneService = milestoneService;
+            _pdfService = pdfservice;
         }
 
         [HttpGet]
@@ -45,6 +47,20 @@ namespace NPI.Server.Controllers
                     return NotFound(new { success = false, message = "Project not found" });
                 }
                 return Ok(new { success = true, data = project });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("{id}/report")]
+        public async Task<IActionResult> GetProjectReport(int id)
+        {
+            try
+            {
+                var bytes = await _pdfService.GenerateProjectStatusReportAsync(id);
+                return File(bytes, "application/pdf", $"NPI_Report_{id}_{DateTime.Now:yyyyMMdd}.pdf");
             }
             catch (Exception ex)
             {

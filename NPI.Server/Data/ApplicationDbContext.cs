@@ -31,6 +31,8 @@ namespace NPI.Server.Data
         public DbSet<Roles> Roles { get; set; }
         public DbSet<Users> Users { get; set; }
         public DbSet<UserSessions> UserSessions { get; set; }
+        public DbSet<StageCompletionLog> StageCompletionLogs { get; set; }
+        public DbSet<TaskDocumentRequirements> TaskDocumentRequirements { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -112,17 +114,11 @@ namespace NPI.Server.Data
                 .HasForeignKey<Milestones>(m => m.task_id)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<Milestones>()
-                .HasOne(m => m.Tasks)
-                .WithOne(t => t.Milestone)
-                .HasForeignKey<Milestones>(m => m.task_id)
-                .OnDelete(DeleteBehavior.Restrict);
-
             modelBuilder.Entity<Files>()
                 .HasOne(f => f.Task)
                 .WithMany(t => t.Files)
                 .HasForeignKey(f => f.task_id)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<Files>()
                 .HasOne(f => f.ReplacedByFile)
@@ -141,6 +137,65 @@ namespace NPI.Server.Data
                 .WithMany(pr => pr.TaskRevisions)
                 .HasForeignKey(tr => tr.revision_id)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Notifications>()
+                .HasIndex(n => new { n.user_id, n.is_read, n.created_at })
+                .HasDatabaseName("IX_Notifications_User_Unread");
+
+            modelBuilder.Entity<Notifications>()
+                .HasOne(n => n.Task)
+                .WithMany()
+                .HasForeignKey(n => n.task_id)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<Notifications>()
+                .HasOne(n => n.Project)
+                .WithMany()
+                .HasForeignKey(n => n.proj_id)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<StageCompletionLog>()
+                .HasOne(s => s.Project)
+                .WithMany()
+                .HasForeignKey(s => s.proj_id)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<StageCompletionLog>()
+                .HasOne(s => s.CompletedByUser)
+                .WithMany()
+                .HasForeignKey(s => s.completed_by)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<StageCompletionLog>()
+                .HasIndex(s => new { s.proj_id, s.stage_id })
+                .HasDatabaseName("IX_StageCompletionLog_Project_Stage");
+
+            modelBuilder.Entity<TaskDocumentRequirements>()
+                .HasOne(r => r.Task)
+                .WithMany()
+                .HasForeignKey(r => r.task_id)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TaskDocumentRequirements>()
+                .HasOne(r => r.DocumentType)
+                .WithMany()
+                .HasForeignKey(r => r.doc_type_id)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<TaskDocumentRequirements>()
+                .HasOne(r => r.File)
+                .WithMany()
+                .HasForeignKey(r => r.file_id)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<TaskDocumentRequirements>()
+                .HasIndex(r => r.task_id)
+                .HasDatabaseName("IX_TaskDocumentRequirements_Task");
+
+            modelBuilder.Entity<TaskDocumentRequirements>()
+                .HasIndex(r => new { r.task_id, r.doc_type_id })
+                .IsUnique()
+                .HasDatabaseName("IX_TaskDocumentRequirements_Unique");
         }
     }
 }

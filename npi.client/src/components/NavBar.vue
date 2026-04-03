@@ -21,6 +21,41 @@
     </v-list>
 
     <template #append>
+      <v-menu v-model="notifMenu" :close-on-content-click="false" location="end">
+        <template #activator="{ props }">
+          <v-list-item v-bind="props" prepend-icon="mdi-bell" title="Notifications">
+            <template #append>
+              <v-badge v-if="unreadCount > 0" :content="unreadCount" color="error" />
+            </template>
+          </v-list-item>
+        </template>
+
+        <v-card min-width="340" max-width="400">
+          <v-card-title class="d-flex align-center justify-space-between py-2 px-4">
+            <span class="text-subtitle-2">Notifications</span>
+            <v-btn v-if="unreadCount > 0" variant="text" size="small" @click="markAll">
+              Mark all read
+            </v-btn>
+          </v-card-title>
+          <v-divider />
+          <v-list density="compact" style="max-height: 420px; overflow-y: auto;">
+            <v-list-item v-if="notifications.length === 0">
+              <v-list-item-title class="text-caption text-grey">No new notifications</v-list-item-title>
+            </v-list-item>
+            <v-list-item v-for="n in notifications" :key="n.notif_id"
+                         :class="{ 'bg-blue-lighten-5': !n.is_read }"
+                         @click="openNotif(n)">
+              <template #prepend>
+                <v-icon :color="typeColor(n.type)" size="small">{{ typeIcon(n.type) }}</v-icon>
+              </template>
+              <v-list-item-title class="text-body-2">{{ n.title }}</v-list-item-title>
+              <v-list-item-subtitle class="text-caption">
+                {{ formatTimeAgo(n.created_at) }}
+              </v-list-item-subtitle>
+            </v-list-item>
+          </v-list>
+        </v-card>
+      </v-menu>
       <v-divider />
       <v-list>
         <v-list-item :title="authStore.currentUser?.full_name"
