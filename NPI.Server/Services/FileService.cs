@@ -88,6 +88,55 @@ namespace NPI.Server.Services
             }
         }
 
+        public async Task<(bool Success, string Message, Files File)> UploadCustomerFileAsync(
+            IFormFile file, int enquiryId, int uploadBy, string compName)
+        {
+            if (file == null || file.Length == 0)
+                return (false, "No file uploaded.", null);
+
+            try
+            {
+                var invalidChars = Path.GetInvalidFileNameChars();
+                string safeCompName = new string(compName.Where(ch => !invalidChars.Contains(ch)).ToArray()).Trim();
+                if (string.IsNullOrEmpty(safeCompName)) safeCompName = "UnknownCustomer";
+
+                string relativePath = Path.Combine("Database", "Customers", safeCompName);
+                string basePath = Path.Combine(Directory.GetCurrentDirectory(), relativePath);
+
+                if (!Directory.Exists(basePath))
+                {
+                    Directory.CreateDirectory(basePath);
+                }
+
+                string originalFileName = Path.GetFileName(file.FileName);
+                string uniqueFileName = $"{Guid.NewGuid()}_{originalFileName}";
+                string fullPath = Path.Combine(basePath, uniqueFileName);
+
+                using (var stream = new FileStream(fullPath, FileMode.Create))
+                {
+                    await file.CopyToAsync(stream);
+                }
+
+                var newFile = new Files
+                {
+                    enquiry_id = enquiryId,
+                    file_name = originalFileName,
+                    file_path = Path.Combine(relativePath, uniqueFileName).Replace("\\", "/"),
+                    file_size = file.Length,
+                    upload_by = uploadBy,
+                };
+
+                _context.Files.Add(newFile);
+                await _context.SaveChangesAsync();
+
+                return (true, "Customer file uploaded successfully.", newFile);
+            }
+            catch (Exception ex)
+            {
+                return (false, $"An error occurred while uploading: {ex.Message}", null);
+            }
+        }
+
         public async Task<(bool Success, string Message, Files? File)> UploadFileAsync(
             IFormFile file,
             int projId,

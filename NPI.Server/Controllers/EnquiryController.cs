@@ -122,7 +122,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost("{id}/upload")]
-        public async Task<IActionResult> UploadFile(int id, IFormFile file)
+        public async Task<IActionResult> UploadFile(int id, IFormFile file, [FromQuery] string comp_name = "Unknown")
         {
             var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
@@ -130,8 +130,8 @@ namespace NPI.Server.Controllers
                 return Unauthorized(new { success = false, message = "Invalid user identity claim." });
             }
 
-            var (success, message, uploadedFile) = await _fileService.UploadFileAsync(
-                file, 0, null, null, userId, null, id);
+            var (success, message, uploadedFile) = await _fileService.UploadCustomerFileAsync(
+                file, id, userId, comp_name);
 
             if (!success)
             {

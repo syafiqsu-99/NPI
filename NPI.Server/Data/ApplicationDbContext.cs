@@ -14,6 +14,9 @@ namespace NPI.Server.Data
         public DbSet<Customers> Customers { get; set; }
         public DbSet<Departments> Departments { get; set; }
         public DbSet<DocumentTypes> DocumentTypes { get; set; }
+        public DbSet<NpiCategory> NpiCategories { get; set; }
+        public DbSet<NpiFormSection> NpiFormSections { get; set; }
+        public DbSet<NpiFormField> NpiFormFields { get; set; }
         public DbSet<Enquiries> Enquiries { get; set; }
         public DbSet<EnquiryGeneralInfo> EnquiryGeneralInfo { get; set; }
         public DbSet<EnquirySealInfo> EnquirySealInfo { get; set; }

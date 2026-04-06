@@ -6,13 +6,10 @@ namespace NPI.Server.Services
     public interface IFileService
     {
         Task<(bool Success, string Message, Files File)> UploadFileAsync(
-            IFormFile file,
-            int projId,
-            int? taskId,
-            int? docTypeId,
-            int uploadBy,
-            int? deptId,
-            int? enquiryId = null);
+            IFormFile file, int projId, int? taskId, int? docTypeId, int uploadBy, int? deptId, int? enquiryId = null);
+
+        Task<(bool Success, string Message, Files File)> UploadCustomerFileAsync(
+            IFormFile file, int enquiryId, int uploadBy, string compName);
 
         Task<(bool Success, byte[] FileData, string ContentType)> DownloadFileAsync(int fileId);
 

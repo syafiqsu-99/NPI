@@ -106,6 +106,88 @@ namespace NPI.Server.Data
                 await context.SaveChangesAsync();
             }
 
+            if (!await context.NpiCategories.AnyAsync())
+            {
+                var cats = new[]
+                {
+                    new NpiCategory { category_name = "New Design - Bottle/ Jar/ Tub/ Container", display_order = 1 },
+                    new NpiCategory { category_name = "Duplication - Bottle/ Jar/ Tub Container",  display_order = 2 },
+                    new NpiCategory { category_name = "New Design - Cap/ Lid",                      display_order = 3 },
+                    new NpiCategory { category_name = "Duplication - Cap/ Lid",                     display_order = 4 },
+                    new NpiCategory { category_name = "Label",                                      display_order = 5 },
+                    new NpiCategory { category_name = "Wadding/ Seal",                              display_order = 6 },
+                    new NpiCategory { category_name = "New Material/New Color to Existing Product", display_order = 7 },
+                };
+                await context.NpiCategories.AddRangeAsync(cats);
+                await context.SaveChangesAsync();
+            }
+
+            if (!await context.NpiFormSections.AnyAsync())
+            {
+                var sections = new[]
+                {
+                    new NpiFormSection
+                    {
+                        section_key = "generalInfo",
+                        section_label = "General Information - Cap/ Lid",
+                        trigger_keywords = "bottle,jar,tub,container,cap,lid,label,new material,new color",
+                        display_order = 1
+                    },
+                    new NpiFormSection
+                    {
+                        section_key = "sealInfo",
+                        section_label = "Seal/ Wadding/ Gasket",
+                        trigger_keywords = "wadding,seal",
+                        display_order = 2
+                    }
+                };
+                await context.NpiFormSections.AddRangeAsync(sections);
+                await context.SaveChangesAsync();
+            }
+
+            if (!await context.NpiFormFields.AnyAsync())
+            {
+                var genSection = await context.NpiFormSections.FirstAsync(s => s.section_key == "generalInfo");
+                var sealSection = await context.NpiFormSections.FirstAsync(s => s.section_key == "sealInfo");
+
+                var fields = new List<NpiFormField>
+                {
+                    // General Info fields
+                    new() { section_id = genSection.section_id, field_key = "company_name",         field_label = "Company Name",                    field_type = "text",   is_required = true,  display_order = 1 },
+                    new() { section_id = genSection.section_id, field_key = "estimated_qty_per_year",field_label = "Estimated Quantity / Year",        field_type = "number", is_required = false, display_order = 2 },
+                    new() { section_id = genSection.section_id, field_key = "estimated_required_date",field_label = "Estimated Required Date",         field_type = "date",   is_required = false, display_order = 3 },
+                    new() { section_id = genSection.section_id, field_key = "color",                field_label = "Color",                            field_type = "text",   is_required = false, display_order = 4 },
+                    new() { section_id = genSection.section_id, field_key = "material_used",        field_label = "Material Used",                    field_type = "text",   is_required = false, display_order = 5 },
+                    new() { section_id = genSection.section_id, field_key = "weight_g",             field_label = "Weight (g)",                       field_type = "number", is_required = false, display_order = 6 },
+                    new() { section_id = genSection.section_id, field_key = "neck_size_mm",         field_label = "Neck Size (mm)",                   field_type = "select", is_required = false, display_order = 7,
+                            options = """["A 32mm","AA 28mm","B 28mm","BS 38mm","BW 38mm","BX 38mm","C 28mm","CX 32mm","CY 28mm","CS 28mm","D 24mm","J 63mm","JN 90mm","W 110mm"]""" },
+                    new() { section_id = genSection.section_id, field_key = "shape",               field_label = "Shape",                             field_type = "select", is_required = false, display_order = 8,
+                            options = """["Round","Square","Hexagonal","Oval","Rectangular","Other"]""" },
+                    new() { section_id = genSection.section_id, field_key = "hot_cold_filling",    field_label = "Hot/ Cold Filling",                 field_type = "select", is_required = false, display_order = 9,
+                            options = """["Hot","Cold"]""" },
+                    new() { section_id = genSection.section_id, field_key = "qty_first_submission",field_label = "Quantity Required For First Submission", field_type = "number", is_required = false, display_order = 10 },
+                    new() { section_id = genSection.section_id, field_key = "cap_bottle_source",   field_label = "Cap Matching With Bottle, Bottle Source By", field_type = "select", is_required = false, display_order = 11,
+                            options = """["Jebsen & Jessen - New","Jebsen & Jessen - Existing Bottle","Customer"]""" },
+                    new() { section_id = genSection.section_id, field_key = "filling_content",     field_label = "Filling Content",                  field_type = "text",   is_required = false, display_order = 12 },
+                    new() { section_id = genSection.section_id, field_key = "capping_method",      field_label = "Capping Method",                   field_type = "select", is_required = false, display_order = 13,
+                            options = """["Auto","Manual"]""" },
+                    new() { section_id = genSection.section_id, field_key = "cap_seal",            field_label = "Cap Seal",                         field_type = "select", is_required = false, display_order = 14,
+                            options = """["N/A","Wadding","Seal","Gasket","Others"]""" },
+
+                    // Seal Info fields
+                    new() { section_id = sealSection.section_id, field_key = "customer_name",           field_label = "Customer Name",                         field_type = "text",   is_required = true,  display_order = 1 },
+                    new() { section_id = sealSection.section_id, field_key = "apply_to_product",         field_label = "Apply to which product?",               field_type = "select", is_required = false, display_order = 2,
+                            options = """["New Cap","Existing Cap"]""" },
+                    new() { section_id = sealSection.section_id, field_key = "estimated_required_date",  field_label = "Estimated Required Date",               field_type = "date",   is_required = false, display_order = 3 },
+                    new() { section_id = sealSection.section_id, field_key = "reason_of_change",         field_label = "Reason Of Change",                      field_type = "text",   is_required = false, display_order = 4 },
+                    new() { section_id = sealSection.section_id, field_key = "qty_first_submission",     field_label = "Quantity Required For First Submission", field_type = "number", is_required = false, display_order = 5 },
+                    new() { section_id = sealSection.section_id, field_key = "other_requirements",       field_label = "Others Requirements",                   field_type = "text",   is_required = false, display_order = 6 },
+                };
+
+                await context.NpiFormFields.AddRangeAsync(fields);
+                await context.SaveChangesAsync();
+            }
+
             // Seed Role Permissions
             if (!await context.RolePermissions.AnyAsync())
             {

@@ -1,8 +1,8 @@
 <template>
-  <v-container fluid class="pa-0 dashboard-root">
+  <v-container fluid class="pa-0 dashboard-root d-flex flex-column">
 
-    <!-- KPI strip -->
-    <div class="kpi-strip px-4 pt-4 pb-2">
+    <!-- KPI strip (Fixed Top) -->
+    <div class="kpi-strip px-4 pt-4 pb-2 flex-shrink-0">
       <v-row dense>
         <v-col v-for="kpi in kpis" :key="kpi.title" cols="12" sm="6" md="3">
           <v-card class="kpi-card d-flex flex-column justify-center" variant="tonal" :color="kpi.color">
@@ -14,58 +14,53 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="d-flex align-center justify-center" style="height:400px">
+    <div v-if="loading" class="flex-grow-1 d-flex align-center justify-center">
       <v-progress-circular indeterminate color="primary" size="64" />
     </div>
 
-    <div v-else class="dashboard-body px-4 pb-4">
-      <v-row dense style="height:100%">
+    <!-- Dashboard Body (Expands to fill remaining height) -->
+    <div v-else class="dashboard-body px-4 pb-4 flex-grow-1 overflow-hidden d-flex flex-column">
+      <v-row dense class="fill-height ma-0">
 
         <!-- ── LEFT COLUMN ─────────────────────────────────────────────────── -->
-        <v-col cols="12" md="4" class="d-flex flex-column" style="gap:12px">
+        <v-col cols="12" md="4" class="d-flex flex-column pr-md-2" style="gap:12px; height: 100%;">
 
-          <!-- Calendar card -->
-          <v-card class="d-flex flex-column" style="min-height:0">
-            <v-card-title class="section-title d-flex align-center pa-3 pb-2">
+          <!-- Calendar card (Flex-grow to fill available column space) -->
+          <v-card class="d-flex flex-column flex-grow-1 overflow-hidden">
+            <v-card-title class="section-title d-flex align-center pa-3 pb-2 flex-shrink-0">
               <v-icon class="mr-2" size="18">mdi-calendar</v-icon>
               Project Calendar
             </v-card-title>
 
-            <v-divider />
+            <v-divider class="flex-shrink-0" />
 
             <!-- Toolbar -->
-            <v-sheet height="56">
+            <v-sheet height="56" class="flex-shrink-0">
               <v-toolbar flat density="compact">
-                <v-btn class="me-2"
-                       size="small"
-                       variant="outlined"
-                       @click="setToday">
+                <v-btn class="me-2" size="small" variant="outlined" @click="setToday">
                   Today
                 </v-btn>
-
                 <v-btn icon size="small" variant="text" @click="prev">
                   <v-icon size="18">mdi-chevron-left</v-icon>
                 </v-btn>
-
                 <v-btn icon size="small" variant="text" @click="next">
                   <v-icon size="18">mdi-chevron-right</v-icon>
                 </v-btn>
-
                 <v-toolbar-title v-if="calendarRef">
                   {{ calendarTitle }}
                 </v-toolbar-title>
               </v-toolbar>
             </v-sheet>
 
-            <!-- Calendar -->
-            <v-sheet height="500">
+            <!-- Calendar wrapper scales internally -->
+            <v-sheet class="flex-grow-1 overflow-y-auto position-relative">
               <v-calendar ref="calendarRef"
                           v-model="calendarFocus"
                           :events="calendarEvents"
                           :type="calendarType"
                           :event-color="getEventColor"
                           color="primary"
-                          @click:event="showEvent"/>
+                          @click:event="showEvent" />
             </v-sheet>
 
             <!-- Tooltip Menu -->
@@ -75,42 +70,28 @@
                     location="end">
               <v-card min-width="320" flat>
                 <v-toolbar :color="selectedEvent.color" density="compact">
-                  <v-toolbar-title>
-                    {{ selectedEvent.name }}
-                  </v-toolbar-title>
+                  <v-toolbar-title>{{ selectedEvent.name }}</v-toolbar-title>
                 </v-toolbar>
-
                 <v-card-text class="text-body-2">
                   <div><strong>Status:</strong> {{ selectedEvent.status }}</div>
                   <div><strong>Progress:</strong> {{ selectedEvent.progress }}%</div>
                   <div>
                     <strong>Duration:</strong>
-                    {{ formatDate(selectedEvent.start) }}
-                    →
-                    {{ formatDate(selectedEvent.end) }}
+                    {{ formatDate(selectedEvent.start) }} → {{ formatDate(selectedEvent.end) }}
                   </div>
                 </v-card-text>
-
                 <v-card-actions>
                   <v-spacer />
-                  <v-btn size="small"
-                         variant="text"
-                         @click="goToProject(selectedEvent.proj_id)">
-                    Open
-                  </v-btn>
-                  <v-btn size="small"
-                         variant="text"
-                         @click="selectedOpen = false">
-                    Close
-                  </v-btn>
+                  <v-btn size="small" variant="text" @click="goToProject(selectedEvent.proj_id)">Open</v-btn>
+                  <v-btn size="small" variant="text" @click="selectedOpen = false">Close</v-btn>
                 </v-card-actions>
               </v-card>
             </v-menu>
           </v-card>
 
-          <!-- Overdue tasks card — fixed height with internal scroll -->
-          <v-card style="flex-shrink:0">
-            <v-card-title class="section-title d-flex align-center justify-space-between pa-3 pb-2">
+          <!-- Overdue tasks card (Fixed max height, internal scroll) -->
+          <v-card class="d-flex flex-column flex-shrink-0" style="max-height: 30vh;">
+            <v-card-title class="section-title d-flex align-center justify-space-between pa-3 pb-2 flex-shrink-0">
               <div class="d-flex align-center">
                 <v-icon class="mr-2" size="18">mdi-alert-circle-outline</v-icon>
                 Overdue Tasks
@@ -119,10 +100,9 @@
                 {{ overdueTasks.length }}
               </v-chip>
             </v-card-title>
-            <v-divider />
-            <v-list v-if="overdueTasks.length"
-                    density="compact"
-                    style="max-height:220px; overflow-y:auto">
+            <v-divider class="flex-shrink-0" />
+
+            <v-list v-if="overdueTasks.length" density="compact" class="flex-grow-1 overflow-y-auto pa-0">
               <v-list-item v-for="t in overdueTasks"
                            :key="t.task_id"
                            @click="goToProject(t.proj_id)"
@@ -136,8 +116,8 @@
                 </template>
               </v-list-item>
             </v-list>
-            <div v-else
-                 class="d-flex flex-column align-center justify-center text-medium-emphasis py-8">
+
+            <div v-else class="flex-grow-1 d-flex flex-column align-center justify-center text-medium-emphasis py-4">
               <v-icon size="40">mdi-check-circle-outline</v-icon>
               <div class="mt-2 text-caption">No overdue tasks</div>
             </div>
@@ -145,11 +125,11 @@
 
         </v-col>
 
-        <!-- ── RIGHT COLUMN — timeline ──────────────────────────────────────── -->
-        <v-col cols="12" md="8">
-          <v-card class="d-flex flex-column" style="height:100%; min-height:500px">
+        <!-- ── RIGHT COLUMN — Timeline ──────────────────────────────────────── -->
+        <v-col cols="12" md="8" class="d-flex flex-column pl-md-2" style="height: 100%;">
+          <v-card class="d-flex flex-column fill-height overflow-hidden">
 
-            <v-card-title class="section-title d-flex align-center justify-space-between pa-3 pb-2">
+            <v-card-title class="section-title d-flex align-center justify-space-between pa-3 pb-2 flex-shrink-0">
               <div class="d-flex align-center">
                 <v-icon class="mr-2" size="18">mdi-timeline-outline</v-icon>
                 Projects Timeline
@@ -158,15 +138,16 @@
                 <v-icon start>mdi-refresh</v-icon>Refresh
               </v-btn>
             </v-card-title>
-            <v-divider />
+            <v-divider class="flex-shrink-0" />
 
-            <div class="timeline-wrapper" ref="timelineWrapper">
+            <!-- Timeline dynamically fits remaining space -->
+            <div class="timeline-wrapper flex-grow-1 d-flex flex-column position-relative" ref="timelineWrapper">
 
               <v-data-table v-if="projectTimeline.length"
                             :headers="timelineHeaders"
                             :items="projectTimeline"
                             item-value="proj_id"
-                            class="timeline-table"
+                            class="timeline-table flex-grow-1"
                             density="compact"
                             fixed-header
                             height="100%"
@@ -174,7 +155,6 @@
                             :items-per-page="-1"
                             @click:row="(_, row) => goToProject(row.item.proj_id)">
 
-                <!-- Project column (fixed) -->
                 <template #item.proj_name="{ item }">
                   <div class="d-flex flex-column py-1">
                     <span class="text-body-2 font-weight-medium text-truncate">
@@ -191,7 +171,6 @@
                   </div>
                 </template>
 
-                <!-- Progress column (fixed) -->
                 <template #item.progress="{ item }">
                   <div class="d-flex align-center" style="gap:6px; min-width:90px">
                     <v-progress-linear :model-value="item.progress"
@@ -203,31 +182,23 @@
                   </div>
                 </template>
 
-                <!-- Empty date cells — bars drawn on overlay -->
-                <template v-for="col in timelineWeeks"
-                          :key="col.value"
-                          #[`item.${col.value}`]="{}">
+                <template v-for="col in timelineWeeks" :key="col.value" #[`item.${col.value}`]="{}">
                   <div class="tl-empty-cell" :class="{ 'is-today': col.isToday }" />
                 </template>
 
               </v-data-table>
 
-              <div v-if="!projectTimeline.length"
-                   class="d-flex flex-column align-center justify-center text-medium-emphasis"
-                   style="min-height:200px">
+              <div v-if="!projectTimeline.length" class="flex-grow-1 d-flex flex-column align-center justify-center text-medium-emphasis">
                 <v-icon size="56">mdi-folder-open-outline</v-icon>
                 <div class="mt-2">No projects available</div>
               </div>
 
-              <!-- Bar overlay — positioned over date columns only -->
+              <!-- Bar overlay -->
               <div class="tl-bar-overlay" ref="tlBarOverlay" :style="tlOverlayStyle">
                 <template v-for="bar in tlBarLayout" :key="bar.proj_id">
                   <v-tooltip location="top">
                     <template #activator="{ props }">
-                      <div v-bind="props"
-                           :class="bar.cssClass"
-                           :style="bar.style"
-                           @click.stop="goToProject(bar.proj_id)">
+                      <div v-bind="props" :class="bar.cssClass" :style="bar.style" @click.stop="goToProject(bar.proj_id)">
                         <span v-if="bar.label" class="tl-bar-label">{{ bar.label }}</span>
                       </div>
                     </template>
@@ -238,7 +209,6 @@
                     </div>
                   </v-tooltip>
                 </template>
-                <!-- Today vertical line -->
                 <div class="tl-today-line" :style="tlTodayLineStyle" />
               </div>
 
@@ -259,13 +229,14 @@
 </template>
 
 <script setup>
+  // [SCRIPT CONTENT REMAINS EXACTLY THE SAME]
+  // (Ensure all your previous JS is retained here)
   import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { api } from '@/utils/api'
 
   const router = useRouter()
 
-  // ── State ─────────────────────────────────────────────────────────────────────
   const loading = ref(false)
   const projects = ref([])
   const myTasks = ref([])
@@ -273,7 +244,6 @@
   const snackbarMessage = ref('')
   const snackbarColor = ref('success')
 
-  // v-calendar model — array of Date objects (current view anchor)
   const calendarRef = ref(null)
   const calendarFocus = ref('')
   const calendarType = ref('month')
@@ -281,7 +251,6 @@
   const selectedOpen = ref(false)
   const selectedElement = ref(null)
 
-  // Timeline overlay
   const timelineWrapper = ref(null)
   const tlBarOverlay = ref(null)
   const tlOverlayLeft = ref(0)
@@ -290,30 +259,19 @@
   const tlHeaderHeight = ref(36)
   const TL_FIXED_COLS = 2
 
-  // ── Navigation ────────────────────────────────────────────────────────────────
   const goToProject = id => router.push(`/projects/${id}/gantt`)
 
-  // ── Helpers ───────────────────────────────────────────────────────────────────
   function formatDate(d) {
     if (!d) return 'N/A'
     return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   }
   function toMs(d) { return d ? new Date(d).getTime() : NaN }
 
-  function statusColor(s) {
-    return { Completed: 'success', 'In Progress': 'primary', 'On Hold': 'warning', Planning: 'grey', Cancelled: 'error' }[s] ?? 'grey'
-  }
-  function priorityColor(p) {
-    return { Low: 'grey', Medium: 'blue', High: 'orange', Critical: 'red' }[p] ?? 'grey'
-  }
-  function progressColor(v) {
-    if (v >= 100) return 'success'; if (v >= 50) return 'primary'; if (v > 0) return 'warning'; return 'grey'
-  }
-  function statusHex(s) {
-    return { Completed: '#4CAF50', 'In Progress': '#1976D2', 'On Hold': '#FF9800', Planning: '#9E9E9E', Cancelled: '#F44336' }[s] ?? '#9E9E9E'
-  }
+  function statusColor(s) { return { Completed: 'success', 'In Progress': 'primary', 'On Hold': 'warning', Planning: 'grey', Cancelled: 'error' }[s] ?? 'grey' }
+  function priorityColor(p) { return { Low: 'grey', Medium: 'blue', High: 'orange', Critical: 'red' }[p] ?? 'grey' }
+  function progressColor(v) { if (v >= 100) return 'success'; if (v >= 50) return 'primary'; if (v > 0) return 'warning'; return 'grey' }
+  function statusHex(s) { return { Completed: '#4CAF50', 'In Progress': '#1976D2', 'On Hold': '#FF9800', Planning: '#9E9E9E', Cancelled: '#F44336' }[s] ?? '#9E9E9E' }
 
-  // ── KPIs ──────────────────────────────────────────────────────────────────────
   const kpis = computed(() => [
     { title: 'In Progress', value: projects.value.filter(p => p.status === 'In Progress').length, color: 'blue' },
     { title: 'On Hold', value: projects.value.filter(p => p.status === 'On Hold').length, color: 'orange' },
@@ -321,7 +279,6 @@
     { title: 'Total Projects', value: projects.value.length, color: 'primary' },
   ])
 
-  // ── Overdue tasks ─────────────────────────────────────────────────────────────
   const overdueTasks = computed(() => {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     return myTasks.value
@@ -339,68 +296,35 @@
       .slice(0, 15)
   })
 
-  const calendarTitle = computed(() => {
-    return calendarRef.value?.title ?? ''
-  })
-
+  const calendarTitle = computed(() => calendarRef.value?.title ?? '')
   const calendarEvents = computed(() =>
-    projectTimeline.value
-      .filter(p => p.project_start_date && p.target_completion_date)
-      .map(p => ({
-        name: p.proj_name,
-        start: new Date(p.project_start_date),
-        end: new Date(p.target_completion_date),
-        color: statusHex(p.status),
-        proj_id: p.proj_id,
-        status: p.status,
-        progress: p.progress,
-        timed: false,
-      }))
+    projectTimeline.value.filter(p => p.project_start_date && p.target_completion_date).map(p => ({
+      name: p.proj_name, start: new Date(p.project_start_date), end: new Date(p.target_completion_date),
+      color: statusHex(p.status), proj_id: p.proj_id, status: p.status, progress: p.progress, timed: false,
+    }))
   )
 
-  // ── Calendar methods ───────────────────────────────────────────
-  function getEventColor(event) {
-    return event.color
-  }
-
-  function setToday() {
-    calendarFocus.value = ''
-  }
-
-  function prev() {
-    calendarRef.value?.prev()
-  }
-
-  function next() {
-    calendarRef.value?.next()
-  }
+  function getEventColor(event) { return event.color }
+  function setToday() { calendarFocus.value = '' }
+  function prev() { calendarRef.value?.prev() }
+  function next() { calendarRef.value?.next() }
 
   function showEvent(nativeEvent, { event }) {
     const open = () => {
       selectedEvent.value = event
       selectedElement.value = nativeEvent.target
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => (selectedOpen.value = true))
-      )
+      requestAnimationFrame(() => requestAnimationFrame(() => (selectedOpen.value = true)))
     }
-
     if (selectedOpen.value) {
       selectedOpen.value = false
-      requestAnimationFrame(() =>
-        requestAnimationFrame(open)
-      )
-    } else {
-      open()
-    }
-
+      requestAnimationFrame(() => requestAnimationFrame(open))
+    } else open()
     nativeEvent.stopPropagation()
   }
 
-  // ── Timeline ──────────────────────────────────────────────────────────────────
-  // Span: 4 weeks before today → 20 weeks after (week columns)
   const tlFirstMonday = computed(() => {
     const d = new Date(); d.setHours(0, 0, 0, 0)
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 28) // back to Mon, -4 weeks
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 28)
     return d
   })
 
@@ -411,18 +335,12 @@
       const we = new Date(ws); we.setDate(we.getDate() + 6)
       return {
         title: ws.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-        value: `tlw_${i}`,
-        width: '72px',
-        align: 'center',
-        sortable: false,
-        date: ws,
-        endDate: we,
-        isToday: today >= ws && today <= we,
+        value: `tlw_${i}`, width: '72px', align: 'center', sortable: false,
+        date: ws, endDate: we, isToday: today >= ws && today <= we,
       }
     })
   })
 
-  // Both Project and Progress columns are fixed (sticky) so they don't scroll away
   const timelineHeaders = computed(() => [
     { title: 'Project', value: 'proj_name', width: '220px', sortable: false, fixed: true },
     { title: 'Progress', value: 'progress', width: '110px', sortable: false, fixed: true },
@@ -430,22 +348,17 @@
   ])
 
   const tlStart = computed(() => tlFirstMonday.value)
-  const tlEnd = computed(() => {
-    const e = new Date(tlFirstMonday.value); e.setDate(e.getDate() + 24 * 7); return e
-  })
+  const tlEnd = computed(() => { const e = new Date(tlFirstMonday.value); e.setDate(e.getDate() + 24 * 7); return e })
   const tlMs = computed(() => tlEnd.value - tlStart.value)
 
   const projectTimeline = computed(() =>
     projects.value.map(p => {
       const pt = myTasks.value.filter(t => t.proj_id === p.proj_id)
-      const progress = pt.length
-        ? Math.round(pt.reduce((s, t) => s + (t.per_complete || 0), 0) / pt.length)
-        : 0
+      const progress = pt.length ? Math.round(pt.reduce((s, t) => s + (t.per_complete || 0), 0) / pt.length) : 0
       return { ...p, progress }
     })
   )
 
-  // ── Timeline overlay measurement ──────────────────────────────────────────────
   function measureTlOverlay() {
     nextTick(() => {
       const wrapper = timelineWrapper.value
@@ -461,12 +374,8 @@
       const firstDateTh = allTh[TL_FIXED_COLS]
       const lastDateTh = allTh[allTh.length - 1]
 
-      // overlayLeft is measured relative to wrapper + current scrollLeft
-      tlOverlayLeft.value = firstDateTh.getBoundingClientRect().left
-        - wrapperRect.left
-        + (scrollable?.scrollLeft ?? 0)
-      tlOverlayWidth.value = lastDateTh.getBoundingClientRect().right
-        - firstDateTh.getBoundingClientRect().left
+      tlOverlayLeft.value = firstDateTh.getBoundingClientRect().left - wrapperRect.left + (scrollable?.scrollLeft ?? 0)
+      tlOverlayWidth.value = lastDateTh.getBoundingClientRect().right - firstDateTh.getBoundingClientRect().left
 
       const firstTr = table.querySelector('tbody tr')
       if (firstTr) tlRowHeight.value = firstTr.getBoundingClientRect().height || 52
@@ -476,18 +385,12 @@
     })
   }
 
-  // ── Bar layout ────────────────────────────────────────────────────────────────
   const tlBarLayout = computed(() => {
     if (!tlOverlayWidth.value || !tlMs.value) return []
-
-    const tsMs = tlStart.value.getTime()
-    const totMs = tlMs.value
-    const barH = Math.max(8, Math.floor(tlRowHeight.value * 0.42))
-
+    const tsMs = tlStart.value.getTime(), totMs = tlMs.value, barH = Math.max(8, Math.floor(tlRowHeight.value * 0.42))
     return projectTimeline.value.flatMap((p, idx) => {
       if (!p.project_start_date || !p.target_completion_date) return []
-      const sMs = toMs(p.project_start_date)
-      const eMs = toMs(p.target_completion_date) + 86400000 // include end day
+      const sMs = toMs(p.project_start_date), eMs = toMs(p.target_completion_date) + 86400000
       if (isNaN(sMs) || isNaN(eMs) || eMs <= sMs) return []
 
       const leftPct = Math.max(0, (sMs - tsMs) / totMs) * 100
@@ -498,30 +401,17 @@
       const slug = (p.status ?? 'planning').toLowerCase().replace(/\s+/g, '-')
 
       return [{
-        proj_id: p.proj_id, proj_name: p.proj_name,
-        status: p.status, start: p.project_start_date,
-        end: p.target_completion_date, progress: p.progress,
-        cssClass: `tl-bar tl-bar-${slug}`,
+        proj_id: p.proj_id, proj_name: p.proj_name, status: p.status, start: p.project_start_date,
+        end: p.target_completion_date, progress: p.progress, cssClass: `tl-bar tl-bar-${slug}`,
         label: widthPct > 5 ? p.proj_name : '',
-        style: {
-          top: `${topOffset}px`,
-          left: `${leftPct}%`,
-          width: `${widthPct}%`,
-          height: `${barH}px`,
-          '--tl-progress': `${p.progress}%`,
-        }
+        style: { top: `${topOffset}px`, left: `${leftPct}%`, width: `${widthPct}%`, height: `${barH}px`, '--tl-progress': `${p.progress}%` }
       }]
     })
   })
-  
+
   const tlOverlayStyle = computed(() => ({
-    position: 'absolute',
-    top: `${tlHeaderHeight.value}px`,
-    left: `${tlOverlayLeft.value}px`,
-    width: `${tlOverlayWidth.value}px`,
-    pointerEvents: 'none',
-    overflow: 'visible',
-    zIndex: 5,
+    position: 'absolute', top: `${tlHeaderHeight.value}px`, left: `${tlOverlayLeft.value}px`,
+    width: `${tlOverlayWidth.value}px`, pointerEvents: 'none', overflow: 'visible', zIndex: 5,
   }))
 
   const tlTodayLineStyle = computed(() => {
@@ -543,14 +433,10 @@
     })
   }
 
-  // ── Data loading ──────────────────────────────────────────────────────────────
   async function loadDashboardData() {
     loading.value = true
     try {
-      const [pr, tr] = await Promise.all([
-        api.get('/project'),
-        api.get('/task/my-tasks'),
-      ])
+      const [pr, tr] = await Promise.all([api.get('/project'), api.get('/task/my-tasks')])
       projects.value = pr?.success ? (pr.data ?? []) : (Array.isArray(pr) ? pr : [])
       myTasks.value = tr?.data ?? (Array.isArray(tr) ? tr : [])
     } catch (err) {
@@ -571,8 +457,6 @@
     await loadDashboardData()
     measureTlOverlay()
     attachScrollSync()
-
-    console.log("Projects Data: ", projects.value);
   })
 
   onBeforeUnmount(() => {
@@ -581,13 +465,11 @@
 </script>
 
 <style scoped>
+  /* 1. Strict 100vh Root without scrolling */
   .dashboard-root {
     background: #f5f6f8;
-    min-height: 100vh;
-  }
-
-  .dashboard-body {
-    padding-top: 0;
+    height: 100vh !important;
+    overflow: hidden !important;
   }
 
   .kpi-card {
@@ -601,13 +483,7 @@
     font-weight: 600;
   }
 
-  .timeline-wrapper {
-    position: relative;
-    overflow: hidden;
-    flex: 1;
-    min-height: 0;
-  }
-
+  /* Timeline Layout Cleanup */
   .timeline-table :deep(.v-table__wrapper) {
     overflow-x: auto;
     overflow-y: auto;
@@ -629,30 +505,7 @@
     background-color: rgba(0, 0, 0, 0.025) !important;
   }
 
-  .timeline-wrapper {
-    position: relative;
-    overflow: hidden;
-    flex: 1;
-    min-height: 0;
-  }
-
-  .timeline-table :deep(.v-table__wrapper) {
-    overflow-x: auto;
-    overflow-y: auto;
-    height: 100%;
-  }
-
-  .timeline-table :deep(th),
-  .timeline-table :deep(td) {
-    white-space: nowrap;
-    border-right: 1px solid rgba(0,0,0,0.05);
-    padding: 0 8px !important;
-  }
-
-  .timeline-table :deep(tbody tr:hover td) {
-    background-color: rgba(0,0,0,0.025) !important;
-  }
-
+  /* Sticky Headers for Project/Progress Fixed Columns */
   .timeline-table :deep(th:nth-child(1)),
   .timeline-table :deep(td:nth-child(1)),
   .timeline-table :deep(th:nth-child(2)),
@@ -671,26 +524,18 @@
     vertical-align: middle;
   }
 
+  /* Empty Gantt Track Grid */
   .tl-empty-cell {
     height: 52px;
     width: 100%;
   }
 
-  .tl-empty-cell.is-today {
-    background-color: rgba(33,150,243,0.06);
-    border-left: 2px solid rgba(33,150,243,0.35);
-  }
+    .tl-empty-cell.is-today {
+      background-color: rgba(33, 150, 243, 0.05);
+      border-left: 2px solid rgba(33, 150, 243, 0.35);
+    }
 
-  .tl-empty-cell {
-    height: 52px;
-    width: 100%;
-  }
-
-  .tl-empty-cell.is-today {
-    background-color: rgba(33, 150, 243, 0.05);
-    border-left: 2px solid rgba(33, 150, 243, 0.35);
-  }
-
+  /* Overlay & Bars */
   .tl-bar-overlay {
     pointer-events: none;
     position: absolute;
@@ -709,11 +554,11 @@
     min-width: 4px;
   }
 
-  .tl-bar:hover {
-    filter: brightness(1.1);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
-    z-index: 20;
-  }
+    .tl-bar:hover {
+      filter: brightness(1.1);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+      z-index: 20;
+    }
 
   .tl-bar-planning {
     background: rgba(158, 158, 158, 0.45);

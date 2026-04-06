@@ -27,6 +27,10 @@
                 <v-icon start>mdi-cog-outline</v-icon>
                 System Settings
               </v-tab>
+              <v-tab value="npiConfig">
+                <v-icon start>mdi-form-select</v-icon>
+                NPI Form Config
+              </v-tab>
             </v-tabs>
 
             <v-window v-model="activeTab">
@@ -49,6 +53,11 @@
               <v-window-item value="system">
                 <SystemSettings />
               </v-window-item>
+
+              <!-- NPI Form Configuration -->
+              <v-window-item value="npiConfig">
+                <NpiFormConfig />
+              </v-window-item>
             </v-window>
           </v-card-text>
         </v-card>
@@ -68,6 +77,7 @@
   import RoleManagement from '@/components/settings/RoleManagement.vue'
   import DepartmentManagement from '@/components/settings/DepartmentManagement.vue'
   import SystemSettings from '@/components/settings/SystemSettings.vue'
+  import NpiFormConfig from '@/components/settings/NpiFormConfig.vue'
 
   const activeTab = ref('users')
 </script>

@@ -389,6 +389,7 @@ namespace NPI.Server.Services
                 npi_category = enquiry.npi_category,
                 status = enquiry.status,
                 created_by = enquiry.created_by,
+                username = enquiry.CreatedByUser?.username ?? "Unknown",
                 created_at = enquiry.created_at,
                 updated_by = enquiry.updated_by,
                 submitted_at = enquiry.submitted_at,

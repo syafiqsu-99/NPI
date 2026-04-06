@@ -71,21 +71,77 @@
 </template>
 
 <script setup>
-  import { onMounted } from 'vue'
+  import { ref, onMounted, onBeforeUnmount } from 'vue'
   import { useRouter } from 'vue-router'
   import { useAuthStore } from '@/stores/auth'
+  import { api } from '@/utils/api'
 
   const router = useRouter()
   const authStore = useAuthStore()
+
+  const notifMenu = ref(false)
+  const notifications = ref([])   // initialized as array → fixes the .length TypeError
+  const unreadCount = ref(0)
+
+  async function fetchNotifications() {
+    try {
+      const result = await api.get('/notification')
+      notifications.value = result?.data ?? []
+      unreadCount.value = notifications.value.filter(n => !n.is_read).length
+    } catch {
+      notifications.value = []
+      unreadCount.value = 0
+    }
+  }
+
+  async function markAll() {
+    try {
+      await api.post('/notification/mark-all-read', {})
+      notifications.value = notifications.value.map(n => ({ ...n, is_read: true }))
+      unreadCount.value = 0
+    } catch { /* silent */ }
+  }
+
+  function openNotif(n) {
+    notifMenu.value = false
+    if (n.proj_id) router.push(`/projects/${n.proj_id}/gantt`)
+  }
+
+  function typeColor(type) {
+    return { stage_complete: 'success', task_assigned: 'primary', deadline: 'warning' }[type] ?? 'grey'
+  }
+
+  function typeIcon(type) {
+    return { stage_complete: 'mdi-check-circle', task_assigned: 'mdi-clipboard-account', deadline: 'mdi-alarm' }[type] ?? 'mdi-bell'
+  }
+
+  function formatTimeAgo(dateStr) {
+    if (!dateStr) return ''
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const m = Math.floor(diff / 60000)
+    if (m < 1) return 'just now'
+    if (m < 60) return `${m}m ago`
+    const h = Math.floor(m / 60)
+    if (h < 24) return `${h}h ago`
+    return `${Math.floor(h / 24)}d ago`
+  }
 
   const handleLogout = async () => {
     await authStore.logout()
     router.push('/login')
   }
 
+  let pollInterval = null
+
   onMounted(async () => {
     if (authStore.token) {
       await authStore.checkAuth()
+      await fetchNotifications()
+      pollInterval = setInterval(fetchNotifications, 60000)
     }
+  })
+
+  onBeforeUnmount(() => {
+    if (pollInterval) clearInterval(pollInterval)
   })
 </script>
