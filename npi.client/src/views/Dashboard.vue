@@ -53,14 +53,53 @@
             </v-sheet>
 
             <!-- Calendar wrapper scales internally -->
-            <v-sheet class="flex-grow-1 overflow-y-auto position-relative">
+            <v-sheet class="calendar-host flex-grow-1 position-relative">
               <v-calendar ref="calendarRef"
                           v-model="calendarFocus"
                           :events="calendarEvents"
-                          :type="calendarType"
-                          :event-color="getEventColor"
+                          view-mode="month"
                           color="primary"
-                          @click:event="showEvent" />
+                          class="dashboard-calendar compact-calendar">
+                <template #day="{ day, outside }">
+                  <div class="compact-day-cell"
+                       :class="{
+                          'is-outside': outside,
+                          'is-today': isSameDate(getSafeDayDate(day), todayDate)
+                        }">
+                    <!-- Day header -->
+                    <div class="compact-day-header">
+                      <div class="compact-day-number">
+                        <span v-if="getDayNumber(day) !== null"
+                              class="compact-day-badge"
+                              :class="{ 'compact-day-badge--today': isSameDate(getSafeDayDate(day), todayDate) }">
+                          {{ getDayNumber(day) }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Events -->
+                    <div class="compact-day-events" v-if="getSafeDayDate(day)">
+                      <template v-for="evt in getDayEvents(getSafeDayDate(day)).visible"
+                                :key="`${evt.proj_id}-${evt.start}`">
+                        <button type="button"
+                                class="compact-event-pill"
+                                :style="{ '--evt-color': evt.color }"
+                                @click.stop="showEventFromSlot($event, evt)"
+                                :title="`${evt.name} (${evt.status} • ${evt.progress}%)`">
+                          <span class="compact-event-dot" />
+                          <span class="compact-event-text">{{ evt.name }}</span>
+                        </button>
+                      </template>
+
+                      <div v-if="getDayEvents(getSafeDayDate(day)).more > 0"
+                           class="compact-more-events"
+                           :title="`${getDayEvents(getSafeDayDate(day)).more} more event(s)`">
+                        +{{ getDayEvents(getSafeDayDate(day)).more }} more
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </v-calendar>
             </v-sheet>
 
             <!-- Tooltip Menu -->
@@ -229,8 +268,6 @@
 </template>
 
 <script setup>
-  // [SCRIPT CONTENT REMAINS EXACTLY THE SAME]
-  // (Ensure all your previous JS is retained here)
   import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { api } from '@/utils/api'
@@ -246,7 +283,6 @@
 
   const calendarRef = ref(null)
   const calendarFocus = ref('')
-  const calendarType = ref('month')
   const selectedEvent = ref({})
   const selectedOpen = ref(false)
   const selectedElement = ref(null)
@@ -258,6 +294,9 @@
   const tlRowHeight = ref(52)
   const tlHeaderHeight = ref(36)
   const TL_FIXED_COLS = 2
+
+  const todayDate = new Date()
+  todayDate.setHours(0, 0, 0, 0)
 
   const goToProject = id => router.push(`/projects/${id}/gantt`)
 
@@ -296,30 +335,64 @@
       .slice(0, 15)
   })
 
-  const calendarTitle = computed(() => calendarRef.value?.title ?? '')
+  const calendarTitle = computed(() => {
+    const base = calendarFocus.value ? new Date(calendarFocus.value) : new Date()
+    return base.toLocaleDateString('en-GB', {
+      month: 'long',
+      year: 'numeric',
+    })
+  })
+
   const calendarEvents = computed(() =>
-    projectTimeline.value.filter(p => p.project_start_date && p.target_completion_date).map(p => ({
-      name: p.proj_name, start: new Date(p.project_start_date), end: new Date(p.target_completion_date),
-      color: statusHex(p.status), proj_id: p.proj_id, status: p.status, progress: p.progress, timed: false,
-    }))
+    projectTimeline.value
+      .filter(p => {
+        if (!p.project_start_date || !p.target_completion_date) return false
+        const s = new Date(p.project_start_date)
+        const e = new Date(p.target_completion_date)
+        return !Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime())
+      })
+      .map(p => ({
+        name: p.proj_name,
+        start: new Date(p.project_start_date),
+        end: new Date(p.target_completion_date),
+        color: statusHex(p.status),
+        proj_id: p.proj_id,
+        status: p.status,
+        progress: p.progress,
+        timed: false,
+      }))
   )
 
   function getEventColor(event) { return event.color }
-  function setToday() { calendarFocus.value = '' }
-  function prev() { calendarRef.value?.prev() }
-  function next() { calendarRef.value?.next() }
+  function setToday() {
+    calendarFocus.value = new Date()
+  }
 
-  function showEvent(nativeEvent, { event }) {
+  function prev() {
+    const current = calendarFocus.value ? new Date(calendarFocus.value) : new Date()
+    current.setMonth(current.getMonth() - 1)
+    calendarFocus.value = current
+  }
+
+  function next() {
+    const current = calendarFocus.value ? new Date(calendarFocus.value) : new Date()
+    current.setMonth(current.getMonth() + 1)
+    calendarFocus.value = current
+  }
+
+  function showEventFromSlot(nativeEvent, event) {
     const open = () => {
       selectedEvent.value = event
-      selectedElement.value = nativeEvent.target
+      selectedElement.value = nativeEvent.currentTarget
       requestAnimationFrame(() => requestAnimationFrame(() => (selectedOpen.value = true)))
     }
+
     if (selectedOpen.value) {
       selectedOpen.value = false
       requestAnimationFrame(() => requestAnimationFrame(open))
-    } else open()
-    nativeEvent.stopPropagation()
+    } else {
+      open()
+    }
   }
 
   const tlFirstMonday = computed(() => {
@@ -358,6 +431,67 @@
       return { ...p, progress }
     })
   )
+
+  function normalizeDate(value) {
+    if (!value) return null
+    const d = new Date(value)
+    if (Number.isNaN(d.getTime())) return null
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+
+  function isSameDate(a, b) {
+    const da = normalizeDate(a)
+    const db = normalizeDate(b)
+    if (!da || !db) return false
+    return da.getTime() === db.getTime()
+  }
+
+  function isDateInRange(target, start, end) {
+    const t = normalizeDate(target)
+    const s = normalizeDate(start)
+    const e = normalizeDate(end)
+
+    if (!t || !s || !e) return false
+
+    return t.getTime() >= s.getTime() && t.getTime() <= e.getTime()
+  }
+
+  function getDayEvents(dayDate) {
+    const dayEvents = calendarEvents.value.filter(evt =>
+      evt.start && evt.end && isDateInRange(dayDate, evt.start, evt.end)
+    )
+
+    const MAX_VISIBLE = 2
+
+    return {
+      visible: dayEvents.slice(0, MAX_VISIBLE),
+      more: Math.max(0, dayEvents.length - MAX_VISIBLE),
+    }
+  }
+
+  function getSafeDayDate(day) {
+    if (!day) return null
+
+    const raw =
+      day.date ??
+      day?.day?.date ??
+      day?.value ??
+      null
+
+    if (!raw) return null
+
+    const d = new Date(raw)
+    if (Number.isNaN(d.getTime())) return null
+
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+
+  function getDayNumber(day) {
+    const d = getSafeDayDate(day)
+    return d ? d.getDate() : null
+  }
 
   function measureTlOverlay() {
     nextTick(() => {
@@ -603,5 +737,250 @@
     background: rgba(33, 150, 243, 0.72);
     pointer-events: none;
     z-index: 10;
+  }
+
+  /* Calendar wrapper must NOT scroll */
+  .calendar-host {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Calendar fills host exactly */
+  .compact-calendar {
+    height: 100%;
+    min-height: 0 !important;
+    width: 100%;
+    overflow: hidden !important;
+  }
+
+    /* Internal calendar containers */
+    .compact-calendar :deep(.v-calendar) {
+      height: 100% !important;
+      width: 100% !important;
+      overflow: hidden !important;
+    }
+
+    .compact-calendar :deep(.v-calendar-monthly),
+    .compact-calendar :deep(.v-calendar-month__container),
+    .compact-calendar :deep(.v-calendar-month__days),
+    .compact-calendar :deep(.v-calendar-month__day-container) {
+      height: 100% !important;
+      width: 100% !important;
+      overflow: hidden !important;
+    }
+
+    /* Kill ALL internal scrollbars from VCalendar */
+    .compact-calendar :deep(.v-calendar-header),
+    .compact-calendar :deep(.v-calendar-month__week),
+    .compact-calendar :deep(.v-calendar-month__weekday),
+    .compact-calendar :deep(.v-calendar-month__day),
+    .compact-calendar :deep(.v-calendar-weekly),
+    .compact-calendar :deep(.v-calendar-weekly__day),
+    .compact-calendar :deep(.v-calendar-weekly__head),
+    .compact-calendar :deep(.v-calendar-weekly__head-weekday) {
+      overflow: hidden !important;
+    }
+
+    /* Ensure 7 columns fit width */
+    .compact-calendar :deep(.v-calendar-month__week),
+    .compact-calendar :deep(.v-calendar-month__weekdays) {
+      display: grid !important;
+      grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+      width: 100% !important;
+    }
+
+    /* Make the month use full height:
+   1 weekday row + max 6 week rows */
+    .compact-calendar :deep(.v-calendar-month__weekdays) {
+      flex: 0 0 28px !important;
+      min-height: 28px !important;
+      max-height: 28px !important;
+    }
+
+    .compact-calendar :deep(.v-calendar-month__days) {
+      display: grid !important;
+      grid-template-rows: repeat(6, minmax(0, 1fr)) !important;
+      height: calc(100% - 28px) !important;
+      min-height: 0 !important;
+    }
+
+    /* Each week row gets equal height */
+    .compact-calendar :deep(.v-calendar-month__week) {
+      min-height: 0 !important;
+      height: 100% !important;
+      align-items: stretch;
+    }
+
+    /* Each day cell gets equal width and constrained height */
+    .compact-calendar :deep(.v-calendar-month__day) {
+      min-height: 0 !important;
+      height: 100% !important;
+      padding: 1px !important;
+      overflow: hidden !important;
+      box-sizing: border-box;
+    }
+
+    /* Weekday header */
+    .compact-calendar :deep(.v-calendar-weekly__head-weekday),
+    .compact-calendar :deep(.v-calendar-month__weekday) {
+      font-size: 11px !important;
+      font-weight: 600;
+      padding: 2px !important;
+      line-height: 1.1 !important;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+  /* Custom compact cell */
+  .compact-day-cell {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 2px;
+    border-radius: 6px;
+    box-sizing: border-box;
+  }
+
+    .compact-day-cell.is-outside {
+      opacity: 0.4;
+    }
+
+    .compact-day-cell.is-today {
+      background: rgba(25, 118, 210, 0.04);
+    }
+
+  /* Day header */
+  .compact-day-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-bottom: 1px;
+    min-height: 18px;
+    flex-shrink: 0;
+  }
+
+  .compact-day-number {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  /* Day badge fully constrained */
+  .compact-day-badge {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 600;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .compact-day-badge--today {
+    background: rgb(var(--v-theme-primary));
+    color: white;
+  }
+
+  /* Event area */
+  .compact-day-events {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
+    overflow: hidden;
+    flex: 1;
+  }
+
+  /* Event pill constrained to cell */
+  .compact-event-pill {
+    all: unset;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    width: 100%;
+    max-width: 100%;
+    min-height: 14px;
+    padding: 0 3px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--evt-color) 16%, white);
+    border-left: 2px solid var(--evt-color);
+    box-sizing: border-box;
+    cursor: pointer;
+    overflow: hidden;
+  }
+
+  .compact-event-dot {
+    width: 5px;
+    height: 5px;
+    min-width: 5px;
+    border-radius: 50%;
+    background: var(--evt-color);
+    flex-shrink: 0;
+  }
+
+  .compact-event-text {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 9px;
+    line-height: 1.1;
+    font-weight: 500;
+  }
+
+  .compact-more-events {
+    font-size: 9px;
+    line-height: 1.1;
+    color: rgba(0, 0, 0, 0.6);
+    padding: 0 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Small-height dashboards */
+  @@media (max-height: 900px) {
+    .compact-calendar :deep(.v-calendar-month__weekdays) {
+      flex: 0 0 24px !important;
+      min-height: 24px !important;
+      max-height: 24px !important;
+    }
+
+    .compact-calendar :deep(.v-calendar-month__days) {
+      height: calc(100% - 24px) !important;
+    }
+
+    .compact-day-header {
+      min-height: 16px;
+    }
+
+    .compact-day-badge {
+      width: 16px;
+      height: 16px;
+      min-width: 16px;
+      font-size: 9px;
+    }
+
+    .compact-event-pill {
+      min-height: 12px;
+      padding: 0 2px;
+    }
+
+    .compact-event-text,
+    .compact-more-events {
+      font-size: 8px;
+    }
   }
 </style>

@@ -34,6 +34,8 @@ namespace NPI.Server.Models
         public int display_order { get; set; } = 0;
         public bool is_active { get; set; } = true;
         public virtual ICollection<NpiFormField>? Fields { get; set; }
+        public DateTime created_at { get; set; } = DateTime.Now;
+        public DateTime? updated_at { get; set; }
     }
 
     public class NpiFormField
@@ -60,5 +62,7 @@ namespace NPI.Server.Models
 
         [ForeignKey("section_id")]
         public virtual NpiFormSection? Section { get; set; }
+        public DateTime created_at { get; set; } = DateTime.Now;
+        public DateTime? updated_at { get; set; }
     }
 }

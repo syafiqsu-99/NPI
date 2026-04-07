@@ -5,6 +5,15 @@ using NPI.Server.Models;
 
 namespace NPI.Server.Services
 {
+    /// <summary>
+    /// Handles all enquiry operations using the dynamic field system.
+    ///
+    /// Data flow for field values:
+    ///   Create/Update → DTO.field_values (Dictionary) → EnquiryFieldValues rows
+    ///   Read          → EnquiryFieldValues rows → DTO.field_values (Dictionary)
+    ///
+    /// CustomerRef is always persisted to its own table and returned separately.
+    /// </summary>
     public class EnquiryService : IEnquiryService
     {
         private readonly ApplicationDbContext _context;
@@ -14,57 +23,20 @@ namespace NPI.Server.Services
             _context = context;
         }
 
-        public async Task<(bool Success, string Message, EnquiryResponseDto Enquiry)> CreateEnquiryAsync(EnquiryCreateDto dto, int userId)
+        // ── Create ────────────────────────────────────────────────────────────
+
+        public async Task<(bool Success, string Message, EnquiryResponseDto? Enquiry)>
+            CreateEnquiryAsync(EnquiryCreateDto dto, int userId)
         {
             try
             {
-                int customerId;
-
-                if (dto.cust_id == null && dto.new_customer != null)
-                {
-                    var existingCustomer = await _context.Customers
-                        .FirstOrDefaultAsync(c => c.comp_name == dto.new_customer.comp_name && c.is_active);
-
-                    if (existingCustomer != null)
-                    {
-                        customerId = existingCustomer.cust_id;
-                    }
-                    else
-                    {
-                        var newCustomer = new Customers
-                        {
-                            comp_name = dto.new_customer.comp_name,
-                            cust_addr = dto.new_customer.cust_addr,
-                            contact_name = dto.new_customer.contact_name,
-                            contact_email = dto.new_customer.contact_email,
-                            contact_phone = dto.new_customer.contact_phone,
-                            created_at = DateTime.Now,
-                            is_active = true
-                        };
-
-                        _context.Customers.Add(newCustomer);
-                        await _context.SaveChangesAsync();
-
-                        customerId = newCustomer.cust_id;
-                    }
-                }
-                else if (dto.cust_id.HasValue)
-                {
-                    customerId = dto.cust_id.Value;
-
-                    if (!await _context.Customers.AnyAsync(c => c.cust_id == customerId))
-                    {
-                        return (false, "Customer not found", null);
-                    }
-                }
-                else
-                {
-                    return (false, "Either cust_id or new_customer must be provided", null);
-                }
+                var customerId = await ResolveCustomerIdAsync(dto);
+                if (customerId == 0)
+                    return (false, "Customer not found or invalid data supplied.", null);
 
                 var enquiry = new Enquiries
                 {
-                    enquiry_no = await GenerateEnquiryNo(),
+                    enquiry_no = await GenerateEnquiryNoAsync(),
                     cust_id = customerId,
                     npi_category = dto.npi_category,
                     status = "Draft",
@@ -75,58 +47,11 @@ namespace NPI.Server.Services
                 _context.Enquiries.Add(enquiry);
                 await _context.SaveChangesAsync();
 
-                if (dto.GeneralInfo != null)
-                {
-                    var generalInfo = new EnquiryGeneralInfo
-                    {
-                        enquiry_id = enquiry.enquiry_id,
-                        company_name = dto.GeneralInfo.company_name,
-                        estimated_qty_per_year = dto.GeneralInfo.estimated_qty_per_year,
-                        estimated_required_date = dto.GeneralInfo.estimated_required_date,
-                        color = dto.GeneralInfo.color,
-                        material_used = dto.GeneralInfo.material_used,
-                        weight_g = dto.GeneralInfo.weight_g,
-                        neck_size_mm = dto.GeneralInfo.neck_size_mm,
-                        shape = dto.GeneralInfo.shape,
-                        hot_cold_filling = dto.GeneralInfo.hot_cold_filling,
-                        qty_first_submission = dto.GeneralInfo.qty_first_submission,
-                        cap_bottle_source = dto.GeneralInfo.cap_bottle_source,
-                        filling_content = dto.GeneralInfo.filling_content,
-                        capping_method = dto.GeneralInfo.capping_method,
-                        cap_seal = dto.GeneralInfo.cap_seal
-                    };
-                    _context.EnquiryGeneralInfo.Add(generalInfo);
-                }
+                await SaveFieldValuesAsync(enquiry.enquiry_id, dto.field_values);
+                await UpsertCustomerRefAsync(enquiry.enquiry_id, dto.CustomerRef);
 
-                if (dto.SealInfo != null)
-                {
-                    var sealInfo = new EnquirySealInfo
-                    {
-                        enquiry_id = enquiry.enquiry_id,
-                        customer_name = dto.SealInfo.customer_name,
-                        apply_to_product = dto.SealInfo.apply_to_product,
-                        estimated_required_date = dto.SealInfo.estimated_required_date,
-                        reason_of_change = dto.SealInfo.reason_of_change,
-                        qty_first_submission = dto.SealInfo.qty_first_submission,
-                        other_requirements = dto.SealInfo.other_requirements
-                    };
-                    _context.EnquirySealInfo.Add(sealInfo);
-                }
-
-                if (dto.CustomerRef != null)
-                {
-                    var customerRef = new EnquiryCustomerRef
-                    {
-                        enquiry_id = enquiry.enquiry_id,
-                        mould_ownership = dto.CustomerRef.mould_ownership
-                    };
-                    _context.EnquiryCustomerRef.Add(customerRef);
-                }
-
-                await _context.SaveChangesAsync();
-
-                var responseDto = await GetEnquiryByIdAsync(enquiry.enquiry_id);
-                return (true, "Enquiry created successfully", responseDto);
+                var response = await GetEnquiryByIdAsync(enquiry.enquiry_id);
+                return (true, "Enquiry created successfully.", response);
             }
             catch (Exception ex)
             {
@@ -134,127 +59,38 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool Success, string Message)> UpdateEnquiryAsync(int enquiryId, EnquiryCreateDto dto, int userId)
+        // ── Update ────────────────────────────────────────────────────────────
+
+        public async Task<(bool Success, string Message)>
+            UpdateEnquiryAsync(int enquiryId, EnquiryCreateDto dto, int userId)
         {
             try
             {
-                var enquiry = await _context.Enquiries
-                    .Include(e => e.Customer)
-                    .Include(e => e.GeneralInfo)
-                    .Include(e => e.SealInfo)
-                    .Include(e => e.CustomerRef)
-                    .FirstOrDefaultAsync(e => e.enquiry_id == enquiryId);
-
+                var enquiry = await _context.Enquiries.FindAsync(enquiryId);
                 if (enquiry == null)
-                    return (false, "Enquiry not found");
+                    return (false, "Enquiry not found.");
 
                 if (enquiry.created_by != userId)
-                    return (false, "Unauthorized to update this enquiry");
+                    return (false, "You are not authorised to edit this enquiry.");
 
                 if (enquiry.status != "Draft")
-                    return (false, "Can only update draft enquiries");
+                    return (false, "Only Draft enquiries can be updated.");
 
-                if (dto.cust_id.HasValue)
-                {
-                    if (enquiry.cust_id != dto.cust_id.Value)
-                    {
-                        if (!await _context.Customers.AnyAsync(c => c.cust_id == dto.cust_id.Value))
-                        {
-                            return (false, "Selected customer not found");
-                        }
-                        enquiry.cust_id = dto.cust_id.Value;
-                    }
-                }
-                else if (dto.new_customer != null)
-                {
-                    var existingCustomer = await _context.Customers
-                        .FirstOrDefaultAsync(c => c.comp_name == dto.new_customer.comp_name && c.is_active);
+                var customerId = await ResolveCustomerIdAsync(dto, enquiry);
+                if (customerId == 0)
+                    return (false, "Customer not found.");
 
-                    if (existingCustomer != null)
-                    {
-                        enquiry.cust_id = existingCustomer.cust_id;
-                    }
-                    else
-                    {
-                        var newCustomer = new Customers
-                        {
-                            comp_name = dto.new_customer.comp_name,
-                            cust_addr = dto.new_customer.cust_addr,
-                            contact_name = dto.new_customer.contact_name,
-                            contact_email = dto.new_customer.contact_email,
-                            contact_phone = dto.new_customer.contact_phone,
-                            created_at = DateTime.Now,
-                            is_active = true
-                        };
-
-                        _context.Customers.Add(newCustomer);
-                        await _context.SaveChangesAsync();
-
-                        enquiry.cust_id = newCustomer.cust_id;
-                    }
-                }
-                else
-                {
-                    return (false, "Either cust_id or new_customer must be provided");
-                }
-
+                enquiry.cust_id = customerId;
                 enquiry.npi_category = dto.npi_category;
                 enquiry.updated_at = DateTime.Now;
                 enquiry.updated_by = userId;
 
-                if (dto.GeneralInfo != null)
-                {
-                    if (enquiry.GeneralInfo == null)
-                    {
-                        enquiry.GeneralInfo = new EnquiryGeneralInfo { enquiry_id = enquiryId };
-                        _context.EnquiryGeneralInfo.Add(enquiry.GeneralInfo);
-                    }
-
-                    enquiry.GeneralInfo.company_name = dto.GeneralInfo.company_name;
-                    enquiry.GeneralInfo.estimated_qty_per_year = dto.GeneralInfo.estimated_qty_per_year;
-                    enquiry.GeneralInfo.estimated_required_date = dto.GeneralInfo.estimated_required_date;
-                    enquiry.GeneralInfo.color = dto.GeneralInfo.color;
-                    enquiry.GeneralInfo.material_used = dto.GeneralInfo.material_used;
-                    enquiry.GeneralInfo.weight_g = dto.GeneralInfo.weight_g;
-                    enquiry.GeneralInfo.neck_size_mm = dto.GeneralInfo.neck_size_mm;
-                    enquiry.GeneralInfo.shape = dto.GeneralInfo.shape;
-                    enquiry.GeneralInfo.hot_cold_filling = dto.GeneralInfo.hot_cold_filling;
-                    enquiry.GeneralInfo.qty_first_submission = dto.GeneralInfo.qty_first_submission;
-                    enquiry.GeneralInfo.cap_bottle_source = dto.GeneralInfo.cap_bottle_source;
-                    enquiry.GeneralInfo.filling_content = dto.GeneralInfo.filling_content;
-                    enquiry.GeneralInfo.capping_method = dto.GeneralInfo.capping_method;
-                    enquiry.GeneralInfo.cap_seal = dto.GeneralInfo.cap_seal;
-                }
-
-                if (dto.SealInfo != null)
-                {
-                    if (enquiry.SealInfo == null)
-                    {
-                        enquiry.SealInfo = new EnquirySealInfo { enquiry_id = enquiryId };
-                        _context.EnquirySealInfo.Add(enquiry.SealInfo);
-                    }
-
-                    enquiry.SealInfo.customer_name = dto.SealInfo.customer_name;
-                    enquiry.SealInfo.apply_to_product = dto.SealInfo.apply_to_product;
-                    enquiry.SealInfo.estimated_required_date = dto.SealInfo.estimated_required_date;
-                    enquiry.SealInfo.reason_of_change = dto.SealInfo.reason_of_change;
-                    enquiry.SealInfo.qty_first_submission = dto.SealInfo.qty_first_submission;
-                    enquiry.SealInfo.other_requirements = dto.SealInfo.other_requirements;
-                }
-
-                if (dto.CustomerRef != null)
-                {
-                    if (enquiry.CustomerRef == null)
-                    {
-                        enquiry.CustomerRef = new EnquiryCustomerRef { enquiry_id = enquiryId };
-                        _context.EnquiryCustomerRef.Add(enquiry.CustomerRef);
-                    }
-
-                    enquiry.CustomerRef.mould_ownership = dto.CustomerRef.mould_ownership;
-                }
-
                 await _context.SaveChangesAsync();
-                return (true, "Enquiry updated successfully");
+
+                await SaveFieldValuesAsync(enquiryId, dto.field_values);
+                await UpsertCustomerRefAsync(enquiryId, dto.CustomerRef);
+
+                return (true, "Enquiry updated successfully.");
             }
             catch (Exception ex)
             {
@@ -262,30 +98,27 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<EnquiryResponseDto> GetEnquiryByIdAsync(int enquiryId)
+        // ── Read ──────────────────────────────────────────────────────────────
+
+        public async Task<EnquiryResponseDto?> GetEnquiryByIdAsync(int enquiryId)
         {
             var enquiry = await _context.Enquiries
                 .Include(e => e.Customer)
-                .Include(e => e.GeneralInfo)
-                .Include(e => e.SealInfo)
+                .Include(e => e.FieldValues)
                 .Include(e => e.CustomerRef)
                 .Include(e => e.Files)
                 .Include(e => e.CreatedByUser)
                 .FirstOrDefaultAsync(e => e.enquiry_id == enquiryId);
 
-            if (enquiry == null) return null;
-
-            return MapToResponseDto(enquiry);
+            return enquiry is null ? null : MapToResponseDto(enquiry);
         }
 
         public async Task<List<EnquiryResponseDto>> GetAllEnquiriesAsync()
         {
             var enquiries = await _context.Enquiries
                 .Include(e => e.Customer)
-                .Include(e => e.GeneralInfo)
-                .Include(e => e.SealInfo)
+                .Include(e => e.FieldValues)
                 .Include(e => e.CustomerRef)
-                .Include(e => e.Files)
                 .Include(e => e.CreatedByUser)
                 .OrderByDescending(e => e.created_at)
                 .ToListAsync();
@@ -297,8 +130,7 @@ namespace NPI.Server.Services
         {
             var enquiries = await _context.Enquiries
                 .Include(e => e.Customer)
-                .Include(e => e.GeneralInfo)
-                .Include(e => e.SealInfo)
+                .Include(e => e.FieldValues)
                 .Include(e => e.CustomerRef)
                 .Include(e => e.Files)
                 .Include(e => e.CreatedByUser)
@@ -309,26 +141,23 @@ namespace NPI.Server.Services
             return enquiries.Select(MapToResponseDto).ToList();
         }
 
-        public async Task<(bool Success, string Message)> SubmitEnquiryAsync(int enquiryId, int userId)
+        // ── Submit / Delete ───────────────────────────────────────────────────
+
+        public async Task<(bool Success, string Message)>
+            SubmitEnquiryAsync(int enquiryId, int userId)
         {
             try
             {
                 var enquiry = await _context.Enquiries.FindAsync(enquiryId);
-
-                if (enquiry == null)
-                    return (false, "Enquiry not found");
-
-                if (enquiry.created_by != userId)
-                    return (false, "Unauthorized to submit this enquiry");
-
-                if (enquiry.status != "Draft")
-                    return (false, "Only draft enquiries can be submitted");
+                if (enquiry == null) return (false, "Enquiry not found.");
+                if (enquiry.created_by != userId) return (false, "Unauthorised.");
+                if (enquiry.status != "Draft") return (false, "Only Draft enquiries can be submitted.");
 
                 enquiry.status = "Submitted";
                 enquiry.submitted_at = DateTime.Now;
-
                 await _context.SaveChangesAsync();
-                return (true, "Enquiry submitted successfully");
+
+                return (true, "Enquiry submitted successfully.");
             }
             catch (Exception ex)
             {
@@ -341,18 +170,16 @@ namespace NPI.Server.Services
             try
             {
                 var enquiry = await _context.Enquiries
-                    .Include(e => e.GeneralInfo)
-                    .Include(e => e.SealInfo)
+                    .Include(e => e.FieldValues)
                     .Include(e => e.CustomerRef)
                     .FirstOrDefaultAsync(e => e.enquiry_id == enquiryId);
 
-                if (enquiry == null)
-                    return (false, "Enquiry not found");
+                if (enquiry == null) return (false, "Enquiry not found.");
 
                 _context.Enquiries.Remove(enquiry);
                 await _context.SaveChangesAsync();
 
-                return (true, "Enquiry deleted successfully");
+                return (true, "Enquiry deleted successfully.");
             }
             catch (Exception ex)
             {
@@ -360,73 +187,151 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<string> GenerateEnquiryNo()
+        // ── Helpers: field value persistence ─────────────────────────────────
+
+        /// <summary>
+        /// Replaces all field values for the supplied sections.
+        /// Sections not present in the dto are left untouched (partial saves work).
+        /// Empty / whitespace values are not persisted.
+        /// </summary>
+        private async Task SaveFieldValuesAsync(
+            int enquiryId,
+            Dictionary<string, Dictionary<string, string?>>? sections)
         {
-            var year = DateTime.Now.Year;
-            var prefix = $"ENQ-{year}-";
+            if (sections is null || sections.Count == 0) return;
 
-            var lastNumber = await _context.Enquiries
-                .Where(e => e.enquiry_no.StartsWith(prefix))
-                .Select(e => e.enquiry_no.Substring(prefix.Length))
-                .ToListAsync()
-                .ContinueWith(t => t.Result
-                    .Select(s => int.TryParse(s, out var n) ? n : 0)
-                    .DefaultIfEmpty(0)
-                    .Max());
+            var sectionKeys = sections.Keys.ToList();
 
-            return $"{prefix}{(lastNumber + 1):D4}";
+            // Remove existing rows only for sections we are about to rewrite
+            var existing = await _context.EnquiryFieldValues
+                .Where(v => v.enquiry_id == enquiryId && sectionKeys.Contains(v.section_key))
+                .ToListAsync();
+
+            _context.EnquiryFieldValues.RemoveRange(existing);
+
+            var newRows = sections
+                .SelectMany(sec => sec.Value
+                    .Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
+                    .Select(kv => new EnquiryFieldValues
+                    {
+                        enquiry_id = enquiryId,
+                        section_key = sec.Key,
+                        field_key = kv.Key,
+                        field_value = kv.Value,
+                        updated_at = DateTime.Now
+                    }))
+                .ToList();
+
+            if (newRows.Count > 0)
+                await _context.EnquiryFieldValues.AddRangeAsync(newRows);
+
+            await _context.SaveChangesAsync();
         }
 
-        private EnquiryResponseDto MapToResponseDto(Enquiries enquiry)
+        /// <summary>
+        /// Upserts the EnquiryCustomerRef row.
+        /// Passing null clears any existing record — use a DTO with null values to
+        /// indicate "no customer reference data" without deleting the row.
+        /// </summary>
+        private async Task UpsertCustomerRefAsync(int enquiryId, CustomerRefDto? dto)
         {
+            if (dto is null) return;
+
+            var existing = await _context.EnquiryCustomerRef.FindAsync(enquiryId);
+            if (existing is null)
+            {
+                _context.EnquiryCustomerRef.Add(new EnquiryCustomerRef
+                {
+                    enquiry_id = enquiryId,
+                    mould_ownership = dto.mould_ownership
+                });
+            }
+            else
+            {
+                existing.mould_ownership = dto.mould_ownership;
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Returns an existing customer ID or creates a new customer record.
+        /// Falls back to the enquiry's current cust_id when neither is supplied
+        /// (edit flow where the customer is unchanged).
+        /// </summary>
+        private async Task<int> ResolveCustomerIdAsync(
+            EnquiryCreateDto dto,
+            Enquiries? existingEnquiry = null)
+        {
+            if (dto.cust_id.HasValue)
+            {
+                return await _context.Customers.AnyAsync(c => c.cust_id == dto.cust_id.Value)
+                    ? dto.cust_id.Value
+                    : 0;
+            }
+
+            if (dto.new_customer is not null)
+            {
+                var existing = await _context.Customers
+                    .FirstOrDefaultAsync(c =>
+                        c.comp_name == dto.new_customer.comp_name && c.is_active);
+
+                if (existing is not null) return existing.cust_id;
+
+                var newCustomer = new Customers
+                {
+                    comp_name = dto.new_customer.comp_name,
+                    cust_addr = dto.new_customer.cust_addr,
+                    contact_name = dto.new_customer.contact_name,
+                    contact_email = dto.new_customer.contact_email,
+                    contact_phone = dto.new_customer.contact_phone,
+                    created_at = DateTime.Now,
+                    is_active = true
+                };
+
+                _context.Customers.Add(newCustomer);
+                await _context.SaveChangesAsync();
+                return newCustomer.cust_id;
+            }
+
+            // Editing — customer unchanged
+            return existingEnquiry?.cust_id ?? 0;
+        }
+
+        // ── Mapping ───────────────────────────────────────────────────────────
+
+        private static EnquiryResponseDto MapToResponseDto(Enquiries e)
+        {
+            var fieldValues = (e.FieldValues ?? Enumerable.Empty<EnquiryFieldValues>())
+                .GroupBy(v => v.section_key)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.ToDictionary(v => v.field_key, v => v.field_value));
+
             return new EnquiryResponseDto
             {
-                enquiry_id = enquiry.enquiry_id,
-                enquiry_no = enquiry.enquiry_no,
-                proj_id = enquiry.proj_id,
-                cust_id = enquiry.cust_id,
-                customer_name = enquiry.Customer?.comp_name,
-                npi_category = enquiry.npi_category,
-                status = enquiry.status,
-                created_by = enquiry.created_by,
-                username = enquiry.CreatedByUser?.username ?? "Unknown",
-                created_at = enquiry.created_at,
-                updated_by = enquiry.updated_by,
-                submitted_at = enquiry.submitted_at,
-                GeneralInfo = enquiry.GeneralInfo != null ? new GeneralInfoResponseDto
-                {
-                    general_info_id = enquiry.GeneralInfo.enquiry_id,
-                    company_name = enquiry.GeneralInfo.company_name,
-                    estimated_qty_per_year = enquiry.GeneralInfo.estimated_qty_per_year,
-                    estimated_required_date = enquiry.GeneralInfo.estimated_required_date,
-                    color = enquiry.GeneralInfo.color,
-                    material_used = enquiry.GeneralInfo.material_used,
-                    weight_g = enquiry.GeneralInfo.weight_g,
-                    neck_size_mm = enquiry.GeneralInfo.neck_size_mm,
-                    shape = enquiry.GeneralInfo.shape,
-                    hot_cold_filling = enquiry.GeneralInfo.hot_cold_filling,
-                    qty_first_submission = enquiry.GeneralInfo.qty_first_submission,
-                    cap_bottle_source = enquiry.GeneralInfo.cap_bottle_source,
-                    filling_content = enquiry.GeneralInfo.filling_content,
-                    capping_method = enquiry.GeneralInfo.capping_method,
-                    cap_seal = enquiry.GeneralInfo.cap_seal
-                } : null,
-                SealInfo = enquiry.SealInfo != null ? new SealInfoResponseDto
-                {
-                    seal_info_id = enquiry.SealInfo.enquiry_id,
-                    customer_name = enquiry.SealInfo.customer_name,
-                    apply_to_product = enquiry.SealInfo.apply_to_product,
-                    estimated_required_date = enquiry.SealInfo.estimated_required_date,
-                    reason_of_change = enquiry.SealInfo.reason_of_change,
-                    qty_first_submission = enquiry.SealInfo.qty_first_submission,
-                    other_requirements = enquiry.SealInfo.other_requirements
-                } : null,
-                CustomerRef = enquiry.CustomerRef != null ? new CustomerRefResponseDto
-                {
-                    customer_ref_id = enquiry.CustomerRef.enquiry_id,
-                    mould_ownership = enquiry.CustomerRef.mould_ownership
-                } : null,
-                Files = enquiry.Files?.Select(f => new FileResponseDto
+                enquiry_id = e.enquiry_id,
+                enquiry_no = e.enquiry_no,
+                proj_id = e.proj_id,
+                cust_id = e.cust_id,
+                customer_name = e.Customer?.comp_name,
+                npi_category = e.npi_category,
+                status = e.status,
+                created_by = e.created_by,
+                username = e.CreatedByUser?.username ?? "Unknown",
+                created_at = e.created_at,
+                updated_at = e.updated_at,
+                updated_by = e.updated_by,
+                submitted_at = e.submitted_at,
+                field_values = fieldValues,
+                CustomerRef = e.CustomerRef is not null
+                    ? new CustomerRefResponseDto
+                    {
+                        enquiry_id = e.CustomerRef.enquiry_id,
+                        mould_ownership = e.CustomerRef.mould_ownership
+                    }
+                    : null,
+                Files = e.Files?.Select(f => new FileResponseDto
                 {
                     file_id = f.file_id,
                     file_name = f.file_name,
@@ -434,6 +339,26 @@ namespace NPI.Server.Services
                     uploaded_at = f.created_at
                 }).ToList()
             };
+        }
+
+        // ── Number generation ─────────────────────────────────────────────────
+
+        public async Task<string> GenerateEnquiryNoAsync()
+        {
+            var year = DateTime.Now.Year;
+            var prefix = $"ENQ-{year}-";
+
+            var numbers = await _context.Enquiries
+                .Where(e => e.enquiry_no.StartsWith(prefix))
+                .Select(e => e.enquiry_no.Substring(prefix.Length))
+                .ToListAsync();
+
+            var last = numbers
+                .Select(s => int.TryParse(s, out var n) ? n : 0)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            return $"{prefix}{(last + 1):D4}";
         }
     }
 }

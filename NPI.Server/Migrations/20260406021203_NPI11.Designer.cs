@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NPI.Server.Data;
 
@@ -11,9 +12,11 @@ using NPI.Server.Data;
 namespace NPI.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260406021203_NPI11")]
+    partial class NPI11
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -380,6 +383,98 @@ namespace NPI.Server.Migrations
                     b.ToTable("EnquiryFieldValues");
                 });
 
+            modelBuilder.Entity("NPI.Server.Models.EnquiryGeneralInfo", b =>
+                {
+                    b.Property<int>("enquiry_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("cap_bottle_source")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("cap_seal")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("capping_method")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("color")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("company_name")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("estimated_qty_per_year")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("estimated_required_date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("filling_content")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("hot_cold_filling")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("material_used")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("neck_size_mm")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("qty_first_submission")
+                        .HasColumnType("int");
+
+                    b.Property<string>("shape")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<float?>("weight_g")
+                        .HasColumnType("real");
+
+                    b.HasKey("enquiry_id");
+
+                    b.ToTable("EnquiryGeneralInfo");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.EnquirySealInfo", b =>
+                {
+                    b.Property<int>("enquiry_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("apply_to_product")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("customer_name")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateOnly?>("estimated_required_date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("other_requirements")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("qty_first_submission")
+                        .HasColumnType("int");
+
+                    b.Property<string>("reason_of_change")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("enquiry_id");
+
+                    b.ToTable("EnquirySealInfo");
+                });
+
             modelBuilder.Entity("NPI.Server.Models.Files", b =>
                 {
                     b.Property<int>("file_id")
@@ -604,9 +699,6 @@ namespace NPI.Server.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("field_id"));
 
-                    b.Property<DateTime>("created_at")
-                        .HasColumnType("datetime2");
-
                     b.Property<int>("display_order")
                         .HasColumnType("int");
 
@@ -637,9 +729,6 @@ namespace NPI.Server.Migrations
                     b.Property<int>("section_id")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("updated_at")
-                        .HasColumnType("datetime2");
-
                     b.HasKey("field_id");
 
                     b.HasIndex("section_id");
@@ -654,9 +743,6 @@ namespace NPI.Server.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("section_id"));
-
-                    b.Property<DateTime>("created_at")
-                        .HasColumnType("datetime2");
 
                     b.Property<int>("display_order")
                         .HasColumnType("int");
@@ -677,9 +763,6 @@ namespace NPI.Server.Migrations
                     b.Property<string>("trigger_keywords")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime?>("updated_at")
-                        .HasColumnType("datetime2");
 
                     b.HasKey("section_id");
 
@@ -1404,6 +1487,28 @@ namespace NPI.Server.Migrations
                     b.Navigation("Enquiry");
                 });
 
+            modelBuilder.Entity("NPI.Server.Models.EnquiryGeneralInfo", b =>
+                {
+                    b.HasOne("NPI.Server.Models.Enquiries", "Enquiry")
+                        .WithOne("GeneralInfo")
+                        .HasForeignKey("NPI.Server.Models.EnquiryGeneralInfo", "enquiry_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Enquiry");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.EnquirySealInfo", b =>
+                {
+                    b.HasOne("NPI.Server.Models.Enquiries", "Enquiry")
+                        .WithOne("SealInfo")
+                        .HasForeignKey("NPI.Server.Models.EnquirySealInfo", "enquiry_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Enquiry");
+                });
+
             modelBuilder.Entity("NPI.Server.Models.Files", b =>
                 {
                     b.HasOne("NPI.Server.Models.Departments", "Department")
@@ -1782,6 +1887,10 @@ namespace NPI.Server.Migrations
                     b.Navigation("FieldValues");
 
                     b.Navigation("Files");
+
+                    b.Navigation("GeneralInfo");
+
+                    b.Navigation("SealInfo");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Files", b =>

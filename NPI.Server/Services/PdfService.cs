@@ -20,148 +20,107 @@ namespace NPI.Server.Services
 
         public async Task<byte[]> GenerateEnquiryPdfAsync(int enquiryId)
         {
+            // Load enquiry with new dynamic field values + preserved CustomerRef
             var enquiry = await _context.Enquiries
                 .Include(e => e.Customer)
-                .Include(e => e.GeneralInfo)
-                .Include(e => e.SealInfo)
+                .Include(e => e.FieldValues)
                 .Include(e => e.CustomerRef)
                 .Include(e => e.CreatedByUser)
-                .FirstOrDefaultAsync(e => e.enquiry_id == enquiryId);
+                .FirstOrDefaultAsync(e => e.enquiry_id == enquiryId)
+                ?? throw new Exception("Enquiry not found.");
 
-            if (enquiry == null)
-                throw new Exception("Enquiry not found");
+            // Load the full section/field metadata to resolve labels
+            var sections = await _context.NpiFormSections
+                .Include(s => s.Fields)
+                .Where(s => s.is_active)
+                .OrderBy(s => s.display_order)
+                .ToListAsync();
 
-            // Create a new document
-            var document = new Document();
-            document.Info.Title = $"Enquiry {enquiry.enquiry_no}";
-            document.Info.Author = "NPI System";
-
-            // Define styles
-            DefineStyles(document);
+            // Build lookup: section_key → { field_key → value }
+            var valueMap = (enquiry.FieldValues ?? Enumerable.Empty<EnquiryFieldValues>())
+                .GroupBy(v => v.section_key)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.ToDictionary(v => v.field_key, v => v.field_value ?? "N/A"));
 
             if (GlobalFontSettings.FontResolver == null)
-            {
                 GlobalFontSettings.FontResolver = new CustomFontResolver();
-            }
 
-            // Add section
+            var document = new Document();
+            document.Info.Title = $"Enquiry {enquiry.enquiry_no}";
+
+            DefineStyles(document);
+
             var section = document.AddSection();
             section.PageSetup.PageFormat = PageFormat.A4;
             section.PageSetup.LeftMargin = Unit.FromCentimeter(2.5);
             section.PageSetup.RightMargin = Unit.FromCentimeter(2.5);
 
-            // Add header
-            AddHeader(section, enquiry);
+            // Header
+            AddEnquiryHeader(section, enquiry);
 
-            // Add customer information
+            // Customer information
             AddCustomerInformation(section, enquiry);
 
-            // Add NPI category
+            // NPI Category
             AddNpiCategory(section, enquiry);
 
-            // Add general information
-            if (enquiry.GeneralInfo != null)
+            // Dynamic sections — renders every section that has answered fields
+            foreach (var sec in sections)
             {
-                AddGeneralInformation(section, enquiry.GeneralInfo);
+                if (!valueMap.TryGetValue(sec.section_key, out var sectionValues))
+                    continue;
+
+                if (sectionValues.Count == 0) continue;
+
+                AddDynamicSection(section, sec, sectionValues, document);
             }
 
-            // Add seal information
-            if (enquiry.SealInfo != null)
-            {
-                AddSealInformation(section, enquiry.SealInfo);
-            }
-
-            // Add customer reference
-            if (enquiry.CustomerRef != null)
-            {
+            // Customer reference (always preserved separately)
+            if (enquiry.CustomerRef is not null)
                 AddCustomerReference(section, enquiry.CustomerRef);
-            }
 
-            // Render document to PDF
-            var renderer = new PdfDocumentRenderer
-            {
-                Document = document,
-                PdfDocument =
-                {
-                    PageLayout = PdfPageLayout.SinglePage,
-                    ViewerPreferences =
-                    {
-                        FitWindow = true
-                    }
-                }
-            };
-
+            var renderer = new PdfDocumentRenderer { Document = document };
             renderer.RenderDocument();
 
-            // Save to memory stream
-            using (MemoryStream stream = new MemoryStream())
-            {
-                renderer.PdfDocument.Save(stream, false);
-                return stream.ToArray();
-            }
+            using var ms = new MemoryStream();
+            renderer.PdfDocument.Save(ms, false);
+            return ms.ToArray();
         }
 
-        private void DefineStyles(Document document)
+        // ── Rendering helpers ─────────────────────────────────────────────────
+
+        private static void AddEnquiryHeader(Section section, Enquiries enquiry)
         {
-            var normal = document.Styles["Normal"];
-            normal.Font.Name = "Arial";
-            normal.Font.Size = 10;
-
-            var heading1 = document.Styles["Heading1"];
-            heading1.Font.Name = "Arial";
-            heading1.Font.Size = 14;
-            heading1.Font.Bold = true;
-
-            var heading2 = document.Styles["Heading2"];
-            heading2.Font.Name = "Arial";
-            heading2.Font.Size = 12;
-            heading2.Font.Bold = true;
-        }
-
-        private void AddHeader(Section section, Enquiries enquiry)
-        {
-            Paragraph header = section.AddParagraph();
+            var header = section.AddParagraph("Sales Enquiry");
             header.Format.Font.Size = 18;
             header.Format.Font.Bold = true;
             header.Format.Alignment = ParagraphAlignment.Center;
-            header.AddText("Sales Enquiry");
 
-            Paragraph subheader = section.AddParagraph();
+            var subheader = section.AddParagraph($"Enquiry No: {enquiry.enquiry_no}");
             subheader.Format.Font.Size = 14;
             subheader.Format.Alignment = ParagraphAlignment.Center;
-            subheader.AddText($"Enquiry No: {enquiry.enquiry_no}");
 
-            // Status
-            Paragraph statusPara = section.AddParagraph();
+            var statusPara = section.AddParagraph();
             statusPara.Format.Alignment = ParagraphAlignment.Center;
             statusPara.Format.SpaceAfter = "0.5cm";
             var statusText = statusPara.AddFormattedText($"Status: {enquiry.status}");
             statusText.Bold = true;
+            statusText.Color = enquiry.status switch
+            {
+                "Approved" => Colors.Green,
+                "Submitted" => Colors.Blue,
+                "Rejected" => Colors.Red,
+                _ => Colors.Black
+            };
 
-            if (enquiry.status == "Approved")
-                statusText.Color = Colors.Green;
-            else if (enquiry.status == "Submitted")
-                statusText.Color = Colors.Blue;
-            else if (enquiry.status == "Rejected")
-                statusText.Color = Colors.Red;
-
-            section.AddParagraph(); // Spacing
+            section.AddParagraph();
         }
 
-        private void AddCustomerInformation(Section section, Enquiries enquiry)
+        private static void AddCustomerInformation(Section section, Enquiries enquiry)
         {
             section.AddParagraph("Customer Information", "Heading1");
-
-            Table table = section.AddTable();
-            table.Borders.Width = 0.5;
-            table.Borders.Color = Colors.Gray;
-
-            Column column = table.AddColumn("7cm");
-            column.Format.Alignment = ParagraphAlignment.Left;
-
-            column = table.AddColumn("10cm");
-            column.Format.Alignment = ParagraphAlignment.Left;
-
+            var table = CreateTable(section);
             AddTableRow(table, "Company Name:", enquiry.Customer?.comp_name ?? "N/A");
             AddTableRow(table, "Contact Person:", enquiry.Customer?.contact_name ?? "N/A");
             AddTableRow(table, "Contact Email:", enquiry.Customer?.contact_email ?? "N/A");
@@ -171,93 +130,87 @@ namespace NPI.Server.Services
             AddTableRow(table, "Created By:", enquiry.CreatedByUser?.username ?? "N/A");
         }
 
-        private void AddNpiCategory(Section section, Enquiries enquiry)
+        private static void AddNpiCategory(Section section, Enquiries enquiry)
         {
             section.AddParagraph("NPI Category", "Heading1");
-
-            Paragraph para = section.AddParagraph();
+            var para = section.AddParagraph();
             para.Format.Font.Size = 11;
             para.Format.Font.Bold = true;
             para.AddText(enquiry.npi_category);
             para.Format.SpaceAfter = "0.5cm";
         }
 
-        private void AddGeneralInformation(Section section, EnquiryGeneralInfo info)
+        private static void AddDynamicSection(
+            Section section,
+            NpiFormSection sec,
+            Dictionary<string, string?> values,
+            Document document)
         {
-            section.AddParagraph("General Information - Cap/Lid", "Heading1");
+            section.AddParagraph(sec.section_label, "Heading1");
 
-            Table table = section.AddTable();
-            table.Borders.Width = 0.5;
-            table.Borders.Color = Colors.Gray;
+            var table = CreateTable(section);
 
-            Column column = table.AddColumn("7cm");
-            column.Format.Alignment = ParagraphAlignment.Left;
+            // Render fields in their defined display_order
+            var orderedFields = (sec.Fields ?? Enumerable.Empty<NpiFormField>())
+                .Where(f => f.is_active)
+                .OrderBy(f => f.display_order)
+                .ToList();
 
-            column = table.AddColumn("10cm");
-            column.Format.Alignment = ParagraphAlignment.Left;
+            foreach (var field in orderedFields)
+            {
+                if (!values.TryGetValue(field.field_key, out var val)) continue;
+                AddTableRow(table, $"{field.field_label}:", val ?? "N/A");
+            }
 
-            AddTableRow(table, "Company Name:", info.company_name ?? "N/A");
-            AddTableRow(table, "Estimated Qty/Year:", info.estimated_qty_per_year?.ToString() ?? "N/A");
-            AddTableRow(table, "Required Date:", info.estimated_required_date?.ToString("dd MMM yyyy") ?? "N/A");
-            AddTableRow(table, "Color:", info.color ?? "N/A");
-            AddTableRow(table, "Material Used:", info.material_used ?? "N/A");
-            AddTableRow(table, "Weight (g):", info.weight_g?.ToString() ?? "N/A");
-            AddTableRow(table, "Neck Size (mm):", info.neck_size_mm ?? "N/A");
-            AddTableRow(table, "Shape:", info.shape ?? "N/A");
-            AddTableRow(table, "Hot/Cold Filling:", info.hot_cold_filling ?? "N/A");
-            AddTableRow(table, "Qty First Submission:", info.qty_first_submission?.ToString() ?? "N/A");
-            AddTableRow(table, "Cap/Bottle Source:", info.cap_bottle_source ?? "N/A");
-            AddTableRow(table, "Filling Content:", info.filling_content ?? "N/A");
-            AddTableRow(table, "Capping Method:", info.capping_method ?? "N/A");
-            AddTableRow(table, "Cap Seal:", info.cap_seal ?? "N/A");
+            // Render any values whose field was deleted from metadata
+            // (ensures old enquiry answers are always shown)
+            foreach (var kv in values)
+            {
+                if (orderedFields.Any(f => f.field_key == kv.Key)) continue;
+                AddTableRow(table, $"{kv.Key}:", kv.Value ?? "N/A");
+            }
         }
 
-        private void AddSealInformation(Section section, EnquirySealInfo info)
-        {
-            section.AddParagraph("Seal/Wadding/Gasket Information", "Heading1");
-
-            Table table = section.AddTable();
-            table.Borders.Width = 0.5;
-            table.Borders.Color = Colors.Gray;
-
-            Column column = table.AddColumn("7cm");
-            column.Format.Alignment = ParagraphAlignment.Left;
-
-            column = table.AddColumn("10cm");
-            column.Format.Alignment = ParagraphAlignment.Left;
-
-            AddTableRow(table, "Customer Name:", info.customer_name ?? "N/A");
-            AddTableRow(table, "Apply to Product:", info.apply_to_product ?? "N/A");
-            AddTableRow(table, "Required Date:", info.estimated_required_date?.ToString("dd MMM yyyy") ?? "N/A");
-            AddTableRow(table, "Reason of Change:", info.reason_of_change ?? "N/A");
-            AddTableRow(table, "Qty First Submission:", info.qty_first_submission?.ToString() ?? "N/A");
-            AddTableRow(table, "Other Requirements:", info.other_requirements ?? "N/A");
-        }
-
-        private void AddCustomerReference(Section section, EnquiryCustomerRef info)
+        private static void AddCustomerReference(Section section, EnquiryCustomerRef cref)
         {
             section.AddParagraph("Customer Reference", "Heading1");
-
-            Table table = section.AddTable();
-            table.Borders.Width = 0.5;
-            table.Borders.Color = Colors.Gray;
-
-            Column column = table.AddColumn("7cm");
-            column.Format.Alignment = ParagraphAlignment.Left;
-
-            column = table.AddColumn("10cm");
-            column.Format.Alignment = ParagraphAlignment.Left;
-
-            AddTableRow(table, "Mould Ownership:", info.mould_ownership ?? "N/A");
+            var table = CreateTable(section);
+            AddTableRow(table, "Mould Ownership:", cref.mould_ownership ?? "N/A");
         }
 
-        private void AddTableRow(Table table, string label, string value)
+        // ── Table utilities ───────────────────────────────────────────────────
+
+        private static Table CreateTable(Section section)
         {
-            Row row = table.AddRow();
+            var table = section.AddTable();
+            table.Borders.Width = 0.5;
+            table.Borders.Color = Colors.Gray;
+            var col1 = table.AddColumn("7cm");
+            col1.Format.Alignment = ParagraphAlignment.Left;
+            var col2 = table.AddColumn("10cm");
+            col2.Format.Alignment = ParagraphAlignment.Left;
+            return table;
+        }
+
+        private static void AddTableRow(Table table, string label, string value)
+        {
+            var row = table.AddRow();
             row.Cells[0].AddParagraph(label);
             row.Cells[0].Format.Font.Bold = true;
             row.Cells[0].Shading.Color = Colors.LightGray;
             row.Cells[1].AddParagraph(value);
+        }
+
+        private static void DefineStyles(Document document)
+        {
+            var normal = document.Styles["Normal"];
+            normal.Font.Name = "Arial";
+            normal.Font.Size = 10;
+
+            var h1 = document.Styles["Heading1"];
+            h1.Font.Name = "Arial";
+            h1.Font.Size = 14;
+            h1.Font.Bold = true;
         }
 
         public async Task<byte[]> GenerateProjectStatusReportAsync(int projectId)

@@ -36,6 +36,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<IEnquiryService, EnquiryService>();
+builder.Services.AddScoped<INpiFormConfigService, NpiFormConfigService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IProjectTeamService, ProjectTeamService>();
 builder.Services.AddScoped<IPdfService, PdfService>();

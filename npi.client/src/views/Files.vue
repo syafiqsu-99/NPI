@@ -67,9 +67,10 @@
                             item-children="children"
                             open-on-click
                             activatable
+                            v-model:opened="openedIds"
                             style="height: 100%; overflow-y: auto;"
-                            @update:open="handleOpen"
-                            @update:active="updateBreadcrumb">
+                            @update:opened="handleOpen"
+                            @update:activated="updateBreadcrumb">
                   <template #prepend="{ item }">
                     <v-icon v-if="item.type === 'project'" color="amber-darken-2">mdi-folder</v-icon>
                     <v-icon v-else-if="item.type === 'task'" color="orange-lighten-1">mdi-folder-outline</v-icon>
@@ -171,6 +172,7 @@
   const previewUrl = ref('')
   const previewType = ref('')
   const previewFileName = ref('')
+  const openedIds = ref([])
 
   const sortOptions = [
     'Name (A-Z)',
@@ -183,80 +185,135 @@
 
   const loadProjects = async () => {
     loading.value = true
-    const res = await api.get('/Project')
-    const projects = res.data
+    try {
+      const res = await api.get('/Project')
+      const projects = res.data
 
-    tree.value = projects.map(p => ({
-      id: `project-${p.proj_id}`,
-      name: p.proj_name,
-      type: 'project',
-      project_id: p.proj_id,
-      children: [],
-      loaded: false
-    }))
-    loading.value = false
+      tree.value = projects.map(p => ({
+        id: `project-${p.proj_id}`,
+        name: p.proj_name || `Project ${p.proj_id}`,
+        type: 'project',
+        project_id: p.proj_id,
+        children: [],
+        loaded: false
+      }))
+      console.log('Projects loaded:', JSON.parse(JSON.stringify(tree.value)))
+    } catch (e) {
+      console.error('Failed to load projects:', e)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const findNodeRecursively = (nodes, id) => {
+    for (const node of nodes) {
+      if (node.id === id) return node;
+      if (node.children) {
+        const found = findNodeRecursively(node.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
   }
 
   const handleOpen = async (openIds) => {
+    console.log('--- Tree Folder Expanded ---')
+    console.log('Currently Opened IDs:', openIds)
+
     for (const id of openIds) {
-      const node = tree.value.find(p => p.id === id)
-      if (node && !node.loaded) {
-        const res = await api.get(`/File/by-project/${node.project_id}`)
-        const files = res.data.data || []
+      const node = findNodeRecursively(tree.value, id)
 
-        const taskMap = {}
+      if (node && node.type === 'project' && !node.loaded) {
+        console.log(`Loading contents for project: ${node.name} (ID: ${node.project_id})`)
+        loading.value = true // Display the progress bar at the top
 
-        files.forEach(file => {
-          const fileNode = {
-            id: `file-${file.file_id}`,
-            name: file.file_name,
-            type: 'file',
-            file_id: file.file_id,
-            file_size: file.file_size,
-            file_version: file.file_version,
-            uploaded_at: file.uploaded_at,
-            project_id: file.proj_id,
-            content_type: file.file_type
-          }
+        try {
+          const res = await api.get(`/File/by-project/${node.project_id}`)
+          console.log(`API Response for project ${node.project_id}:`, res.data)
 
-          if (file.task_id) {
-            if (!taskMap[file.task_id]) {
-              taskMap[file.task_id] = {
-                id: `task-${file.task_id}`,
-                name: file.task_name,
-                type: 'task',
-                children: []
-              }
+          const files = res.data.data || []
+          console.log(`Found ${files.length} files. Mapping folder structure...`)
+
+          const taskMap = {}
+          const standaloneFiles = []
+
+          files.forEach(file => {
+            const fileNode = {
+              id: `file-${file.file_id}`,
+              name: file.file_name || `Unknown File ${file.file_id}`,
+              type: 'file',
+              file_id: file.file_id,
+              file_size: file.file_size,
+              file_version: file.file_version,
+              uploaded_at: file.uploaded_at,
+              project_id: file.proj_id,
+              content_type: file.file_type
             }
-            taskMap[file.task_id].children.push(fileNode)
-          } else {
-            node.children.push(fileNode)
-          }
-        })
 
-        node.children.push(...Object.values(taskMap))
-        node.loaded = true
+            if (file.task_id) {
+              if (!taskMap[file.task_id]) {
+                taskMap[file.task_id] = {
+                  id: `task-${file.task_id}`,
+                  name: file.task_name || `Task ${file.task_id}`,
+                  type: 'task',
+                  children: []
+                }
+              }
+              taskMap[file.task_id].children.push(fileNode)
+            } else {
+              standaloneFiles.push(fileNode)
+            }
+          })
+
+          console.log('Files mapped without a Task folder:', standaloneFiles)
+          console.log('Task folders created:', Object.values(taskMap))
+
+          // Append files and task folders safely to the reactive state
+          node.children.push(...standaloneFiles)
+          node.children.push(...Object.values(taskMap))
+          node.loaded = true
+
+          console.log('Node state successfully updated:', JSON.parse(JSON.stringify(node)))
+
+        } catch (error) {
+          console.error(`Error loading files for project ${node.project_id}:`, error)
+        } finally {
+          loading.value = false
+        }
       }
     }
   }
 
   const filteredTree = computed(() => {
-    const clone = JSON.parse(JSON.stringify(tree.value))
+    // Check for null errors during the clone
+    let clone = []
+    try {
+      clone = JSON.parse(JSON.stringify(tree.value))
+    } catch (e) {
+      console.error('Failed to clone tree:', e)
+      return []
+    }
 
     const applySort = (items) => {
       items.sort((a, b) => {
-        if (sortBy.value === 'Name (A-Z)')
-          return a.name.localeCompare(b.name)
-        if (sortBy.value === 'Name (Z-A)')
-          return b.name.localeCompare(a.name)
-        if (sortBy.value === 'Newest')
-          return new Date(b.uploaded_at) - new Date(a.uploaded_at)
-        if (sortBy.value === 'Oldest')
-          return new Date(a.uploaded_at) - new Date(b.uploaded_at)
-        if (sortBy.value === 'Size (Large)')
-          return (b.file_size || 0) - (a.file_size || 0)
-        if (sortBy.value === 'Size (Small)')
-          return (a.file_size || 0) - (b.file_size || 0)
+        const nameA = a.name || ''
+        const nameB = b.name || ''
+
+        if (sortBy.value === 'Name (A-Z)') return nameA.localeCompare(nameB)
+        if (sortBy.value === 'Name (Z-A)') return nameB.localeCompare(nameA)
+
+        if (sortBy.value === 'Newest') {
+          const timeA = a.uploaded_at ? new Date(a.uploaded_at).getTime() : 0;
+          const timeB = b.uploaded_at ? new Date(b.uploaded_at).getTime() : 0;
+          return timeB - timeA;
+        }
+        if (sortBy.value === 'Oldest') {
+          const timeA = a.uploaded_at ? new Date(a.uploaded_at).getTime() : 0;
+          const timeB = b.uploaded_at ? new Date(b.uploaded_at).getTime() : 0;
+          return timeA - timeB;
+        }
+        if (sortBy.value === 'Size (Large)') return (b.file_size || 0) - (a.file_size || 0)
+        if (sortBy.value === 'Size (Small)') return (a.file_size || 0) - (b.file_size || 0)
         return 0
       })
 
@@ -264,6 +321,8 @@
     }
 
     const filterSearch = (items) => {
+      const query = (search.value || '').toLowerCase()
+
       return items
         .map(item => {
           if (item.children) {
@@ -271,14 +330,23 @@
           }
           return item
         })
-        .filter(item =>
-          item.name.toLowerCase().includes(search.value.toLowerCase()) ||
-          (item.children && item.children.length)
-        )
+        .filter(item => {
+          if (!query) return true // Keep everything if no search
+
+          const itemName = (item.name || '').toLowerCase()
+          return itemName.includes(query) || (item.children && item.children.length > 0)
+        })
     }
 
-    applySort(clone)
-    return filterSearch(clone)
+    try {
+      applySort(clone)
+      const result = filterSearch(clone)
+      console.log('filteredTree re-computed successfully.')
+      return result
+    } catch (e) {
+      console.error('Error during sort/filter computation:', e)
+      return clone
+    }
   })
 
   const updateBreadcrumb = (activeIds) => {
@@ -318,6 +386,7 @@
   }
 
   const formatDate = (d) => {
+    if (!d) return ''
     return new Date(d).toLocaleDateString()
   }
 

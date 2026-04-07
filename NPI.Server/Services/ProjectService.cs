@@ -329,7 +329,6 @@ namespace NPI.Server.Services
             {
                 var enquiry = await _context.Enquiries
                     .Include(e => e.Customer)
-                    .Include(e => e.GeneralInfo)
                     .FirstOrDefaultAsync(e => e.enquiry_id == enquiryId);
 
                 if (enquiry == null)
@@ -348,8 +347,7 @@ namespace NPI.Server.Services
                 }
                 else
                 {
-                    var company = enquiry.GeneralInfo?.company_name
-                                  ?? enquiry.Customer?.comp_name
+                    var company = enquiry.Customer?.comp_name
                                   ?? "New Project";
                     var category = enquiry.npi_category ?? "";
                     projName = string.IsNullOrWhiteSpace(category)
@@ -369,10 +367,6 @@ namespace NPI.Server.Services
                 if (dto?.expected_completion != null)
                 {
                     targetDate = dto.expected_completion;
-                }
-                else if (enquiry.GeneralInfo?.estimated_required_date != null)
-                {
-                    targetDate = enquiry.GeneralInfo.estimated_required_date;
                 }
 
                 // ── 3. Generate project number ────────────────────────────────────
@@ -529,27 +523,6 @@ namespace NPI.Server.Services
                 await transaction.RollbackAsync();
                 return (false, $"Error creating project: {ex.Message}", 0);
             }
-        }
-
-        private async Task<string> GenerateProjectNo()
-        {
-            var year = DateTime.Now.Year;
-            var prefix = $"PRJ{year}";
-
-            var lastProject = await _context.Projects
-                .Where(p => p.proj_no.StartsWith(prefix))
-                .OrderByDescending(p => p.proj_id)
-                .FirstOrDefaultAsync();
-
-            int nextNum = 1;
-            if (lastProject != null)
-            {
-                var suffix = lastProject.proj_no[prefix.Length..];
-                if (int.TryParse(suffix, out var last))
-                    nextNum = last + 1;
-            }
-
-            return $"{prefix}{nextNum:D3}";
         }
 
         private static void EnsureDeptFolder(

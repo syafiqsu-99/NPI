@@ -18,8 +18,6 @@ namespace NPI.Server.Data
         public DbSet<NpiFormSection> NpiFormSections { get; set; }
         public DbSet<NpiFormField> NpiFormFields { get; set; }
         public DbSet<Enquiries> Enquiries { get; set; }
-        public DbSet<EnquiryGeneralInfo> EnquiryGeneralInfo { get; set; }
-        public DbSet<EnquirySealInfo> EnquirySealInfo { get; set; }
         public DbSet<EnquiryCustomerRef> EnquiryCustomerRef { get; set; }
         public DbSet<Files> Files { get; set; }
         public DbSet<Milestones> Milestones { get; set; }
@@ -36,6 +34,7 @@ namespace NPI.Server.Data
         public DbSet<UserSessions> UserSessions { get; set; }
         public DbSet<StageCompletionLog> StageCompletionLogs { get; set; }
         public DbSet<TaskDocumentRequirements> TaskDocumentRequirements { get; set; }
+        public DbSet<EnquiryFieldValues> EnquiryFieldValues { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -57,17 +56,16 @@ namespace NPI.Server.Data
                 .HasIndex(e => e.enquiry_no)
                 .IsUnique();
 
-            modelBuilder.Entity<EnquiryGeneralInfo>()
-                .HasOne(g => g.Enquiry)
-                .WithOne(e => e.GeneralInfo)
-                .HasForeignKey<EnquiryGeneralInfo>(g => g.enquiry_id)
+            modelBuilder.Entity<EnquiryFieldValues>()
+                .HasOne(v => v.Enquiry)
+                .WithMany(e => e.FieldValues)
+                .HasForeignKey(v => v.enquiry_id)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            modelBuilder.Entity<EnquirySealInfo>()
-                .HasOne(s => s.Enquiry)
-                .WithOne(e => e.SealInfo)
-                .HasForeignKey<EnquirySealInfo>(s => s.enquiry_id)
-                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<EnquiryFieldValues>()
+                .HasIndex(v => new { v.enquiry_id, v.section_key, v.field_key })
+                .IsUnique()
+                .HasDatabaseName("IX_EnquiryFieldValues_Unique");
 
             modelBuilder.Entity<EnquiryCustomerRef>()
                 .HasOne(c => c.Enquiry)
