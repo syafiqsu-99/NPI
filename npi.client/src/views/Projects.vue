@@ -81,9 +81,9 @@
                             <v-tooltip :text="`${stage.id} ${stage.name}: ${stage.status}`" location="top">
                               <template #activator="{ props }">
                                 <div v-bind="props"
-                                      class="stage-dot"
-                                      :class="`stage-dot--${stage.status}`"
-                                      :style="{ background: getStageDotColor(stage) }">
+                                     class="stage-dot"
+                                     :class="`stage-dot--${stage.status}`"
+                                     :style="{ background: getStageDotColor(stage) }">
                                   <span class="stage-dot-label">{{ stage.id }}</span>
                                 </div>
                               </template>
@@ -104,32 +104,32 @@
                       <template #item.actions="{ item }">
                         <!-- Setup/Manage -->
                         <v-btn v-if="canManageProject(item)"
-                                icon size="small" variant="text" color="primary"
-                                @click="manageProject(item.proj_id)"
-                                title="Project Setup">
+                               icon size="small" variant="text" color="primary"
+                               @click="manageProject(item.proj_id)"
+                               title="Project Setup">
                           <v-icon size="18">mdi-cog</v-icon>
                         </v-btn>
 
                         <!-- Gantt Chart -->
                         <v-btn v-if="item.status === 'In Progress' || item.status === 'Completed'"
-                                icon size="small" variant="text" color="success"
-                                @click="viewGantt(item.proj_id)"
-                                title="View Gantt Chart">
+                               icon size="small" variant="text" color="success"
+                               @click="viewGantt(item.proj_id)"
+                               title="View Gantt Chart">
                           <v-icon size="18">mdi-chart-gantt</v-icon>
                         </v-btn>
 
                         <!-- View Details -->
                         <v-btn icon size="small" variant="text"
-                                @click="viewProject(item)"
-                                title="View Details">
+                               @click="viewProject(item)"
+                               title="View Details">
                           <v-icon size="18">mdi-eye</v-icon>
                         </v-btn>
 
                         <!-- Delete (Admin only) -->
                         <v-btn v-if="canDeleteProject(item)"
-                                icon size="small" variant="text" color="error"
-                                @click="openDeleteProjectDialog(item)"
-                                title="Delete Project">
+                               icon size="small" variant="text" color="error"
+                               @click="openDeleteProjectDialog(item)"
+                               title="Delete Project">
                           <v-icon size="18">mdi-delete</v-icon>
                         </v-btn>
                       </template>
@@ -150,74 +150,154 @@
     </v-row>
 
     <!-- Project Detail Dialog -->
-    <v-dialog v-model="showDetailDialog" max-width="600" persistent>
+    <v-dialog v-model="showDetailDialog" max-width="800" persistent>
       <v-card v-if="selectedProject" class="dialog-card">
         <v-card-title class="bg-primary text-white d-flex align-center justify-space-between">
           <v-icon class="mr-2">mdi-information</v-icon>
           {{ selectedProject.proj_no }} — {{ selectedProject.proj_name }}
         </v-card-title>
 
-        <v-card-text class="pa-6">
-          <!-- Stage pipeline visual -->
-          <v-card variant="outlined" class="mb-4 pa-3">
-            <div class="text-caption text-grey-darken-1 mb-2 font-weight-bold">NPI STAGE PIPELINE</div>
-            <div class="d-flex align-center flex-wrap ga-1">
-              <template v-for="(stage, idx) in getProjectStages(selectedProject)" :key="stage.id">
-                <div class="pipeline-node"
-                     :class="`pipeline-node--${stage.status}`"
-                     :style="{ borderColor: getStageBorderColor(stage), background: getStageBgColor(stage) }">
-                  <div class="text-caption font-weight-bold">{{ stage.id }}</div>
-                  <div class="text-caption" style="font-size:10px; line-height:1.1">{{ stage.shortName }}</div>
-                  <v-icon v-if="stage.status === 'completed'" size="x-small" color="success">mdi-check</v-icon>
-                  <v-icon v-else-if="stage.status === 'active'" size="x-small" color="primary">mdi-play</v-icon>
-                  <v-icon v-else-if="stage.status === 'skipped'" size="x-small" color="grey">mdi-minus</v-icon>
+        <v-tabs v-model="detailTab" bg-color="surface">
+          <v-tab value="overview">
+            <v-icon start>mdi-view-dashboard</v-icon>
+            Overview
+          </v-tab>
+          <v-tab value="tasks">
+            <v-icon start>mdi-clipboard-list</v-icon>
+            Tasks & Assignments
+          </v-tab>
+          <v-tab value="revisions">
+            <v-icon start>mdi-history</v-icon>
+            Revision History
+          </v-tab>
+        </v-tabs>
+
+        <v-window v-model="detailTab" class="mt-0">
+          <!-- Tab 1: Overview -->
+          <v-window-item value="overview">
+            <v-card-text class="pa-6">
+              <!-- Stage pipeline visual -->
+              <v-card variant="outlined" class="mb-4 pa-3">
+                <div class="text-caption text-grey-darken-1 mb-2 font-weight-bold">NPI STAGE PIPELINE</div>
+                <div class="d-flex align-center flex-wrap ga-1">
+                  <template v-for="(stage, idx) in getProjectStages(selectedProject)" :key="stage.id">
+                    <div class="pipeline-node"
+                         :class="`pipeline-node--${stage.status}`"
+                         :style="{ borderColor: getStageBorderColor(stage), background: getStageBgColor(stage) }">
+                      <div class="text-caption font-weight-bold">{{ stage.id }}</div>
+                      <div class="text-caption" style="font-size:10px; line-height:1.1">{{ stage.shortName }}</div>
+                      <v-icon v-if="stage.status === 'completed'" size="x-small" color="success">mdi-check</v-icon>
+                      <v-icon v-else-if="stage.status === 'active'" size="x-small" color="primary">mdi-play</v-icon>
+                      <v-icon v-else-if="stage.status === 'skipped'" size="x-small" color="grey">mdi-minus</v-icon>
+                    </div>
+                    <v-icon v-if="idx < getProjectStages(selectedProject).length - 1"
+                            color="grey-lighten-1" size="small">mdi-arrow-right</v-icon>
+                  </template>
                 </div>
-                <v-icon v-if="idx < getProjectStages(selectedProject).length - 1"
-                        color="grey-lighten-1" size="small">mdi-arrow-right</v-icon>
-              </template>
-            </div>
-          </v-card>
+              </v-card>
 
-          <v-row>
-            <v-col cols="12" md="6"><strong>Customer:</strong> {{ selectedProject.customer_name || 'N/A' }}</v-col>
-            <v-col cols="12" md="6">
-              <strong>Status:</strong>
-              <v-chip :color="getStatusColor(selectedProject.status)" size="small" variant="tonal" class="ml-2">
-                {{ selectedProject.status }}
-              </v-chip>
-            </v-col>
-            <v-col cols="12" md="6">
-              <strong>Priority:</strong>
-              <v-chip :color="getPriorityColor(selectedProject.priority)" size="small" variant="tonal" class="ml-2">
-                {{ selectedProject.priority }}
-              </v-chip>
-            </v-col>
-            <v-col cols="12" md="6"><strong>Start Date:</strong> {{ formatDate(selectedProject.project_start_date) }}</v-col>
-            <v-col cols="12" md="6"><strong>Target Completion:</strong> {{ formatDate(selectedProject.target_completion_date) }}</v-col>
-            <v-col cols="12" md="6">
-              <strong>Optional Stages:</strong>
-              <v-chip v-if="selectedProject.pilot_mould_required" size="x-small" color="purple" variant="tonal" class="ml-1">2.0 Pilot Mould</v-chip>
-              <v-chip v-if="selectedProject.machine_purchase_required" size="x-small" color="teal" variant="tonal" class="ml-1">3.0 Machine</v-chip>
-              <span v-if="!selectedProject.pilot_mould_required && !selectedProject.machine_purchase_required"
-                    class="ml-2 text-grey text-caption">None</span>
-            </v-col>
-            <v-col cols="12">
-              <strong>Description:</strong>
-              <p class="mt-2">{{ selectedProject.description || 'No description available' }}</p>
-            </v-col>
-          </v-row>
-        </v-card-text>
+              <v-row>
+                <v-col cols="12" md="6"><strong>Customer:</strong> {{ selectedProject.customer_name || 'N/A' }}</v-col>
+                <v-col cols="12" md="6">
+                  <strong>Status:</strong>
+                  <v-chip :color="getStatusColor(selectedProject.status)" size="small" variant="tonal" class="ml-2">
+                    {{ selectedProject.status }}
+                  </v-chip>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <strong>Priority:</strong>
+                  <v-chip :color="getPriorityColor(selectedProject.priority)" size="small" variant="tonal" class="ml-2">
+                    {{ selectedProject.priority }}
+                  </v-chip>
+                </v-col>
+                <v-col cols="12" md="6"><strong>Start Date:</strong> {{ formatDate(selectedProject.project_start_date) }}</v-col>
+                <v-col cols="12" md="6"><strong>Target Completion:</strong> {{ formatDate(selectedProject.target_completion_date) }}</v-col>
+                <v-col cols="12" md="6">
+                  <strong>Optional Stages:</strong>
+                  <v-chip v-if="selectedProject.pilot_mould_required" size="x-small" color="purple" variant="tonal" class="ml-1">2.0 Pilot Mould</v-chip>
+                  <v-chip v-if="selectedProject.machine_purchase_required" size="x-small" color="teal" variant="tonal" class="ml-1">3.0 Machine</v-chip>
+                  <span v-if="!selectedProject.pilot_mould_required && !selectedProject.machine_purchase_required"
+                        class="ml-2 text-grey text-caption">None</span>
+                </v-col>
+                <v-col cols="12">
+                  <strong>Description:</strong>
+                  <p class="mt-2">{{ selectedProject.description || 'No description available' }}</p>
+                </v-col>
+              </v-row>
+            </v-card-text>
+          </v-window-item>
 
-        <v-card-actions>
+          <!-- Tab 2: Tasks & Assignments -->
+          <v-window-item value="tasks">
+            <v-card-text class="pa-6" style="max-height: 500px; overflow-y: auto;">
+              <v-data-table v-if="projectTasks.length > 0"
+                            :items="projectTasks"
+                            :headers="taskHeaders"
+                            density="compact"
+                            class="elevation-0">
+                <template #item.task_code="{ item }">
+                  <v-chip :color="getStageColor(item.stage_id)" size="x-small" variant="tonal" class="font-weight-bold">
+                    {{ item.task_code || '—' }}
+                  </v-chip>
+                </template>
+                <template #item.title="{ item }">
+                  <span class="font-weight-medium">{{ item.title }}</span>
+                </template>
+                <template #item.status="{ item }">
+                  <v-chip :color="getTaskStatusColor(item.status)" size="small" variant="tonal">
+                    {{ item.status }}
+                  </v-chip>
+                </template>
+                <template #item.assigned_to_name="{ item }">
+                  <v-avatar v-if="item.assigned_to_name" size="32" color="primary">
+                    <span class="text-white text-caption font-weight-bold">
+                      {{ item.assigned_to_name.split(' ').map(n => n[0]).join('') }}
+                    </span>
+                  </v-avatar>
+                  <span v-else class="text-grey text-caption">Unassigned</span>
+                </template>
+              </v-data-table>
+              <v-alert v-else type="info" variant="tonal" class="ma-4">
+                No tasks created yet
+              </v-alert>
+            </v-card-text>
+          </v-window-item>
+
+          <!-- Tab 3: Revision History -->
+          <v-window-item value="revisions">
+            <v-card-text class="pa-6" style="max-height: 500px; overflow-y: auto;">
+              <v-timeline v-if="projectRevisions.length > 0" align="start" side="end">
+                <v-timeline-item v-for="(rev, idx) in projectRevisions" :key="idx"
+                                 :dot-color="getRevisionColor(idx)"
+                                 size="small">
+                  <div class="mb-1">
+                    <strong>Revision {{ rev.revision_number }}</strong>
+                    <v-chip size="x-small" variant="text" color="grey" class="ml-2">
+                      {{ formatDateTime(rev.revision_date) }}
+                    </v-chip>
+                  </div>
+                  <div class="text-caption mb-2">
+                    <strong>Reason:</strong> {{ rev.revision_notes || 'No reason provided' }}
+                  </div>
+                  <div class="text-caption text-grey">
+                    <strong>Previous Target:</strong> {{ formatDate(rev.previous_target_date) }}<br>
+                    <strong>New Target:</strong> {{ formatDate(rev.new_target_date) }}
+                  </div>
+                </v-timeline-item>
+              </v-timeline>
+              <v-alert v-else type="info" variant="tonal" class="ma-4">
+                No revisions recorded
+              </v-alert>
+            </v-card-text>
+          </v-window-item>
+        </v-window>
+
+        <v-card-actions class="pa-4">
           <v-spacer />
           <v-btn variant="text" @click="showDetailDialog = false">Close</v-btn>
           <v-btn v-if="canManageProject(selectedProject)" color="primary"
                  @click="manageProject(selectedProject.proj_id)">
             Manage Project
-          </v-btn>
-          <v-btn v-if="selectedProject.status === 'In Progress' || selectedProject.status === 'Completed'"
-                 color="success" @click="viewGantt(selectedProject.proj_id)">
-            View Gantt
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -268,158 +348,210 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useProjectStore } from '@/stores/project'
-import { useAuthStore } from '@/stores/auth'
-import { NPI_STAGES } from '@/stores/stageTemplate'
+  import { ref, computed, onMounted } from 'vue'
+  import { useRouter } from 'vue-router'
+  import { useProjectStore } from '@/stores/project'
+  import { useAuthStore } from '@/stores/auth'
+  import { NPI_STAGES } from '@/stores/stageTemplate'
 
-const router = useRouter()
-const projectStore = useProjectStore()
-const authStore = useAuthStore()
+  const router = useRouter()
+  const projectStore = useProjectStore()
+  const authStore = useAuthStore()
 
-const statusFilter = ref('all')
-const search = ref('')
-const showDetailDialog = ref(false)
-const selectedProject = ref(null)
+  const statusFilter = ref('all')
+  const search = ref('')
+  const showDetailDialog = ref(false)
+  const selectedProject = ref(null)
 
-const deleteProjectDialog = ref(false)
-const deleteProjectTarget = ref(null)
-const deletingProject = ref(false)
+  const deleteProjectDialog = ref(false)
+  const deleteProjectTarget = ref(null)
+  const deletingProject = ref(false)
 
-const snackbar = ref(false)
-const snackbarMessage = ref('')
-const snackbarColor = ref('success')
+  const snackbar = ref(false)
+  const snackbarMessage = ref('')
+  const snackbarColor = ref('success')
 
-const headers = [
-  { title: 'Project No', key: 'proj_no', sortable: true },
-  { title: 'Project Name', key: 'proj_name', sortable: true },
-  { title: 'Customer', key: 'customer_name', sortable: true },
-  { title: 'NPI Stages', key: 'stages', sortable: false, width: '220px' },
-  { title: 'Priority', key: 'priority', sortable: true },
-  { title: 'Status', key: 'status', sortable: true },
-  { title: 'Start Date', key: 'project_start_date', sortable: true },
-  { title: 'Target Date', key: 'target_completion_date', sortable: true },
-  { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '150px' }
-]
+  const detailTab = ref('overview')
+  const projectTasks = ref([])
+  const projectRevisions = ref([])
 
-const userRole = computed(() => authStore.user?.role || authStore.userRole)
+  const headers = [
+    { title: 'Project No', key: 'proj_no', sortable: true },
+    { title: 'Project Name', key: 'proj_name', sortable: true },
+    { title: 'Customer', key: 'customer_name', sortable: true },
+    { title: 'NPI Stages', key: 'stages', sortable: false, width: '220px' },
+    { title: 'Priority', key: 'priority', sortable: true },
+    { title: 'Status', key: 'status', sortable: true },
+    { title: 'Start Date', key: 'project_start_date', sortable: true },
+    { title: 'Target Date', key: 'target_completion_date', sortable: true },
+    { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '150px' }
+  ]
 
-const filteredProjects = computed(() => {
-  let list = projectStore.projects || []
-  if (statusFilter.value !== 'all') list = list.filter(p => p.status === statusFilter.value)
-  return list
-})
+  const taskHeaders = [
+    { title: 'Code', key: 'task_code', width: '80px' },
+    { title: 'Task', key: 'title', width: '40%' },
+    { title: 'Status', key: 'status', width: '120px' },
+    { title: 'Assigned To', key: 'assigned_to_name', width: '150px', align: 'center' }
+  ]
 
-// ── Stage pipeline helpers ──────────────────────────────────────────────────
+  const userRole = computed(() => authStore.user?.role || authStore.userRole)
 
-const STAGE_SHORT = {
-  '0.0': 'Enquiry', '1.0': 'Proj Start', '2.0': 'Pilot Mould',
-  '3.0': 'Machine', '4.0': 'Prod Mould', '5.0': 'Trial JJ'
-}
-
-const STAGE_COLORS_MAP = {
-  '0.0': '#607D8B', '1.0': '#1976D2', '2.0': '#7B1FA2',
-  '3.0': '#00796B', '4.0': '#303F9F', '5.0': '#E64A19'
-}
-
-function getProjectStages(project) {
-  const stageIds = Object.keys(NPI_STAGES).filter(id => {
-    if (NPI_STAGES[id].required) return true
-    if (id === '2.0') return !!project.pilot_mould_required
-    if (id === '3.0') return !!project.machine_purchase_required
-    return false
+  const filteredProjects = computed(() => {
+    let list = projectStore.projects || []
+    if (statusFilter.value !== 'all') list = list.filter(p => p.status === statusFilter.value)
+    return list
   })
-  return stageIds.map(id => {
-    const progress = project.stage_progress?.[id]
-    let status = 'pending'
-    if (progress?.completed) status = 'completed'
-    else if (progress?.in_progress) status = 'active'
-    else if (!NPI_STAGES[id].required &&
-      !project.pilot_mould_required && !project.machine_purchase_required) status = 'skipped'
-    return { id, name: NPI_STAGES[id].name, shortName: STAGE_SHORT[id] || id, status, color: STAGE_COLORS_MAP[id] || '#9E9E9E' }
-  })
-}
 
-function getStageDotColor(stage) {
-  if (stage.status === 'completed') return '#4CAF50'
-  if (stage.status === 'active') return stage.color
-  if (stage.status === 'skipped') return '#BDBDBD'
-  return '#E0E0E0'
-}
+  async function loadProjectDetails(projectId) {
+    try {
+      // Fetch tasks for this project
+      const tasksResult = await projectStore.getProjectTasks(projectId)
+      projectTasks.value = tasksResult?.data || []
 
-function getStageBorderColor(stage) {
-  if (stage.status === 'completed') return '#4CAF50'
-  if (stage.status === 'active') return stage.color
-  return '#BDBDBD'
-}
-
-function getStageBgColor(stage) {
-  if (stage.status === 'completed') return 'rgba(76,175,80,0.1)'
-  if (stage.status === 'active') return `${stage.color}18`
-  return 'rgba(0,0,0,0.03)'
-}
-
-// ── Other helpers ────────────────────────────────────────────────────────────
-
-function canManageProject(project) {
-  const isNpiOrAdmin = userRole.value === 'NPI Team' || userRole.value === 'Admin'
-  const canManage = project.status === 'Planning' || project.status === 'In Progress'
-  return isNpiOrAdmin && canManage
-}
-
-// Only Admins can delete projects
-function canDeleteProject(project) {
-  return userRole.value === 'Admin'
-}
-
-function getStatusColor(status) {
-  return { 'Planning': 'info', 'In Progress': 'primary', 'On Hold': 'warning', 'Completed': 'success', 'Cancelled': 'error' }[status] || 'grey'
-}
-
-function getPriorityColor(priority) {
-  return { 'Low': 'success', 'Medium': 'info', 'High': 'warning', 'Critical': 'error' }[priority] || 'grey'
-}
-
-function formatDate(date) {
-  if (!date) return 'N/A'
-  if (typeof date === 'string') {
-    const parts = date.split('-')
-    if (parts.length === 3)
-      return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      // Fetch revision history (if available in your API)
+      // For now, use mock data structure:
+      projectRevisions.value = [
+        {
+          revision_number: 1,
+          revision_date: new Date(),
+          revision_notes: 'Initial project launch',
+          previous_target_date: null,
+          new_target_date: selectedProject.value.target_completion_date
+        }
+      ]
+    } catch (err) {
+      console.error('Error loading project details:', err)
+    }
   }
-  return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
 
-function manageProject(projId) { router.push(`/projects/${projId}/setup`) }
-function viewGantt(projId) { router.push(`/projects/${projId}/gantt`) }
-function viewProject(project) { selectedProject.value = project; showDetailDialog.value = true }
+  function getRevisionColor(index) {
+    const colors = ['primary', 'success', 'warning', 'error']
+    return colors[index % colors.length]
+  }
 
-function openDeleteProjectDialog(project) {
-  deleteProjectTarget.value = project
-  deleteProjectDialog.value = true
-}
+  function formatDateTime(date) {
+    if (!date) return 'N/A'
+    return new Date(date).toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    })
+  }
 
-async function confirmDeleteProject() {
-  if (!deleteProjectTarget.value) return
-  deletingProject.value = true
-  const result = await projectStore.deleteProject(deleteProjectTarget.value.proj_id)
-  deletingProject.value = false
-  deleteProjectDialog.value = false
-  snackbarMessage.value = result.success ? 'Project deleted successfully' : `Error: ${result.message}`
-  snackbarColor.value = result.success ? 'success' : 'error'
-  snackbar.value = true
-  deleteProjectTarget.value = null
-}
+  // Update viewProject function to load details
+  function viewProject(project) {
+    selectedProject.value = project
+    showDetailDialog.value = true
+    loadProjectDetails(project.proj_id)
+  }
 
-onMounted(async () => {
-  const result = await projectStore.fetchProjects()
-  if (!result.success) {
-    snackbarMessage.value = result.message || 'Failed to load projects'
-    snackbarColor.value = 'error'
+  // ── Stage pipeline helpers ──────────────────────────────────────────────────
+
+  const STAGE_SHORT = {
+    '0.0': 'Enquiry', '1.0': 'Proj Start', '2.0': 'Pilot Mould',
+    '3.0': 'Machine', '4.0': 'Prod Mould', '5.0': 'Trial JJ'
+  }
+
+  const STAGE_COLORS_MAP = {
+    '0.0': '#607D8B', '1.0': '#1976D2', '2.0': '#7B1FA2',
+    '3.0': '#00796B', '4.0': '#303F9F', '5.0': '#E64A19'
+  }
+
+  function getProjectStages(project) {
+    const stageIds = Object.keys(NPI_STAGES).filter(id => {
+      if (NPI_STAGES[id].required) return true
+      if (id === '2.0') return !!project.pilot_mould_required
+      if (id === '3.0') return !!project.machine_purchase_required
+      return false
+    })
+    return stageIds.map(id => {
+      const progress = project.stage_progress?.[id]
+      let status = 'pending'
+      if (progress?.completed) status = 'completed'
+      else if (progress?.in_progress) status = 'active'
+      else if (!NPI_STAGES[id].required &&
+        !project.pilot_mould_required && !project.machine_purchase_required) status = 'skipped'
+      return { id, name: NPI_STAGES[id].name, shortName: STAGE_SHORT[id] || id, status, color: STAGE_COLORS_MAP[id] || '#9E9E9E' }
+    })
+  }
+
+  function getStageDotColor(stage) {
+    if (stage.status === 'completed') return '#4CAF50'
+    if (stage.status === 'active') return stage.color
+    if (stage.status === 'skipped') return '#BDBDBD'
+    return '#E0E0E0'
+  }
+
+  function getStageBorderColor(stage) {
+    if (stage.status === 'completed') return '#4CAF50'
+    if (stage.status === 'active') return stage.color
+    return '#BDBDBD'
+  }
+
+  function getStageBgColor(stage) {
+    if (stage.status === 'completed') return 'rgba(76,175,80,0.1)'
+    if (stage.status === 'active') return `${stage.color}18`
+    return 'rgba(0,0,0,0.03)'
+  }
+
+  // ── Other helpers ────────────────────────────────────────────────────────────
+
+  function canManageProject(project) {
+    const isNpiOrAdmin = userRole.value === 'NPI Team' || userRole.value === 'Admin'
+    const canManage = project.status === 'Planning' || project.status === 'In Progress'
+    return isNpiOrAdmin && canManage
+  }
+
+  // Only Admins can delete projects
+  function canDeleteProject(project) {
+    return userRole.value === 'Admin'
+  }
+
+  function getStatusColor(status) {
+    return { 'Planning': 'info', 'In Progress': 'primary', 'On Hold': 'warning', 'Completed': 'success', 'Cancelled': 'error' }[status] || 'grey'
+  }
+
+  function getPriorityColor(priority) {
+    return { 'Low': 'success', 'Medium': 'info', 'High': 'warning', 'Critical': 'error' }[priority] || 'grey'
+  }
+
+  function formatDate(date) {
+    if (!date) return 'N/A'
+    if (typeof date === 'string') {
+      const parts = date.split('-')
+      if (parts.length === 3)
+        return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    }
+    return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+
+  function manageProject(projId) { router.push(`/projects/${projId}/setup`) }
+  function viewGantt(projId) { router.push(`/projects/${projId}/gantt`) }
+
+  function openDeleteProjectDialog(project) {
+    deleteProjectTarget.value = project
+    deleteProjectDialog.value = true
+  }
+
+  async function confirmDeleteProject() {
+    if (!deleteProjectTarget.value) return
+    deletingProject.value = true
+    const result = await projectStore.deleteProject(deleteProjectTarget.value.proj_id)
+    deletingProject.value = false
+    deleteProjectDialog.value = false
+    snackbarMessage.value = result.success ? 'Project deleted successfully' : `Error: ${result.message}`
+    snackbarColor.value = result.success ? 'success' : 'error'
     snackbar.value = true
+    deleteProjectTarget.value = null
   }
-})
+
+  onMounted(async () => {
+    const result = await projectStore.fetchProjects()
+    if (!result.success) {
+      snackbarMessage.value = result.message || 'Failed to load projects'
+      snackbarColor.value = 'error'
+      snackbar.value = true
+    }
+  })
 </script>
 
 <style scoped>

@@ -193,14 +193,15 @@
                       </div>
                     </template>
 
-                    <!-- Status dropdown (disabled for Viewer) -->
+                    <!-- Status dropdown (enhanced authorization check) -->
                     <template #item.status="{ item }">
-                      <v-menu :disabled="isViewer">
+                      <v-menu :disabled="isViewer || (item.assigned_to !== currentUserId && !['Team Lead', 'Admin'].includes(userRole))">
                         <template #activator="{ props }">
                           <v-chip v-bind="props"
                                   :color="getStatusColor(item.status)"
                                   size="small"
-                                  :class="isViewer ? '' : 'cursor-pointer'">
+                                  :class="(isViewer || (item.assigned_to !== currentUserId && !['Team Lead', 'Admin'].includes(userRole))) ? '' : 'cursor-pointer'"
+                                  :title="item.assigned_to !== currentUserId ? 'Only assigned user can change status' : ''">
                             <v-icon start size="x-small">{{ getStatusIcon(item.status) }}</v-icon>
                             {{ item.status }}
                           </v-chip>
@@ -257,8 +258,9 @@
                     <template #item.actions="{ item }">
                       <div class="d-flex ga-1">
 
-                        <!-- Upload (hidden for Viewer) -->
-                        <v-tooltip v-if="!isViewer" text="Upload Files" location="top">
+                        <!-- Upload (hidden for Viewer + unassigned users) -->
+                        <v-tooltip v-if="!isViewer && (item.assigned_to === currentUserId || ['Team Lead', 'Admin'].includes(userRole))"
+                                   text="Upload Files" location="top">
                           <template #activator="{ props }">
                             <v-btn icon="mdi-file-upload"
                                    size="small" variant="text" color="primary"
@@ -799,7 +801,17 @@
   }
 
   async function updateStatus(task, newStatus) {
-    if (isViewer.value) return
+    if (isViewer.value) {
+      showSnack('Viewers cannot modify tasks', 'warning')
+      return
+    }
+
+    if (task.assigned_to !== currentUserId.value &&
+        !['Team Lead', 'Admin'].includes(userRole.value)) {
+      showSnack('You are not authorized to modify this task. Only the assigned user or Team Lead can change status.', 'error')
+      return
+    }
+
     try {
       const result = await api.put(`/task/${task.task_id}/status`, { status: newStatus })
       if (result?.success) {
@@ -811,9 +823,12 @@
           task.actual_start_date = new Date().toISOString().split('T')[0]
         }
         showSnack('Status updated', 'success')
+      } else {
+        showSnack(result?.message || 'Failed to update status', 'error')
       }
-    } catch {
-      showSnack('Failed to update status', 'error')
+    } catch (err) {
+      console.error('Status update error:', err)
+      showSnack('Server rejected the request. Check your permissions.', 'error')
     }
   }
 
@@ -836,6 +851,13 @@
 
   async function doUpload() {
     if (!uploadFiles.value?.length) return
+
+    if (selectedTask.value.assigned_to !== currentUserId.value &&
+        !['Team Lead', 'Admin'].includes(userRole.value)) {
+      showSnack('Only the assigned user or Team Lead can upload files to this task', 'error')
+      return
+    }
+
     uploading.value = true
     try {
       const fd = new FormData()
@@ -851,7 +873,7 @@
         showSnack(`${count} file(s) uploaded successfully`, 'success')
         closeUpload()
       } else {
-        showSnack(result?.message || 'Upload failed', 'error')
+        showSnack(result?.message || 'Upload failed. Server may have rejected due to permissions.', 'error')
       }
     } catch (err) {
       console.error(err)

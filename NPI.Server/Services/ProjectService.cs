@@ -293,12 +293,14 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool success, string message)> UpdateProjectStatusAsync(
-            int projectId, string status)
+        public async Task<(bool success, string message)> UpdateProjectStatusAsync( int projectId, string status, int userId, string userRole)
         {
             try
             {
-                var project = await _context.Projects.FindAsync(projectId);
+                var project = await _context.Projects
+                    .Include(p => p.Tasks)
+                    .FirstOrDefaultAsync(p => p.proj_id == projectId);
+
                 if (project == null)
                     return (false, "Project not found");
 
@@ -307,6 +309,26 @@ namespace NPI.Server.Services
 
                 if (!validStatuses.Contains(status))
                     return (false, "Invalid status value");
+
+                if (status == "Completed")
+                {
+                    if (!string.Equals(userRole, "Team Lead", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return (false, "Only Team Leads and Admins can mark projects as Completed");
+                    }
+
+                    // Verify 100% task completion
+                    var incompleteTasks = await _context.Tasks
+                        .Where(t => t.proj_id == projectId && t.status != "Completed" && t.status != "Cancelled")
+                        .CountAsync();
+
+                    if (incompleteTasks > 0)
+                    {
+                        return (false, $"Cannot complete project: {incompleteTasks} task(s) still pending. " +
+                            "All tasks must be marked 'Completed' or 'Cancelled' first.");
+                    }
+                }
 
                 project.status = status;
                 project.updated_at = DateTime.Now;

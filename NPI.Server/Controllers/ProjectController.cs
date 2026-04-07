@@ -228,7 +228,14 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var (success, message) = await _projectService.UpdateProjectStatusAsync(id, dto.status);
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                {
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                }
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
+
+                var (success, message) = await _projectService.UpdateProjectStatusAsync(id, dto.status, userId, userRole);
 
                 if (!success)
                 {

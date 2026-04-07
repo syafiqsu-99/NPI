@@ -23,6 +23,42 @@ namespace NPI.Server.Services
             _triggerService = triggerService;
         }
 
+        /// <summary>
+        /// Validates if the requesting user has write access to a task.
+        /// Only the assigned user, Team Lead, or Admin can modify the task.
+        /// </summary>
+        private async Task<(bool authorized, string message)> ValidateTaskWriteAccessAsync(
+            int taskId, int userId, string userRole)
+        {
+            var task = await _context.Tasks
+                .Include(t => t.Project)
+                .ThenInclude(p => p.ProjectTeams)
+                .FirstOrDefaultAsync(t => t.task_id == taskId);
+
+            if (task == null)
+                return (false, "Task not found");
+
+            // Admin always has access
+            if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+                return (true, string.Empty);
+
+            // Check if user is assigned to this task
+            if (task.assigned_to == userId)
+                return (true, string.Empty);
+
+            // Check if user is a Team Lead on this project
+            var projectTeam = await _context.ProjectTeams
+                .FirstOrDefaultAsync(pt =>
+                    pt.proj_id == task.proj_id &&
+                    pt.user_id == userId &&
+                    (pt.role == "Team Lead" || pt.role == "Project Lead"));
+
+            if (projectTeam != null)
+                return (true, string.Empty);
+
+            return (false, "Unauthorized: You do not have permission to modify this task.");
+        }
+
         private static string SanitizeFolderName(string name)
         {
             var result = name.Replace(" ", "_").Replace("/", "_");
@@ -180,10 +216,16 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool success, string message)> UpdateTaskAsync(int taskId, UpdateTaskDto dto, int userId)
+        public async Task<(bool success, string message)> UpdateTaskAsync( int taskId, UpdateTaskDto dto, int userId, string userRole)
         {
             try
             {
+                var (authorized, authMessage) = await ValidateTaskWriteAccessAsync(taskId, userId, userRole);
+                if (!authorized)
+                {
+                    return (false, authMessage);
+                }
+
                 var task = await _context.Tasks
                     .Include(t => t.Project)
                     .Include(t => t.Department)
@@ -293,10 +335,16 @@ namespace NPI.Server.Services
             return (true, "Planned dates updated with revision history");
         }
 
-        public async Task<(bool success, string message)> UpdateTaskStatusAsync(int taskId, string status)
+        public async Task<(bool success, string message)> UpdateTaskStatusAsync( int taskId, string status, int userId, string userRole)
         {
             try
             {
+                var (authorized, authMessage) = await ValidateTaskWriteAccessAsync(taskId, userId, userRole);
+                if (!authorized)
+                {
+                    return (false, authMessage);
+                }
+
                 var task = await _context.Tasks.FindAsync(taskId);
 
                 if (task == null)
@@ -343,10 +391,8 @@ namespace NPI.Server.Services
                 // N1 + N2: Task completed triggers
                 if (status == "Completed")
                 {
-                    // N1: Notify next dept in same stage
                     await _triggerService.OnTaskCompletedAsync(taskId, task.proj_id, task.stage_id);
 
-                    // N2: Check if entire stage is now done
                     if (!string.IsNullOrEmpty(task.stage_id))
                     {
                         bool stageComplete = !await _context.Tasks.AnyAsync(t =>
@@ -359,7 +405,6 @@ namespace NPI.Server.Services
                             await _triggerService.OnStageCompletedAsync(task.proj_id, task.stage_id);
                     }
 
-                    // N6: FAI completion (task 5.8 specifically)
                     if (task.task_code == "5.8")
                         await _triggerService.OnFaiCompletedAsync(task.proj_id, taskId);
                 }

@@ -106,7 +106,9 @@ namespace NPI.Server.Controllers
                 {
                     return Unauthorized(new { success = false, message = "Invalid user identity claim." });
                 }
-                var (success, message) = await _taskService.UpdateTaskAsync(taskId, dto, userId);
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
+
+                var (success, message) = await _taskService.UpdateTaskAsync(taskId, dto, userId, userRole);
 
                 if (!success)
                 {
@@ -146,7 +148,14 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var result = await _taskService.UpdateTaskStatusAsync(taskId, dto.status);
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                {
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                }
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
+
+                var result = await _taskService.UpdateTaskStatusAsync(taskId, dto.status, userId, userRole);
 
                 if (result.success)
                 {

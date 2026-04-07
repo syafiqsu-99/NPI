@@ -13,7 +13,7 @@ namespace NPI.Server.Services
         Task<List<TaskResponseDto>> GetProjectTasksAsync(int projectId);
         Task<List<MilestoneResponseDto>> GetProjectMilestonesAsync(int projectId);
         Task<(bool success, string message, List<string>? folderWarnings)> LaunchProjectAsync(int projectId, LaunchProjectDto dto, int userId);
-        Task<(bool success, string message)> UpdateProjectStatusAsync(int projectId, string status);
+        Task<(bool success, string message)> UpdateProjectStatusAsync(int projectId, string status, int userId, string userRole);
         Task<List<ProjectResponseDto>> GetProjectsByStatusAsync(string status);
         Task<List<ProjectResponseDto>> GetProjectsByDepartmentAsync(int deptId);
         Task<List<ProjectResponseDto>> GetProjectsByCustomerAsync(int customerId);
