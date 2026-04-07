@@ -7,6 +7,7 @@
         public int? task_id { get; set; }
         public int? enquiry_id { get; set; }
         public string? task_name { get; set; }
+        public string? dept_name { get; set; }
         public string file_name { get; set; }
         public string file_path { get; set; }
         public long file_size { get; set; }

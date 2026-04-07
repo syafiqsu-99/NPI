@@ -10,17 +10,16 @@ namespace NPI.Server.Services
         private readonly ApplicationDbContext _context;
         private readonly ITaskService _taskService;
         private readonly IConfiguration _configuration;
+        private readonly NotificationTriggerService _triggerService;
         private readonly string _basePath;
 
-        public FileService(
-            ApplicationDbContext context,
-            ITaskService taskService,
-            IConfiguration configuration)
+        public FileService( ApplicationDbContext context, ITaskService taskService, IConfiguration configuration,NotificationTriggerService triggerService)
         {
             _context = context;
             _taskService = taskService;
             _configuration = configuration;
             _basePath = configuration["FileStorage:BasePath"];
+            _triggerService = triggerService;
         }
 
         public async Task<(bool success, string message, List<int> fileIds)> UploadFilesAsync(
@@ -79,6 +78,9 @@ namespace NPI.Server.Services
                     await _context.SaveChangesAsync();
                     uploadedFileIds.Add(fileRecord.file_id);
                 }
+
+                if (uploadedFileIds.Any())
+                    await _triggerService.OnFileUploadedAsync(projId, userId);
 
                 return (true, $"{uploadedFileIds.Count} file(s) uploaded successfully", uploadedFileIds);
             }
@@ -231,6 +233,7 @@ namespace NPI.Server.Services
                 .Where(f => f.proj_id == projId && f.is_latest)
                 .Include(f => f.UploadByUser)
                 .Include(f => f.Task)
+                .Include(f => f.Department)
                 .OrderByDescending(f => f.created_at)
                 .ToListAsync();
 
@@ -374,6 +377,7 @@ namespace NPI.Server.Services
             proj_id = f.proj_id,
             task_id = f.task_id,
             task_name = f.Task?.title,
+            dept_name = f.Department?.dept_name,
             enquiry_id = f.enquiry_id,
             file_name = f.file_name,
             file_path = f.file_path,

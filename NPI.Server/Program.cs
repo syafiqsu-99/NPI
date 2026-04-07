@@ -45,6 +45,8 @@ builder.Services.AddScoped<IMilestoneService, MilestoneService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<NotificationTriggerService>();
+builder.Services.AddHostedService<NotificationBackgroundJob>();
 
 builder.Services.AddSignalR();
 

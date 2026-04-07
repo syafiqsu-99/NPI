@@ -80,50 +80,72 @@
   const authStore = useAuthStore()
 
   const notifMenu = ref(false)
-  const notifications = ref([])   // initialized as array → fixes the .length TypeError
+  const notifications = ref([])
   const unreadCount = ref(0)
 
-  async function fetchNotifications() {
+  let pollInterval = null
+
+  async function loadNotifications() {
+    if (!authStore.isAuthenticated) return
     try {
       const result = await api.get('/notification')
       notifications.value = result?.data ?? []
       unreadCount.value = notifications.value.filter(n => !n.is_read).length
-    } catch {
-      notifications.value = []
-      unreadCount.value = 0
-    }
+    } catch { }
   }
 
   async function markAll() {
     try {
       await api.post('/notification/mark-all-read', {})
-      notifications.value = notifications.value.map(n => ({ ...n, is_read: true }))
+      notifications.value.forEach(n => { n.is_read = true })
       unreadCount.value = 0
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error('Mark all read failed:', err)
+    }
   }
 
-  function openNotif(n) {
+  async function openNotif(notification) {
+    if (!notification.is_read) {
+      try {
+        await api.patch(`/notification/${notification.notif_id}/read`, {})
+        notification.is_read = true
+        unreadCount.value = Math.max(0, unreadCount.value - 1)
+      } catch { }
+    }
     notifMenu.value = false
-    if (n.proj_id) router.push(`/projects/${n.proj_id}/gantt`)
+    if (notification.proj_id) {
+      router.push(`/projects/${notification.proj_id}/gantt`)
+    }
   }
 
   function typeColor(type) {
-    return { stage_complete: 'success', task_assigned: 'primary', deadline: 'warning' }[type] ?? 'grey'
+    const map = {
+      handover: 'blue', stage_complete: 'success', overdue: 'error',
+      planning_stuck: 'warning', project_launch: 'primary', fai_complete: 'success',
+      date_revised: 'warning', file_milestone: 'info', task_assigned: 'primary',
+      approval_stalled: 'error'
+    }
+    return map[type] ?? 'grey'
   }
 
   function typeIcon(type) {
-    return { stage_complete: 'mdi-check-circle', task_assigned: 'mdi-clipboard-account', deadline: 'mdi-alarm' }[type] ?? 'mdi-bell'
+    const map = {
+      handover: 'mdi-hand-pointing-right', stage_complete: 'mdi-check-all',
+      overdue: 'mdi-alert-circle', planning_stuck: 'mdi-clock-alert',
+      project_launch: 'mdi-rocket-launch', fai_complete: 'mdi-flask-check',
+      date_revised: 'mdi-calendar-edit', file_milestone: 'mdi-file-multiple',
+      task_assigned: 'mdi-clipboard-account', approval_stalled: 'mdi-timer-alert'
+    }
+    return map[type] ?? 'mdi-bell'
   }
 
   function formatTimeAgo(dateStr) {
     if (!dateStr) return ''
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const m = Math.floor(diff / 60000)
-    if (m < 1) return 'just now'
-    if (m < 60) return `${m}m ago`
-    const h = Math.floor(m / 60)
-    if (h < 24) return `${h}h ago`
-    return `${Math.floor(h / 24)}d ago`
+    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
+    if (diff < 60) return 'just now'
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+    return `${Math.floor(diff / 86400)}d ago`
   }
 
   const handleLogout = async () => {
@@ -131,14 +153,12 @@
     router.push('/login')
   }
 
-  let pollInterval = null
-
   onMounted(async () => {
     if (authStore.token) {
       await authStore.checkAuth()
-      await fetchNotifications()
-      pollInterval = setInterval(fetchNotifications, 60000)
     }
+    await loadNotifications()
+    pollInterval = setInterval(loadNotifications, 60_000)
   })
 
   onBeforeUnmount(() => {

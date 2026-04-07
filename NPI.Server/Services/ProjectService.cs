@@ -9,13 +9,15 @@ namespace NPI.Server.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
+        private readonly NotificationTriggerService _triggerService;
         private readonly string _basePath;
 
-        public ProjectService(ApplicationDbContext context, IConfiguration configuration)
+        public ProjectService(ApplicationDbContext context, IConfiguration configuration, NotificationTriggerService triggerService)
         {
             _context = context;
             _configuration = configuration;
             _basePath = configuration["FileStorage:BasePath"] ?? @"D:\NPI_Projects";
+            _triggerService = triggerService;
         }
 
         private static string SanitizeFolderName(string name)
@@ -772,6 +774,10 @@ namespace NPI.Server.Services
 
                 await _context.SaveChangesAsync();
                 await tx.CommitAsync();
+
+                // N5: Notify team of project launch (only on first launch)
+                if (isFirstLaunch)
+                    await _triggerService.OnProjectLaunchedAsync(projectId);
 
                 return folderWarnings.Count > 0
                     ? (true, "Project saved. Some folders could not be removed — they still contain files.", folderWarnings)

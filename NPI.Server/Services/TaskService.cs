@@ -11,14 +11,16 @@ namespace NPI.Server.Services
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly INotificationService _notificationService;
+        private readonly NotificationTriggerService _triggerService;
         private readonly string _basePath;
 
-        public TaskService(ApplicationDbContext context, IConfiguration configuration, INotificationService notificationService)
+        public TaskService( ApplicationDbContext context, IConfiguration configuration, INotificationService notificationService, NotificationTriggerService triggerService)
         {
             _context = context;
             _configuration = configuration;
             _basePath = configuration["FileStorage:BasePath"] ?? @"D:\NPI_Projects";
             _notificationService = notificationService;
+            _triggerService = triggerService;
         }
 
         private static string SanitizeFolderName(string name)
@@ -162,6 +164,10 @@ namespace NPI.Server.Services
                 _context.Tasks.Add(task);
                 await _context.SaveChangesAsync();
 
+                // N9: Task assignment notification
+                if (dto.assigned_to.HasValue)
+                    await _triggerService.OnTaskAssignedAsync(task.task_id, task.proj_id, dto.assigned_to.Value);
+
                 var folderPath = await GetTaskFolderPathAsync(task.task_id);
                 if (folderPath != null)
                     Directory.CreateDirectory(folderPath);
@@ -278,6 +284,12 @@ namespace NPI.Server.Services
 
             await _context.SaveChangesAsync();
 
+            // N7: Date revision notification
+            await _triggerService.OnTaskDatesRevisedAsync(
+                taskId, task.proj_id,
+                task.planned_start_date, task.planned_end_date,
+                newStart, newEnd);
+
             return (true, "Planned dates updated with revision history");
         }
 
@@ -327,6 +339,30 @@ namespace NPI.Server.Services
                 }
 
                 await _context.SaveChangesAsync();
+
+                // N1 + N2: Task completed triggers
+                if (status == "Completed")
+                {
+                    // N1: Notify next dept in same stage
+                    await _triggerService.OnTaskCompletedAsync(taskId, task.proj_id, task.stage_id);
+
+                    // N2: Check if entire stage is now done
+                    if (!string.IsNullOrEmpty(task.stage_id))
+                    {
+                        bool stageComplete = !await _context.Tasks.AnyAsync(t =>
+                            t.proj_id == task.proj_id &&
+                            t.stage_id == task.stage_id &&
+                            t.status != "Completed" &&
+                            t.task_id != taskId);
+
+                        if (stageComplete)
+                            await _triggerService.OnStageCompletedAsync(task.proj_id, task.stage_id);
+                    }
+
+                    // N6: FAI completion (task 5.8 specifically)
+                    if (task.task_code == "5.8")
+                        await _triggerService.OnFaiCompletedAsync(task.proj_id, taskId);
+                }
 
                 if (status == "Completed" && task.stage_id != null)
                 {
