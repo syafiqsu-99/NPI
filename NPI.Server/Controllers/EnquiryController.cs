@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using NPI.Server.Data;
 using NPI.Server.DTOs;
 using NPI.Server.Services;
 using System.Security.Claims;
@@ -14,15 +16,18 @@ namespace NPI.Server.Controllers
         private readonly IEnquiryService _enquiryService;
         private readonly IFileService _fileService;
         private readonly IPdfService _pdfService;
+        private readonly ApplicationDbContext _context;
 
         public EnquiryController(
             IEnquiryService enquiryService,
             IFileService fileService,
-            IPdfService pdfService)
+            IPdfService pdfService,
+            ApplicationDbContext context)
         {
             _enquiryService = enquiryService;
             _fileService = fileService;
             _pdfService = pdfService;
+            _context = context;
         }
 
         // ── Read ──────────────────────────────────────────────────────────────
@@ -108,17 +113,34 @@ namespace NPI.Server.Controllers
         // ── File upload ───────────────────────────────────────────────────────
 
         [HttpPost("{id}/upload")]
-        public async Task<IActionResult> UploadFile(
-            int id, IFormFile file, [FromQuery] string comp_name = "Unknown")
+        public async Task<IActionResult> UploadFile( int id, IFormFile file, [FromQuery] string comp_name = "Unknown")
         {
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid token." });
 
-            var (success, message, uploadedFile) =
-                await _fileService.UploadCustomerFileAsync(file, id, userId, comp_name);
+            var enquiry = await _context.Enquiries
+                .Include(e => e.Customer)
+                .FirstOrDefaultAsync(e => e.enquiry_id == id);
+
+            if (enquiry == null)
+                return NotFound(new { success = false, message = "Enquiry not found" });
+
+            if (string.IsNullOrWhiteSpace(comp_name) && enquiry.Customer != null)
+                comp_name = enquiry.Customer.comp_name;
+
+            var (success, message, File) =
+                await _fileService.UploadFileAsync(
+                    file,
+                    proj_id: 0,
+                    task_id: null,
+                    doc_type_id: null,
+                    uploadBy: userId,
+                    dept_id: null,
+                    enquiry_id: id,
+                    customer_name: comp_name); 
 
             return success
-                ? Ok(new { success = true, message, data = new { file = uploadedFile } })
+                ? Ok(new { success = true, message, data = new { file = File } })
                 : BadRequest(new { success = false, message });
         }
 

@@ -27,12 +27,15 @@ namespace NPI.Server.Services
         /// Validates if the requesting user has write access to a task.
         /// Only the assigned user, Team Lead, or Admin can modify the task.
         /// </summary>
-        private async Task<(bool authorized, string message)> ValidateTaskWriteAccessAsync(
-            int taskId, int userId, string userRole)
+        // ✅ REPLACE the ValidateTaskWriteAccessAsync method with this:
+
+        private async Task<(bool authorized, string message)> ValidateTaskWriteAccessAsync( int taskId, int userId, string userRole, bool isProjectTask = false)
         {
             var task = await _context.Tasks
                 .Include(t => t.Project)
-                .ThenInclude(p => p.ProjectTeams)
+                .Include(t => t.Department)
+                .Include(t => t.AssignedToUser)
+                .ThenInclude(u => u.Department)
                 .FirstOrDefaultAsync(t => t.task_id == taskId);
 
             if (task == null)
@@ -42,21 +45,35 @@ namespace NPI.Server.Services
             if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
                 return (true, string.Empty);
 
-            // Check if user is assigned to this task
+            // Get current user's department
+            var currentUser = await _context.Users
+                .Include(u => u.Department)
+                .FirstOrDefaultAsync(u => u.user_id == userId);
+
+            if (currentUser == null)
+                return (false, "User not found");
+
             if (task.assigned_to == userId)
                 return (true, string.Empty);
 
-            // Check if user is a Team Lead on this project
-            var projectTeam = await _context.ProjectTeams
-                .FirstOrDefaultAsync(pt =>
+            if (task.dept_id.HasValue && currentUser.dept_id == task.dept_id)
+            {
+                // User belongs to the task's department — they can update their own department's tasks
+                return (true, string.Empty);
+            }
+
+            var projectTeamRole = await _context.ProjectTeams
+                .Where(pt =>
                     pt.proj_id == task.proj_id &&
                     pt.user_id == userId &&
-                    (pt.role == "Team Lead" || pt.role == "Project Lead"));
+                    (pt.role == "Team Lead" || pt.role == "Project Lead" || pt.role == "Project Manager"))
+                .FirstOrDefaultAsync();
 
-            if (projectTeam != null)
+            if (projectTeamRole != null)
                 return (true, string.Empty);
 
-            return (false, "Unauthorized: You do not have permission to modify this task.");
+            return (false,
+                $"Unauthorized: Only the assigned user, your department, or project leadership can modify this task.");
         }
 
         private static string SanitizeFolderName(string name)
@@ -335,7 +352,11 @@ namespace NPI.Server.Services
             return (true, "Planned dates updated with revision history");
         }
 
-        public async Task<(bool success, string message)> UpdateTaskStatusAsync( int taskId, string status, int userId, string userRole)
+        /// <summary>
+        /// Task-level status update. Does NOT trigger project-level status changes.
+        /// Tasks remain independent from project lifecycle management.
+        /// </summary>
+        public async Task<(bool success, string message)> UpdateTaskStatusAsync(int taskId, string status, int userId, string userRole)
         {
             try
             {
@@ -388,9 +409,9 @@ namespace NPI.Server.Services
 
                 await _context.SaveChangesAsync();
 
-                // N1 + N2: Task completed triggers
                 if (status == "Completed")
                 {
+                    // N1 + N2: Task completed triggers
                     await _triggerService.OnTaskCompletedAsync(taskId, task.proj_id, task.stage_id);
 
                     if (!string.IsNullOrEmpty(task.stage_id))
@@ -409,29 +430,22 @@ namespace NPI.Server.Services
                         await _triggerService.OnFaiCompletedAsync(task.proj_id, taskId);
                 }
 
-                if (status == "Completed" && task.stage_id != null)
+                // Create TaskRevision for audit trail
+                var revision = new TaskRevisions
                 {
-                    var stageComplete = !await _context.Tasks.AnyAsync(t =>
-                        t.proj_id == task.proj_id &&
-                        t.stage_id == task.stage_id &&
-                        t.status != "Completed" &&
-                        t.task_id != taskId);
+                    task_id = taskId,
+                    title = task.title,
+                    old_start_date = task.planned_start_date,
+                    old_end_date = task.planned_end_date,
+                    new_start_date = task.planned_start_date,
+                    new_end_date = task.planned_end_date,
+                    note = $"Status changed to {status}",
+                    revised_on = DateTime.Now,
+                    status = status
+                };
 
-                    if (stageComplete)
-                    {
-                        var project = await _context.Projects
-                            .Include(p => p.CreatedByUser)
-                            .FirstOrDefaultAsync(p => p.proj_id == task.proj_id);
-
-                        if (project?.created_by != null)
-                            await _notificationService.NotifyAsync(
-                                project.created_by,
-                                "stage_complete",
-                                $"Stage {task.stage_id} completed",
-                                $"All tasks in stage {task.stage_id} for {project.proj_name} are done.",
-                                task.proj_id, taskId);
-                    }
-                }
+                _context.TaskRevisions.Add(revision);
+                await _context.SaveChangesAsync();
 
                 return (true, "Task status updated successfully");
             }

@@ -5,22 +5,14 @@ namespace NPI.Server.Services
 {
     public interface IFileService
     {
-        Task<(bool Success, string Message, Files File)> UploadFileAsync(
-            IFormFile file, int projId, int? taskId, int? docTypeId, int uploadBy, int? deptId, int? enquiryId = null);
+        Task<(bool success, string message, Files File)> UploadFileAsync(IFormFile file, int proj_id, int? task_id, int? doc_type_id, int uploadBy, int? dept_id, int? enquiry_id = null, string? customer_name = null);
 
-        Task<(bool Success, string Message, Files File)> UploadCustomerFileAsync(
-            IFormFile file, int enquiryId, int uploadBy, string compName);
+        Task<(bool success, string message, Files File)> UploadCustomerFileAsync( IFormFile file, int enquiryId, int uploadBy, string compName);
 
-        Task<(bool Success, byte[] FileData, string ContentType)> DownloadFileAsync(int fileId);
+        Task<(bool success, byte[] FileData, string ContentType)> DownloadFileAsync(int fileId);
 
         Task<bool> DeleteFileAsync(int fileId);
-        Task<(bool success, string message, List<int> fileIds)> UploadFilesAsync(
-            List<IFormFile> files,
-            int projId,
-            int taskId,
-            string taskFolder,
-            string description,
-            int userId);
+        Task<(bool success, string message, List<int> fileIds)> UploadFilesAsync( List<IFormFile> files, int projId, int taskId, string taskFolder, string description, int userId);
 
         Task<List<FileResponseDto>> GetFilesByTaskAsync(int taskId);
 

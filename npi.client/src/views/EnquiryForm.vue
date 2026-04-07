@@ -383,18 +383,25 @@
 
   async function uploadPendingFiles(enquiryId) {
     if (!selectedFiles.value.length) return
+
     let compName = 'Unknown'
     if (customerType.value === 'existing' && selectedCustomerInfo.value) {
       compName = selectedCustomerInfo.value.comp_name
     } else if (customerType.value === 'new') {
       compName = formData.value.new_customer.comp_name
     }
+
     const safeCompName = encodeURIComponent(compName.replace(/[^a-zA-Z0-9 _-]/g, '').trim())
+
     for (const file of selectedFiles.value) {
       const fd = new FormData()
       fd.append('file', file)
+      fd.append('enquiry_id', enquiryId)
+      fd.append('proj_id', 0)
+      fd.append('customer_name', compName)
+
       try {
-        await api.uploadFile(`/enquiry/${enquiryId}/upload?comp_name=${safeCompName}`, fd)
+        await api.uploadFile(`/file/upload-single`, fd)
       } catch (e) {
         console.error('File upload failed', e)
       }

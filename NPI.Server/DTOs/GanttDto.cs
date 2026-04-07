@@ -31,11 +31,13 @@ namespace NPI.Server.DTOs
         public int revision_id { get; set; }
         public int revision_number { get; set; }
         public DateTime revision_date { get; set; }
+        public int revised_by { get; set; }
         public string? revised_by_name { get; set; }
         public string? revision_notes { get; set; }
         public DateOnly? previous_target_date { get; set; }
         public DateOnly? new_target_date { get; set; }
         public bool is_active { get; set; }
+        public List<TaskRevisionDto>? task_revisions { get; set; }
     }
 
     public class CreateRevisionDto

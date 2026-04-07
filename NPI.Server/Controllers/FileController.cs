@@ -65,7 +65,6 @@ namespace NPI.Server.Controllers
             }
         }
 
-        // Single file upload (for enquiry compatibility)
         [HttpPost("upload-single")]
         [RequestSizeLimit(long.MaxValue)]
         [RequestFormLimits(MultipartBodyLengthLimit = long.MaxValue)]
@@ -75,7 +74,8 @@ namespace NPI.Server.Controllers
             [FromForm] int? task_id,
             [FromForm] int? doc_type_id,
             [FromForm] int? dept_id,
-            [FromForm] int? enquiry_id)
+            [FromForm] int? enquiry_id,
+            [FromForm] string? customer_name)
         {
             try
             {
@@ -90,15 +90,15 @@ namespace NPI.Server.Controllers
                     return BadRequest(new { success = false, message = "No file provided" });
                 }
 
-                var (success, message, fileRecord) = await _fileService.UploadFileAsync(
+                var (success, message, File) = await _fileService.UploadFileAsync(
                     file,
                     proj_id,
                     task_id,
                     doc_type_id,
                     userId,
                     dept_id,
-                    enquiry_id
-                );
+                    enquiry_id,
+                    customer_name);
 
                 if (!success)
                 {
@@ -111,10 +111,10 @@ namespace NPI.Server.Controllers
                     Message = message,
                     File = new
                     {
-                        file_id = fileRecord.file_id,
-                        file_name = fileRecord.file_name,
-                        file_path = fileRecord.file_path,
-                        file_size = fileRecord.file_size
+                        file_id = File.file_id,
+                        file_name = File.file_name,
+                        file_path = File.file_path,
+                        file_size = File.file_size
                     }
                 });
             }

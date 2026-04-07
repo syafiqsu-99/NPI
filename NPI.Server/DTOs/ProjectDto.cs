@@ -81,6 +81,7 @@ namespace NPI.Server.DTOs
         public bool pilot_mould_required { get; set; }
         public bool machine_purchase_required { get; set; }
         public List<TeamMemberDto> team_members { get; set; } = new();
+        public List<ProjectRevisionDto>? revisions { get; set; }
         public Dictionary<string, StageProgressDto>? stage_progress { get; set; }
     }
 
@@ -88,11 +89,11 @@ namespace NPI.Server.DTOs
     {
         public int user_id { get; set; }
         public string? user_name { get; set; }
-        public string? username { get; set; }
+        public string? full_name { get; set; }
         public int dept_id { get; set; }
         public string? dept_name { get; set; }
         public string? role { get; set; }
-        public string? role_in_project { get; set; }
+        public DateTime assigned_at { get; set; }
     }
 
     public class LaunchProjectDto

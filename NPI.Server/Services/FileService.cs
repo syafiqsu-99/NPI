@@ -139,14 +139,7 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool Success, string Message, Files? File)> UploadFileAsync(
-            IFormFile file,
-            int projId,
-            int? taskId,
-            int? docTypeId,
-            int uploadBy,
-            int? deptId,
-            int? enquiryId = null)
+        public async Task<(bool Success, string Message, Files? File)> UploadFileAsync(IFormFile file, int projId, int? taskId, int? docTypeId, int uploadBy, int? deptId, int? enquiryId = null, string? customerName = null)
         {
             try
             {
@@ -168,7 +161,22 @@ namespace NPI.Server.Services
                 }
                 else if (enquiryId.HasValue)
                 {
-                    var enquiryPath = Path.Combine(_basePath, "enquiries", enquiryId.Value.ToString());
+                    if (string.IsNullOrWhiteSpace(customerName))
+                    {
+                        // Fallback: fetch customer name from enquiry
+                        var enquiry = await _context.Enquiries
+                            .Include(e => e.Customer)
+                            .FirstOrDefaultAsync(e => e.enquiry_id == enquiryId.Value);
+
+                        if (enquiry?.Customer != null)
+                            customerName = enquiry.Customer.comp_name;
+                        else
+                            customerName = $"Enquiry_{enquiryId.Value}";
+                    }
+
+                    // Sanitize customer name
+                    var sanitizedName = SanitizeFolderName(customerName);
+                    var enquiryPath = Path.Combine(_basePath, "customers", sanitizedName);
                     Directory.CreateDirectory(enquiryPath);
                     filePath = BuildUniqueFilePath(enquiryPath, file.FileName);
                 }

@@ -59,7 +59,7 @@
       <v-divider />
       <v-list>
         <v-list-item :title="authStore.currentUser?.full_name"
-                     :subtitle="authStore.userRole"
+                     :subtitle="authStore.userDepartment"
                      prepend-icon="mdi-account-circle"
                      @click="$router.push('/profile')" />
         <v-list-item title="Logout"

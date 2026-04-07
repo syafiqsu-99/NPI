@@ -52,6 +52,7 @@ namespace NPI.Server.Models
         public virtual Users? UpdatedByUser { get; set; }
 
         public virtual ICollection<ProjectTeams>? ProjectTeams { get; set; }
+        public virtual ICollection<ProjectRevisions>? ProjectRevisions { get; set; }
         public virtual ICollection<Milestones>? Milestones { get; set; }
         public virtual ICollection<Tasks>? Tasks { get; set; }
         public virtual ICollection<Files>? Files { get; set; }

@@ -104,6 +104,13 @@ namespace NPI.Server.Services
                 .Include(p => p.ProjectTeams)
                     .ThenInclude(tm => tm.User)
                         .ThenInclude(u => u.Department)
+                .Include(p => p.Tasks)
+                    .ThenInclude(t => t.TaskRevisions)
+                        .ThenInclude(tr => tr.Revision)
+                .Include(p => p.ProjectRevisions)
+                    .ThenInclude(pr => pr.RevisedByUser)
+                .Include(p => p.ProjectRevisions)
+                    .ThenInclude(pr => pr.TaskRevisions)
                 .FirstOrDefaultAsync(p => p.proj_id == projectId);
 
             if (project == null) return null;
@@ -116,8 +123,39 @@ namespace NPI.Server.Services
                 dept_id = tm.User?.dept_id ?? 0,
                 dept_name = tm.User?.Department?.dept_name,
                 role = tm.role ?? "Team Member",
-                user_name = tm.User?.username
+                user_name = tm.User?.username,
+                full_name = tm.User?.full_name,
+                assigned_at = tm.created_at
             }).ToList();
+
+            if (project.ProjectRevisions != null && project.ProjectRevisions.Any())
+            {
+                dto.revisions = project.ProjectRevisions
+                    .OrderByDescending(pr => pr.revision_date)
+                    .Select(pr => new ProjectRevisionDto
+                    {
+                        revision_id = pr.revision_id,
+                        revision_number = pr.revision_number,
+                        revision_date = pr.revision_date,
+                        revised_by = pr.revised_by,
+                        revised_by_name = pr.RevisedByUser?.username,
+                        revision_notes = pr.revision_notes,
+                        previous_target_date = pr.previous_target_date,
+                        new_target_date = pr.new_target_date,
+                        is_active = pr.is_active,
+                        task_revisions = pr.TaskRevisions?.Select(tr => new TaskRevisionDto
+                        {
+                            task_id = tr.task_id,
+                            task_title = tr.title,
+                            old_start_date = tr.old_start_date,
+                            old_end_date = tr.old_end_date,
+                            new_start_date = tr.new_start_date,
+                            new_end_date = tr.new_end_date,
+                            revision_note = tr.note,
+                            revised_on = tr.revised_on
+                        }).ToList() ?? new List<TaskRevisionDto>()
+                    }).ToList();
+            }
 
             var tasks = await _context.Tasks
                 .Where(t => t.proj_id == projectId && t.stage_id != null)
@@ -299,6 +337,7 @@ namespace NPI.Server.Services
             {
                 var project = await _context.Projects
                     .Include(p => p.Tasks)
+                    .Include(p => p.ProjectTeams)
                     .FirstOrDefaultAsync(p => p.proj_id == projectId);
 
                 if (project == null)
@@ -310,26 +349,60 @@ namespace NPI.Server.Services
                 if (!validStatuses.Contains(status))
                     return (false, "Invalid status value");
 
+                bool isAuthorized = false;
+
+                // Admins have full access
+                if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+                    isAuthorized = true;
+
+                // Check if user is the Team Lead assigned to this project
+                if (!isAuthorized)
+                {
+                    var teamLeadRole = project.ProjectTeams.FirstOrDefault(pt =>
+                        pt.user_id == userId &&
+                        (pt.role == "Team Lead" || pt.role == "Project Lead" || pt.role == "Project Manager"));
+
+                    if (teamLeadRole != null)
+                        isAuthorized = true;
+                }
+
+                if (!isAuthorized)
+                    return (false, "Only Admin or the assigned Team Lead can change project status");
+
                 if (status == "Completed")
                 {
-                    if (!string.Equals(userRole, "Team Lead", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return (false, "Only Team Leads and Admins can mark projects as Completed");
-                    }
-
-                    // Verify 100% task completion
-                    var incompleteTasks = await _context.Tasks
-                        .Where(t => t.proj_id == projectId && t.status != "Completed" && t.status != "Cancelled")
-                        .CountAsync();
+                    var incompleteTasks = project.Tasks
+                        .Where(t => t.status != "Completed" && t.status != "Cancelled")
+                        .Count();
 
                     if (incompleteTasks > 0)
                     {
-                        return (false, $"Cannot complete project: {incompleteTasks} task(s) still pending. " +
+                        return (false,
+                            $"Cannot complete project: {incompleteTasks} task(s) still pending. " +
                             "All tasks must be marked 'Completed' or 'Cancelled' first.");
                     }
                 }
 
+                var lastRevNumber = await _context.ProjectRevisions
+                    .Where(pr => pr.proj_id == projectId)
+                    .Select(pr => (int?)pr.revision_number)
+                    .MaxAsync() ?? 0;
+
+                var projectRevision = new ProjectRevisions
+                {
+                    proj_id = projectId,
+                    revision_number = lastRevNumber + 1,
+                    revision_date = DateTime.Now,
+                    revised_by = userId,
+                    revision_notes = $"Project status changed from '{project.status}' to '{status}'",
+                    previous_target_date = project.target_completion_date,
+                    new_target_date = project.target_completion_date,
+                    is_active = true
+                };
+
+                _context.ProjectRevisions.Add(projectRevision);
+
+                // Update project status
                 project.status = status;
                 project.updated_at = DateTime.Now;
 
@@ -337,7 +410,10 @@ namespace NPI.Server.Services
                     project.actual_completion_date = DateOnly.FromDateTime(DateTime.Now);
 
                 await _context.SaveChangesAsync();
-                return (true, "Project status updated successfully");
+
+                await _triggerService.OnProjectStatusChangedAsync(projectId, status);
+
+                return (true, $"Project status updated to '{status}' successfully");
             }
             catch (Exception ex)
             {
@@ -849,7 +925,7 @@ namespace NPI.Server.Services
                         old_end_date = r.old_end_date,
                         new_start_date = r.new_start_date,
                         new_end_date = r.new_end_date,
-                        note = r.note,
+                        revision_note = r.note,
                         revised_on = r.revised_on
                     }).ToList() ?? new List<TaskRevisionDto>()
             }).ToList();

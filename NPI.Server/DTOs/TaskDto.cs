@@ -143,11 +143,13 @@ namespace NPI.Server.DTOs
     public class TaskRevisionDto
     {
         public int revision_no { get; set; }
+        public int task_id { get; set; }
+        public string? task_title { get; set; }
         public DateOnly? old_start_date { get; set; }
         public DateOnly? old_end_date { get; set; }
         public DateOnly? new_start_date { get; set; }
         public DateOnly? new_end_date { get; set; }
-        public string? note { get; set; }
+        public string? revision_note { get; set; }
         public DateTime revised_on { get; set; }
     }
 }

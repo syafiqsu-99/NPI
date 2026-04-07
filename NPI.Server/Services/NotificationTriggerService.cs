@@ -254,5 +254,12 @@ namespace NPI.Server.Services
                 $"Planned: {task.planned_start_date:dd MMM} → {task.planned_end_date:dd MMM}.",
                 projId, taskId);
         }
+
+
+
+        // ── N10: Project Status Changed ───────────────────────────────────────────────────
+        public async Task OnProjectStatusChangedAsync(int projId, string status)
+        {
+        }
     }
 }
