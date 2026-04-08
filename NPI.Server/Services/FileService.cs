@@ -90,8 +90,15 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool Success, string Message, Files File)> UploadCustomerFileAsync(
-            IFormFile file, int enquiryId, int uploadBy, string compName)
+        /// <summary>
+        /// Upload a single file to customer directory (for enquiry forms).
+        /// Stores in: ../customers/[CustomerName]/[FileName]
+        /// </summary>
+        public async Task<(bool success, string message, Files? file)> UploadCustomerFileAsync(
+            IFormFile file,
+            int enquiryId,
+            int uploadBy,
+            string compName)
         {
             if (file == null || file.Length == 0)
                 return (false, "No file uploaded.", null);
@@ -99,8 +106,13 @@ namespace NPI.Server.Services
             try
             {
                 var invalidChars = Path.GetInvalidFileNameChars();
-                string safeCompName = new string(compName.Where(ch => !invalidChars.Contains(ch)).ToArray()).Trim();
-                if (string.IsNullOrEmpty(safeCompName)) safeCompName = "UnknownCustomer";
+                string safeCompName = new string(compName
+                    .Where(ch => !invalidChars.Contains(ch))
+                    .ToArray())
+                    .Trim();
+
+                if (string.IsNullOrEmpty(safeCompName))
+                    safeCompName = "UnknownCustomer";
 
                 string relativePath = Path.Combine("Database", "Customers", safeCompName);
                 string basePath = Path.Combine(Directory.GetCurrentDirectory(), relativePath);
@@ -122,10 +134,15 @@ namespace NPI.Server.Services
                 var newFile = new Files
                 {
                     enquiry_id = enquiryId,
+                    proj_id = 0,
                     file_name = originalFileName,
                     file_path = Path.Combine(relativePath, uniqueFileName).Replace("\\", "/"),
                     file_size = file.Length,
                     upload_by = uploadBy,
+                    content_type = file.ContentType,
+                    status = "Active",
+                    is_latest = true,
+                    created_at = DateTime.Now
                 };
 
                 _context.Files.Add(newFile);
@@ -139,7 +156,18 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool Success, string Message, Files? File)> UploadFileAsync(IFormFile file, int projId, int? taskId, int? docTypeId, int uploadBy, int? deptId, int? enquiryId = null, string? customerName = null)
+        /// <summary>
+        /// Upload single or multiple files with context-aware path routing.
+        /// </summary>
+        public async Task<(bool success, string message, Files? file)> UploadFileAsync(
+            IFormFile file,
+            int projId,
+            int? taskId,
+            int? docTypeId,
+            int uploadBy,
+            int? deptId,
+            int? enquiry_id = null,
+            string? customerName = null)
         {
             try
             {
@@ -150,6 +178,7 @@ namespace NPI.Server.Services
 
                 if (taskId.HasValue)
                 {
+                    // Task files: ../projects/[ProjName]/[DeptName]/
                     var folderPath = await _taskService.GetTaskFolderPathAsync(taskId.Value);
                     if (folderPath == null)
                         return (false,
@@ -159,29 +188,31 @@ namespace NPI.Server.Services
                     Directory.CreateDirectory(folderPath);
                     filePath = BuildUniqueFilePath(folderPath, file.FileName);
                 }
-                else if (enquiryId.HasValue)
+                else if (enquiry_id.HasValue)
                 {
                     if (string.IsNullOrWhiteSpace(customerName))
                     {
-                        // Fallback: fetch customer name from enquiry
+                        // Fallback: fetch customer from enquiry
                         var enquiry = await _context.Enquiries
                             .Include(e => e.Customer)
-                            .FirstOrDefaultAsync(e => e.enquiry_id == enquiryId.Value);
+                            .FirstOrDefaultAsync(e => e.enquiry_id == enquiry_id.Value);
 
                         if (enquiry?.Customer != null)
                             customerName = enquiry.Customer.comp_name;
                         else
-                            customerName = $"Enquiry_{enquiryId.Value}";
+                            customerName = $"Enquiry_{enquiry_id.Value}";
                     }
 
-                    // Sanitize customer name
                     var sanitizedName = SanitizeFolderName(customerName);
                     var enquiryPath = Path.Combine(_basePath, "customers", sanitizedName);
+
+                    // ✅ Ensure directory exists (creates full hierarchy)
                     Directory.CreateDirectory(enquiryPath);
                     filePath = BuildUniqueFilePath(enquiryPath, file.FileName);
                 }
                 else
                 {
+                    // Project files: ../projects/[ProjName]/
                     var project = await _context.Projects.FindAsync(projId);
                     if (project == null)
                         return (false, "Project not found", null);
@@ -199,7 +230,7 @@ namespace NPI.Server.Services
                 {
                     proj_id = projId,
                     task_id = taskId,
-                    enquiry_id = enquiryId,
+                    enquiry_id = enquiry_id,
                     doc_type_id = docTypeId,
                     file_version = 1,
                     upload_by = uploadBy,
@@ -259,7 +290,10 @@ namespace NPI.Server.Services
             return files.Select(MapToResponseDto).ToList();
         }
 
-        public async Task<(bool Success, byte[]? FileData, string? ContentType)> DownloadFileAsync(int fileId)
+        /// <summary>
+        /// Download file binary and return with content type.
+        /// </summary>
+        public async Task<(bool success, byte[]? fileData, string? contentType)> DownloadFileAsync(int fileId)
         {
             try
             {
@@ -270,7 +304,12 @@ namespace NPI.Server.Services
                 var bytes = await System.IO.File.ReadAllBytesAsync(file.file_path);
                 return (true, bytes, file.content_type ?? "application/octet-stream");
             }
-            catch { return (false, null, null); }
+            catch (Exception ex)
+            {
+                // Log exception if logging available
+                Console.WriteLine($"Error downloading file {fileId}: {ex.Message}");
+                return (false, null, null);
+            }
         }
 
         public async Task<(bool success, string message, string? filePath)> GetFilePathAsync(int fileId)

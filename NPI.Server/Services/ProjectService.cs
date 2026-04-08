@@ -226,14 +226,20 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool success, string message)> UpdateProjectAsync(
-            int projectId, UpdateProjectDto dto, int userId)
+        public async Task<(bool success, string message)> UpdateProjectAsync(int projectId, UpdateProjectDto dto, int userId)
         {
             try
             {
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null) return (false, "User not found.");
+
+                string userRole = user.Role?.role_name ?? "Member";
+
+                var (authorized, authMessage) = await ValidateProjectWriteAccessAsync(projectId, userId, userRole);
+                if (!authorized) return (false, authMessage);
+
                 var project = await _context.Projects.FindAsync(projectId);
-                if (project == null)
-                    return (false, "Project not found");
+                if (project == null) return (false, "Project not found");
 
                 project.proj_name = dto.proj_name;
                 project.description = dto.description;
@@ -253,8 +259,6 @@ namespace NPI.Server.Services
                 return (false, $"Error updating project: {ex.Message}");
             }
         }
-
-        // File: Services/ProjectService.cs
 
         public async Task<(bool success, string message)> DeleteProjectAsync(int projectId)
         {
@@ -331,10 +335,15 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool success, string message)> UpdateProjectStatusAsync( int projectId, string status, int userId, string userRole)
+        public async Task<(bool success, string message)> UpdateProjectStatusAsync(int projectId, string status, int userId, string userRole)
         {
             try
             {
+                // 1. Verify Authorization
+                var (authorized, authMessage) = await ValidateProjectWriteAccessAsync(projectId, userId, userRole);
+                if (!authorized) return (false, authMessage);
+
+                // 2. Fetch Project
                 var project = await _context.Projects
                     .Include(p => p.Tasks)
                     .Include(p => p.ProjectTeams)
@@ -349,40 +358,17 @@ namespace NPI.Server.Services
                 if (!validStatuses.Contains(status))
                     return (false, "Invalid status value");
 
-                bool isAuthorized = false;
-
-                // Admins have full access
-                if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
-                    isAuthorized = true;
-
-                // Check if user is the Team Lead assigned to this project
-                if (!isAuthorized)
-                {
-                    var teamLeadRole = project.ProjectTeams.FirstOrDefault(pt =>
-                        pt.user_id == userId &&
-                        (pt.role == "Team Lead" || pt.role == "Project Lead" || pt.role == "Project Manager"));
-
-                    if (teamLeadRole != null)
-                        isAuthorized = true;
-                }
-
-                if (!isAuthorized)
-                    return (false, "Only Admin or the assigned Team Lead can change project status");
-
+                // 3. Validation for Completion
                 if (status == "Completed")
                 {
-                    var incompleteTasks = project.Tasks
-                        .Where(t => t.status != "Completed" && t.status != "Cancelled")
-                        .Count();
-
+                    var incompleteTasks = project.Tasks.Count(t => t.status != "Completed" && t.status != "Cancelled");
                     if (incompleteTasks > 0)
                     {
-                        return (false,
-                            $"Cannot complete project: {incompleteTasks} task(s) still pending. " +
-                            "All tasks must be marked 'Completed' or 'Cancelled' first.");
+                        return (false, $"Cannot complete project: {incompleteTasks} task(s) still pending.");
                     }
                 }
 
+                // 4. Create Revision History
                 var lastRevNumber = await _context.ProjectRevisions
                     .Where(pr => pr.proj_id == projectId)
                     .Select(pr => (int?)pr.revision_number)
@@ -402,15 +388,38 @@ namespace NPI.Server.Services
 
                 _context.ProjectRevisions.Add(projectRevision);
 
-                // Update project status
+                // 5. Update Project Status
                 project.status = status;
                 project.updated_at = DateTime.Now;
+                project.updated_by = userId;
 
                 if (status == "Completed" && project.actual_completion_date == null)
                     project.actual_completion_date = DateOnly.FromDateTime(DateTime.Now);
 
+                // 6. SYNC ENQUIRY STATUS
+                var linkedEnquiry = await _context.Enquiries.FirstOrDefaultAsync(e => e.proj_id == projectId);
+                if (linkedEnquiry != null)
+                {
+                    // Map Project status to the corresponding Enquiry status
+                    linkedEnquiry.status = status switch
+                    {
+                        "Planning" => "Started",
+                        "Not Started" => "Started",
+                        "In Progress" => "In Progress",
+                        "On Hold" => "In Review",
+                        "Completed" => "Completed",
+                        "Cancelled" => "Rejected",
+                        _ => status
+                    };
+
+                    linkedEnquiry.updated_at = DateTime.Now;
+                    linkedEnquiry.updated_by = userId;
+                }
+
+                // 7. Save everything to the database
                 await _context.SaveChangesAsync();
 
+                // 8. Trigger Notifications
                 await _triggerService.OnProjectStatusChangedAsync(projectId, status);
 
                 return (true, $"Project status updated to '{status}' successfully");
@@ -662,13 +671,37 @@ namespace NPI.Server.Services
 
                 foreach (var member in dto.team_members)
                 {
+                    string assignedRole = member.role ?? "Member";
+
+                    // 1. Add to ProjectTeams table
                     _context.ProjectTeams.Add(new ProjectTeams
                     {
                         proj_id = projectId,
                         user_id = member.user_id,
-                        role = member.role ?? "Team Member",
+                        role = assignedRole,
                         created_at = DateTime.Now
                     });
+
+                    // 2. Sync the global Users table role_id
+                    var userEntity = await _context.Users.FindAsync(member.user_id);
+                    if (userEntity != null)
+                    {
+                        // Map the string role to the correct integer role_id
+                        int mappedRoleId = assignedRole switch
+                        {
+                            "Admin" => 1,
+                            "Manager" => 2,
+                            "Team Lead" => 3,
+                            "Member" => 4,
+                            "Viewer" => 5,
+                            _ => 4 // Default fallback is Member
+                        };
+
+                        if (userEntity.role_id != mappedRoleId)
+                        {
+                            userEntity.role_id = mappedRoleId;
+                        }
+                    }
                 }
 
                 var existingTasks = await _context.Tasks
@@ -970,6 +1003,31 @@ namespace NPI.Server.Services
                 .ToListAsync();
 
             return projects.Select(MapToResponseDto).ToList();
+        }
+
+        private async Task<(bool authorized, string message)> ValidateProjectWriteAccessAsync(int projectId, int userId, string userRole)
+        {
+            // 1. Admins and Managers have global access to all projects
+            if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(userRole, "Manager", StringComparison.OrdinalIgnoreCase))
+            {
+                return (true, string.Empty);
+            }
+
+            // 2. Team Leads can only modify projects they are explicitly assigned to
+            if (string.Equals(userRole, "Team Lead", StringComparison.OrdinalIgnoreCase))
+            {
+                var isAssigned = await _context.ProjectTeams
+                    .AnyAsync(pt => pt.proj_id == projectId && pt.user_id == userId);
+
+                if (isAssigned)
+                    return (true, string.Empty);
+
+                return (false, "Unauthorized: Team Leads can only modify projects they are assigned to.");
+            }
+
+            // 3. Members and Viewers are strictly blocked
+            return (false, "Unauthorized: Only Admins, Managers, or assigned Team Leads can modify project details.");
         }
     }
 }

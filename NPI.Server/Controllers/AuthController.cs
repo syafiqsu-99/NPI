@@ -48,9 +48,9 @@ public class AuthController : ControllerBase
                 user.email,
                 user.full_name,
                 department = user.Department?.dept_name,
-                departmentId = user.dept_id,
+                dept_id = user.dept_id,
                 role = user.Role?.role_name,
-                roleId = user.role_id
+                role_id = user.role_id
             }
         });
     }
@@ -109,9 +109,9 @@ public class AuthController : ControllerBase
             user.email,
             user.full_name,
             department = user.Department?.dept_name,
-            departmentId = user.dept_id,
+            dept_id = user.dept_id,
             role = user.Role?.role_name,
-            roleId = user.role_id
+            role_id = user.role_id
         });
     }
 }

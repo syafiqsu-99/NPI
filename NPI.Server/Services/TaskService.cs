@@ -27,53 +27,53 @@ namespace NPI.Server.Services
         /// Validates if the requesting user has write access to a task.
         /// Only the assigned user, Team Lead, or Admin can modify the task.
         /// </summary>
-        // ✅ REPLACE the ValidateTaskWriteAccessAsync method with this:
-
-        private async Task<(bool authorized, string message)> ValidateTaskWriteAccessAsync( int taskId, int userId, string userRole, bool isProjectTask = false)
+        private async Task<(bool authorized, string message)> ValidateTaskWriteAccessAsync(int taskId, int userId, string userRole, bool isProjectTask = false)
         {
             var task = await _context.Tasks
                 .Include(t => t.Project)
                 .Include(t => t.Department)
-                .Include(t => t.AssignedToUser)
-                .ThenInclude(u => u.Department)
                 .FirstOrDefaultAsync(t => t.task_id == taskId);
 
             if (task == null)
                 return (false, "Task not found");
 
-            // Admin always has access
+            // 1. System Admins bypass all rules
             if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
                 return (true, string.Empty);
 
-            // Get current user's department
-            var currentUser = await _context.Users
-                .Include(u => u.Department)
-                .FirstOrDefaultAsync(u => u.user_id == userId);
-
+            var currentUser = await _context.Users.FirstOrDefaultAsync(u => u.user_id == userId);
             if (currentUser == null)
                 return (false, "User not found");
 
-            if (task.assigned_to == userId)
-                return (true, string.Empty);
+            // 2. Query ProjectTeams to get the user's role
+            var projectTeamRole = await _context.ProjectTeams
+                .Where(pt => pt.proj_id == task.proj_id && pt.user_id == userId)
+                .FirstOrDefaultAsync();
 
-            if (task.dept_id.HasValue && currentUser.dept_id == task.dept_id)
+            if (projectTeamRole == null)
             {
-                // User belongs to the task's department — they can update their own department's tasks
+                return (false, "Unauthorized: You are not a member of this project team.");
+            }
+
+            // 3. Restrict Project-level "Viewer" immediately
+            if (string.Equals(projectTeamRole.role, "Viewer", StringComparison.OrdinalIgnoreCase))
+            {
+                return (false, "Unauthorized: You have 'Viewer' access on this project and cannot modify tasks.");
+            }
+
+            // 4. Allow Project-level Leadership to edit anything in the project
+            if (projectTeamRole.role == "Team Lead" || projectTeamRole.role == "Admin" || projectTeamRole.role == "Manager")
+            {
                 return (true, string.Empty);
             }
 
-            var projectTeamRole = await _context.ProjectTeams
-                .Where(pt =>
-                    pt.proj_id == task.proj_id &&
-                    pt.user_id == userId &&
-                    (pt.role == "Team Lead" || pt.role == "Project Lead" || pt.role == "Project Manager"))
-                .FirstOrDefaultAsync();
-
-            if (projectTeamRole != null)
+            // 5. Allow users who share the same Department as the Task
+            if (task.dept_id.HasValue && currentUser.dept_id == task.dept_id)
+            {
                 return (true, string.Empty);
+            }
 
-            return (false,
-                $"Unauthorized: Only the assigned user, your department, or project leadership can modify this task.");
+            return (false, "Unauthorized: Task department does not match your department.");
         }
 
         private static string SanitizeFolderName(string name)
@@ -576,7 +576,7 @@ namespace NPI.Server.Services
                     old_end_date = r.old_end_date,
                     new_start_date = r.new_start_date,
                     new_end_date = r.new_end_date,
-                    note = r.note,
+                    revision_note = r.note,
                     revised_on = r.revised_on
                 }).ToList() ?? new List<TaskRevisionDto>()
         };

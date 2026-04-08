@@ -237,7 +237,8 @@
   function getStatusColor(status) {
     const colors = {
       'Draft': 'warning', 'Submitted': 'info', 'Approved': 'success',
-      'Rejected': 'error', 'Started': 'primary', 'Pending': 'orange', 'In Review': 'blue'
+      'Rejected': 'error', 'Started': 'primary', 'Pending': 'orange', 'In Review': 'blue',
+      'Completed': 'success'
     }
     return colors[status] || 'grey'
   }

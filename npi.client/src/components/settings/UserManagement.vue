@@ -450,9 +450,9 @@
   function getRoleColor(roleName) {
     const colors = {
       'Admin': 'error',
-      'Project Manager': 'primary',
+      'Manager': 'primary',
       'Team Lead': 'success',
-      'Team Member': 'info'
+      'Member': 'info'
     }
     return colors[roleName] || 'grey'
   }
@@ -460,9 +460,9 @@
   function getRoleIcon(roleName) {
     const icons = {
       'Admin': 'mdi-shield-crown',
-      'Project Manager': 'mdi-account-tie',
+      'Manager': 'mdi-account-tie',
       'Team Lead': 'mdi-account-star',
-      'Team Member': 'mdi-account'
+      'Member': 'mdi-account'
     }
     return icons[roleName] || 'mdi-account'
   }

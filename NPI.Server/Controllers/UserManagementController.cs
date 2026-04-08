@@ -8,7 +8,7 @@ namespace NPI.Server.Controllers
 {
     [Route("api/admin/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Admin")] // Require admin role
+    [Authorize(Roles = "Admin")]
     public class UserManagementController : ControllerBase
     {
         private readonly IUserService _userService;

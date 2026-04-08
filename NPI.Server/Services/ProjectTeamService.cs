@@ -27,7 +27,7 @@ namespace NPI.Server.Services
                     team_id = pt.team_id,
                     proj_id = pt.proj_id,
                     user_id = pt.user_id,
-                    role = pt.role ?? "Team Member",
+                    role = pt.role ?? "Member",
                     user_name = pt.User?.username ?? "Unknown",
                     proj_name = pt.Project?.proj_name ?? "Unknown"
                 }).ToList();
@@ -53,7 +53,7 @@ namespace NPI.Server.Services
                     team_id = pt.team_id,
                     proj_id = pt.proj_id,
                     user_id = pt.user_id,
-                    role = pt.role ?? "Team Member",
+                    role = pt.role ?? "Member",
                     user_name = pt.User?.username ?? "Unknown"
                 }).ToList();
             }

@@ -491,7 +491,7 @@
             </v-col>
             <v-col cols="12">
               <v-select v-model="newMember.role_in_project"
-                        :items="['Team Member', 'Team Lead', 'Coordinator', 'Reviewer']"
+                        :items="['Member', 'Team Lead', 'Manager', 'Viewer']"
                         label="Role in Project *"
                         variant="outlined" />
             </v-col>
@@ -595,7 +595,7 @@
   const snackbarMessage = ref('')
   const snackbarColor = ref('success')
 
-  const newMember = ref({ dept_id: null, user_id: null, role_in_project: 'Team Member' })
+  const newMember = ref({ dept_id: null, user_id: null, role_in_project: 'Member' })
   const openPanels = ref([0, 1, 2, 3, 4, 5])
 
   const holidayCache = {}
@@ -719,7 +719,7 @@
       role_in_project: newMember.value.role_in_project
     })
     showAddTeamDialog.value = false
-    newMember.value = { dept_id: null, user_id: null, role_in_project: 'Team Member' }
+    newMember.value = { dept_id: null, user_id: null, role_in_project: 'Member' }
   }
 
   function removeTeamMember(index) { teamMembers.value.splice(index, 1) }
@@ -911,7 +911,7 @@
           teamMembers.value = d.team_members.map(m => ({
             user_id: m.user_id, dept_id: m.dept_id,
             user_name: m.username || m.user_name, dept_name: m.dept_name,
-            role_in_project: m.role || m.role_in_project || 'Team Member'
+            role_in_project: m.role || m.role_in_project || 'Member'
           }))
         }
       }

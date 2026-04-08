@@ -186,29 +186,24 @@
                     <template #item.title="{ item }">
                       <div class="py-1">
                         <span class="font-weight-medium">{{ item.title }}</span>
-                        <v-chip v-if="item.assigned_to === currentUserId"
-                                size="x-small" color="primary" variant="tonal" class="ml-2">
-                          Assigned to me
-                        </v-chip>
                       </div>
                     </template>
 
-                    <!-- Status dropdown (enhanced authorization check) -->
+                    <!-- Status dropdown -->
                     <template #item.status="{ item }">
-                      <v-menu :disabled="isViewer || (item.assigned_to !== currentUserId && !['Team Lead', 'Admin'].includes(userRole))">
+                      <v-menu :disabled="!canEditTask(item)">
                         <template #activator="{ props }">
                           <v-chip v-bind="props"
                                   :color="getStatusColor(item.status)"
                                   size="small"
-                                  :class="(isViewer || (item.assigned_to !== currentUserId && !['Team Lead', 'Admin'].includes(userRole))) ? '' : 'cursor-pointer'"
-                                  :title="item.assigned_to !== currentUserId ? 'Only assigned user can change status' : ''">
+                                  :class="!canEditTask(item) ? '' : 'cursor-pointer'"
+                                  :title="!canEditTask(item) ? 'Only authorized members can modify this task' : ''">
                             <v-icon start size="x-small">{{ getStatusIcon(item.status) }}</v-icon>
                             {{ item.status }}
                           </v-chip>
                         </template>
                         <v-list density="compact">
-                          <v-list-item v-for="s in STATUS_OPTIONS" :key="s"
-                                       @click="updateStatus(item, s)">
+                          <v-list-item v-for="s in STATUS_OPTIONS" :key="s" @click="updateStatus(item, s)">
                             <template #prepend>
                               <v-icon size="small" :color="getStatusColor(s)">{{ getStatusIcon(s) }}</v-icon>
                             </template>
@@ -259,13 +254,10 @@
                       <div class="d-flex ga-1">
 
                         <!-- Upload (hidden for Viewer + unassigned users) -->
-                        <v-tooltip v-if="!isViewer && (item.assigned_to === currentUserId || ['Team Lead', 'Admin'].includes(userRole))"
-                                   text="Upload Files" location="top">
+                        <v-tooltip v-if="canEditTask(item)" text="Upload Files" location="top">
                           <template #activator="{ props }">
-                            <v-btn icon="mdi-file-upload"
-                                   size="small" variant="text" color="primary"
-                                   v-bind="props"
-                                   @click="openUpload(item, project)" />
+                            <v-btn icon="mdi-file-upload" size="small" variant="text" color="primary"
+                                   v-bind="props" @click="openUpload(item, project)" />
                           </template>
                         </v-tooltip>
 
@@ -590,7 +582,7 @@
   const search = ref('')
   const filterStatus = ref('All')
   const filterPriority = ref('All')
-  const showAllStages = ref(false)   // default: show current stage only
+  const showAllStages = ref(false)
 
   // Expand state
   const expandedProjects = ref([])
@@ -664,6 +656,32 @@
 
   // ── Stage helpers ─────────────────────────────────────────────────────────────
 
+  function canEditTask(task) {
+    // 1. Check System-Level Roles
+    if (isViewer.value) {
+      return false;
+    }
+
+    if (isAdmin.value) {
+      return true;
+    }
+
+    // 2. Department Match Verification
+    const taskDept = task.dept_id ? Number(task.dept_id) : null;
+    const userDept = currentUser.value?.dept_id ? Number(currentUser.value.dept_id) : null;
+
+    if (taskDept && userDept && taskDept === userDept) {
+      return true;
+    }
+
+    // 3. Fallback: System-level leadership bypass
+    const isSystemLeadership = ['Team Lead', 'Project Manager', 'Manager'].includes(userRole.value);
+    if (isSystemLeadership) {
+      return true;
+    }
+    return false;
+  }
+
   function getStageColor(stageId) { return STAGE_COLORS[stageId] ?? 'grey' }
   function getStageName(stageId) { return NPI_STAGES[stageId]?.name ?? stageId ?? '—' }
 
@@ -678,10 +696,6 @@
     return m ? `${m[1]}.0` : null
   }
 
-  /**
-   * Given the tasks of a single project, return the first stage id that
-   * still has incomplete tasks (first stage not 100% done).
-   */
   function getCurrentStageId(projectTasks) {
     const stageOrder = Object.keys(NPI_STAGES).sort((a, b) => parseFloat(a) - parseFloat(b))
     for (const sid of stageOrder) {
@@ -801,14 +815,8 @@
   }
 
   async function updateStatus(task, newStatus) {
-    if (isViewer.value) {
-      showSnack('Viewers cannot modify tasks', 'warning')
-      return
-    }
-
-    if (task.assigned_to !== currentUserId.value &&
-        !['Team Lead', 'Admin'].includes(userRole.value)) {
-      showSnack('You are not authorized to modify this task. Only the assigned user or Team Lead can change status.', 'error')
+    if (!canEditTask(task)) {
+      showSnack('You are not authorized to modify this task.', 'error')
       return
     }
 
@@ -827,7 +835,6 @@
         showSnack(result?.message || 'Failed to update status', 'error')
       }
     } catch (err) {
-      console.error('Status update error:', err)
       showSnack('Server rejected the request. Check your permissions.', 'error')
     }
   }
@@ -852,9 +859,8 @@
   async function doUpload() {
     if (!uploadFiles.value?.length) return
 
-    if (selectedTask.value.assigned_to !== currentUserId.value &&
-        !['Team Lead', 'Admin'].includes(userRole.value)) {
-      showSnack('Only the assigned user or Team Lead can upload files to this task', 'error')
+    if (!canEditTask(selectedTask.value)) {
+      showSnack('Only authorized members can upload files to this task.', 'error')
       return
     }
 
@@ -950,7 +956,14 @@
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-  onMounted(loadTasks)
+  onMounted(async () => {
+
+    if (!currentUser.value?.dept_id) {
+      console.warn('WARNING: currentUser.dept_id is undefined or null! Check your auth store/login API.');
+    }
+
+    await loadTasks();
+  });
 </script>
 
 <style scoped>

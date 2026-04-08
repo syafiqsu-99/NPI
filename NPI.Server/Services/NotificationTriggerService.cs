@@ -255,11 +255,63 @@ namespace NPI.Server.Services
                 projId, taskId);
         }
 
-
-
-        // ── N10: Project Status Changed ───────────────────────────────────────────────────
+        /// N10: Project status changed (Planning → In Progress → On Hold → Completed → Cancelled).
         public async Task OnProjectStatusChangedAsync(int projId, string status)
         {
+            var project = await _context.Projects
+                .Include(p => p.ProjectTeams)
+                .FirstOrDefaultAsync(p => p.proj_id == projId);
+
+            if (project == null) return;
+
+            // Map status to human-readable title and body
+            var (notifType, title, bodyTemplate) = status switch
+            {
+                "Planning" => ("project_planning",
+                    "Project moved to Planning",
+                    "'{0}' is now in Planning phase. Awaiting project launch and team assignment."),
+
+                "In Progress" => ("project_active",
+                    "Project launched and In Progress",
+                    "'{0}' is now In Progress. All team members should review their assigned tasks."),
+
+                "On Hold" => ("project_on_hold",
+                    "Project placed On Hold",
+                    "'{0}' has been placed On Hold. Work should pause until further notice."),
+
+                "Completed" => ("project_complete",
+                    "Project Completed",
+                    "'{0}' has been completed successfully. All tasks are done and deliverables are signed off."),
+
+                "Cancelled" => ("project_cancelled",
+                    "Project Cancelled",
+                    "'{0}' has been cancelled. If you have outstanding work, please stop and report to your manager."),
+
+                _ => ("project_status_changed",
+                    $"Project status: {status}",
+                    $"'{0}' status has been updated to: {status}")
+            };
+
+            // Get all project team member IDs
+            var teamUserIds = project.ProjectTeams
+                .Select(pt => pt.user_id)
+                .Distinct()
+                .ToList();
+
+            if (!teamUserIds.Any()) return;
+
+            // Notify each team member
+            foreach (var userId in teamUserIds)
+            {
+                var body = string.Format(bodyTemplate, project.proj_name);
+
+                await _notifications.NotifyAsync(
+                    userId,
+                    notifType,
+                    title,
+                    body,
+                    projId: projId);
+            }
         }
     }
 }

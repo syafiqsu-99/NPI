@@ -62,16 +62,44 @@
                         </v-chip>
                       </template>
 
+                      <!-- Priority Dropdown -->
                       <template #item.priority="{ item }">
-                        <v-chip :color="getPriorityColor(item.priority)" size="small" variant="tonal">
-                          {{ item.priority }}
-                        </v-chip>
+                        <v-menu :disabled="!canEditProject(item)">
+                          <template #activator="{ props }">
+                            <v-chip v-bind="props"
+                                    :color="getPriorityColor(item.priority)"
+                                    size="small" variant="tonal"
+                                    :class="canEditProject(item) ? 'cursor-pointer' : ''"
+                                    :title="canEditProject(item) ? 'Click to change priority' : ''">
+                              {{ item.priority }}
+                            </v-chip>
+                          </template>
+                          <v-list density="compact">
+                            <v-list-item v-for="p in PRIORITY_OPTIONS" :key="p" @click="updatePriority(item, p)">
+                              <v-list-item-title>{{ p }}</v-list-item-title>
+                            </v-list-item>
+                          </v-list>
+                        </v-menu>
                       </template>
 
+                      <!-- Status Dropdown -->
                       <template #item.status="{ item }">
-                        <v-chip :color="getStatusColor(item.status)" size="small" variant="tonal">
-                          {{ item.status }}
-                        </v-chip>
+                        <v-menu :disabled="!canEditProject(item)">
+                          <template #activator="{ props }">
+                            <v-chip v-bind="props"
+                                    :color="getStatusColor(item.status)"
+                                    size="small" variant="tonal"
+                                    :class="canEditProject(item) ? 'cursor-pointer' : ''"
+                                    :title="canEditProject(item) ? 'Click to change status' : ''">
+                              {{ item.status }}
+                            </v-chip>
+                          </template>
+                          <v-list density="compact">
+                            <v-list-item v-for="s in STATUS_OPTIONS" :key="s" @click="updateStatus(item, s)">
+                              <v-list-item-title>{{ s }}</v-list-item-title>
+                            </v-list-item>
+                          </v-list>
+                        </v-menu>
                       </template>
 
                       <!-- NPI Stage Pipeline column -->
@@ -150,30 +178,33 @@
     </v-row>
 
     <!-- Project Detail Dialog -->
-    <v-dialog v-model="showDetailDialog" max-width="800" persistent>
+    <v-dialog v-model="showDetailDialog" max-width="900" persistent>
       <v-card v-if="selectedProject" class="dialog-card">
         <v-card-title class="bg-primary text-white d-flex align-center justify-space-between">
-          <v-icon class="mr-2">mdi-information</v-icon>
-          {{ selectedProject.proj_no }} — {{ selectedProject.proj_name }}
+          <span class="d-flex align-center gap-2">
+            <v-icon>mdi-information</v-icon>
+            {{ selectedProject.proj_no }} — {{ selectedProject.proj_name }}
+          </span>
+          <v-btn icon="mdi-close" variant="text" color="white" @click="showDetailDialog = false" />
         </v-card-title>
 
-        <v-tabs v-model="detailTab" bg-color="surface">
-          <v-tab value="overview">
+        <v-tabs v-model="projectDetailTab" bg-color="surface" class="px-4">
+          <v-tab value="overview" class="font-weight-bold">
             <v-icon start>mdi-view-dashboard</v-icon>
             Overview
           </v-tab>
-          <v-tab value="tasks">
-            <v-icon start>mdi-clipboard-list</v-icon>
-            Tasks & Assignments
+          <v-tab value="team" class="font-weight-bold">
+            <v-icon start>mdi-account-group</v-icon>
+            Team Members
           </v-tab>
-          <v-tab value="revisions">
+          <v-tab value="revisions" class="font-weight-bold">
             <v-icon start>mdi-history</v-icon>
             Revision History
           </v-tab>
         </v-tabs>
 
-        <v-window v-model="detailTab" class="mt-0">
-          <!-- Tab 1: Overview -->
+        <v-window v-model="projectDetailTab" class="mt-0">
+          <!-- TAB 1: OVERVIEW -->
           <v-window-item value="overview">
             <v-card-text class="pa-6">
               <!-- Stage pipeline visual -->
@@ -196,8 +227,10 @@
                 </div>
               </v-card>
 
-              <v-row>
-                <v-col cols="12" md="6"><strong>Customer:</strong> {{ selectedProject.customer_name || 'N/A' }}</v-col>
+              <v-row class="ga-4">
+                <v-col cols="12" md="6">
+                  <div><strong>Customer:</strong> {{ selectedProject.customer_name || 'N/A' }}</div>
+                </v-col>
                 <v-col cols="12" md="6">
                   <strong>Status:</strong>
                   <v-chip :color="getStatusColor(selectedProject.status)" size="small" variant="tonal" class="ml-2">
@@ -214,8 +247,12 @@
                 <v-col cols="12" md="6"><strong>Target Completion:</strong> {{ formatDate(selectedProject.target_completion_date) }}</v-col>
                 <v-col cols="12" md="6">
                   <strong>Optional Stages:</strong>
-                  <v-chip v-if="selectedProject.pilot_mould_required" size="x-small" color="purple" variant="tonal" class="ml-1">2.0 Pilot Mould</v-chip>
-                  <v-chip v-if="selectedProject.machine_purchase_required" size="x-small" color="teal" variant="tonal" class="ml-1">3.0 Machine</v-chip>
+                  <v-chip v-if="selectedProject.pilot_mould_required" size="x-small" color="purple" variant="tonal" class="ml-1">
+                    2.0 Pilot Mould
+                  </v-chip>
+                  <v-chip v-if="selectedProject.machine_purchase_required" size="x-small" color="teal" variant="tonal" class="ml-1">
+                    3.0 Machine
+                  </v-chip>
                   <span v-if="!selectedProject.pilot_mould_required && !selectedProject.machine_purchase_required"
                         class="ml-2 text-grey text-caption">None</span>
                 </v-col>
@@ -227,77 +264,137 @@
             </v-card-text>
           </v-window-item>
 
-          <!-- Tab 2: Tasks & Assignments -->
-          <v-window-item value="tasks">
+          <!-- TAB 2: TEAM MEMBERS -->
+          <v-window-item value="team">
             <v-card-text class="pa-6" style="max-height: 500px; overflow-y: auto;">
-              <v-data-table v-if="projectTasks.length > 0"
-                            :items="projectTasks"
-                            :headers="taskHeaders"
-                            density="compact"
-                            class="elevation-0">
-                <template #item.task_code="{ item }">
-                  <v-chip :color="getStageColor(item.stage_id)" size="x-small" variant="tonal" class="font-weight-bold">
-                    {{ item.task_code || '—' }}
-                  </v-chip>
-                </template>
-                <template #item.title="{ item }">
-                  <span class="font-weight-medium">{{ item.title }}</span>
-                </template>
-                <template #item.status="{ item }">
-                  <v-chip :color="getTaskStatusColor(item.status)" size="small" variant="tonal">
-                    {{ item.status }}
-                  </v-chip>
-                </template>
-                <template #item.assigned_to_name="{ item }">
-                  <v-avatar v-if="item.assigned_to_name" size="32" color="primary">
-                    <span class="text-white text-caption font-weight-bold">
-                      {{ item.assigned_to_name.split(' ').map(n => n[0]).join('') }}
+              <v-list v-if="projectTeamMembers.length > 0" class="bg-transparent">
+                <v-list-item v-for="member in projectTeamMembers" :key="member.user_id"
+                             class="border-b pa-3 d-flex align-center ga-3">
+                  <!-- Avatar -->
+                  <v-avatar color="primary" size="40">
+                    <span class="text-white font-weight-bold text-caption">
+                      {{ getInitials(member.full_name || member.user_name) }}
                     </span>
                   </v-avatar>
-                  <span v-else class="text-grey text-caption">Unassigned</span>
-                </template>
-              </v-data-table>
+
+                  <!-- Member details -->
+                  <div class="flex-grow-1">
+                    <div class="font-weight-bold">{{ member.full_name || member.user_name }}</div>
+                    <div class="text-caption text-grey">
+                      <v-chip size="x-small" variant="tonal" color="info" class="mr-2">
+                        {{ member.dept_name || 'N/A' }}
+                      </v-chip>
+                      <v-chip size="x-small" variant="tonal" color="success">
+                        {{ member.role || 'Team Member' }}
+                      </v-chip>
+                    </div>
+                    <div class="text-caption text-grey-darken-1 mt-1">
+                      Assigned: {{ formatDate(member.assigned_at) }}
+                    </div>
+                  </div>
+                </v-list-item>
+              </v-list>
               <v-alert v-else type="info" variant="tonal" class="ma-4">
-                No tasks created yet
+                No team members assigned to this project yet
               </v-alert>
             </v-card-text>
           </v-window-item>
 
-          <!-- Tab 3: Revision History -->
+          <!-- TAB 3: REVISION HISTORY -->
           <v-window-item value="revisions">
             <v-card-text class="pa-6" style="max-height: 500px; overflow-y: auto;">
               <v-timeline v-if="projectRevisions.length > 0" align="start" side="end">
-                <v-timeline-item v-for="(rev, idx) in projectRevisions" :key="idx"
+                <v-timeline-item v-for="(rev, idx) in projectRevisions" :key="rev.revision_id"
                                  :dot-color="getRevisionColor(idx)"
                                  size="small">
-                  <div class="mb-1">
-                    <strong>Revision {{ rev.revision_number }}</strong>
+                  <!-- Revision header -->
+                  <div class="mb-2">
+                    <strong class="text-body-2">Revision #{{ rev.revision_number }}</strong>
                     <v-chip size="x-small" variant="text" color="grey" class="ml-2">
                       {{ formatDateTime(rev.revision_date) }}
                     </v-chip>
                   </div>
+
+                  <!-- Revision metadata -->
                   <div class="text-caption mb-2">
-                    <strong>Reason:</strong> {{ rev.revision_notes || 'No reason provided' }}
+                    <div class="mb-1">
+                      <strong>Updated by:</strong> {{ rev.revised_by_name || 'System' }}
+                    </div>
+                    <div class="mb-1">
+                      <strong>Reason:</strong>
+                      <span class="text-grey">{{ rev.revision_notes || 'No reason provided' }}</span>
+                    </div>
                   </div>
-                  <div class="text-caption text-grey">
-                    <strong>Previous Target:</strong> {{ formatDate(rev.previous_target_date) }}<br>
-                    <strong>New Target:</strong> {{ formatDate(rev.new_target_date) }}
-                  </div>
+
+                  <!-- Target date changes -->
+                  <v-card v-if="rev.previous_target_date || rev.new_target_date"
+                          variant="outlined" size="small" class="mb-3 pa-2">
+                    <div class="text-caption">
+                      <div v-if="rev.previous_target_date" class="mb-1">
+                        <strong>Previous Target:</strong> {{ formatDate(rev.previous_target_date) }}
+                      </div>
+                      <div v-if="rev.new_target_date">
+                        <strong>New Target:</strong> {{ formatDate(rev.new_target_date) }}
+                      </div>
+                    </div>
+                  </v-card>
+
+                  <!-- Task revisions within this project revision -->
+                  <v-expand-transition>
+                    <div v-if="showTaskRevisions[rev.revision_id]"
+                         class="bg-grey-lighten-4 pa-2 rounded mt-2">
+                      <div class="text-caption font-weight-bold mb-2">Task Changes:</div>
+                      <v-list v-if="rev.task_revisions?.length" density="compact" class="pa-0">
+                        <v-list-item v-for="tr in rev.task_revisions" :key="tr.task_id"
+                                     class="text-caption pa-1">
+                          <template #prepend>
+                            <v-icon size="x-small" color="warning">mdi-pencil</v-icon>
+                          </template>
+                          <v-list-item-title class="text-caption">
+                            {{ tr.task_title || `Task ${tr.task_id}` }}
+                          </v-list-item-title>
+                          <v-list-item-subtitle class="text-caption mt-1">
+                            {{ formatDate(tr.old_start_date) }} → {{ formatDate(tr.old_end_date) }}
+                            <v-icon size="x-small" class="mx-1">mdi-arrow-right</v-icon>
+                            {{ formatDate(tr.new_start_date) }} → {{ formatDate(tr.new_end_date) }}
+                          </v-list-item-subtitle>
+                          <template v-if="tr.revision_note" #append>
+                            <v-tooltip :text="tr.revision_note" location="left">
+                              <template #activator="{ props }">
+                                <v-icon v-bind="props" size="x-small" color="info">mdi-information</v-icon>
+                              </template>
+                            </v-tooltip>
+                          </template>
+                        </v-list-item>
+                      </v-list>
+                      <div v-else class="text-caption text-grey">No task changes in this revision</div>
+                    </div>
+                  </v-expand-transition>
+
+                  <!-- Expand/collapse button -->
+                  <v-btn v-if="rev.task_revisions?.length"
+                         size="x-small" variant="text" color="primary" class="mt-1"
+                         @click="showTaskRevisions[rev.revision_id] = !showTaskRevisions[rev.revision_id]">
+                    {{ showTaskRevisions[rev.revision_id] ? 'Hide' : 'Show' }} Task Changes
+                  </v-btn>
                 </v-timeline-item>
               </v-timeline>
               <v-alert v-else type="info" variant="tonal" class="ma-4">
-                No revisions recorded
+                No revision history available
               </v-alert>
             </v-card-text>
           </v-window-item>
         </v-window>
 
-        <v-card-actions class="pa-4">
-          <v-spacer />
+        <v-card-actions class="pa-4 d-flex justify-end ga-2">
           <v-btn variant="text" @click="showDetailDialog = false">Close</v-btn>
-          <v-btn v-if="canManageProject(selectedProject)" color="primary"
+          <v-btn v-if="canManageProject(selectedProject)" color="primary" variant="elevated"
                  @click="manageProject(selectedProject.proj_id)">
             Manage Project
+          </v-btn>
+          <v-btn v-if="selectedProject.status === 'In Progress' || selectedProject.status === 'Completed'"
+                 color="success" variant="elevated" @click="viewGantt(selectedProject.proj_id)">
+            View Gantt Chart
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -353,6 +450,7 @@
   import { useProjectStore } from '@/stores/project'
   import { useAuthStore } from '@/stores/auth'
   import { NPI_STAGES } from '@/stores/stageTemplate'
+  import { api } from '@/utils/api'
 
   const router = useRouter()
   const projectStore = useProjectStore()
@@ -363,6 +461,11 @@
   const showDetailDialog = ref(false)
   const selectedProject = ref(null)
 
+  const projectDetailTab = ref('overview')
+  const projectTeamMembers = ref([])
+  const projectRevisions = ref([])
+  const showTaskRevisions = ref({})
+
   const deleteProjectDialog = ref(false)
   const deleteProjectTarget = ref(null)
   const deletingProject = ref(false)
@@ -371,9 +474,8 @@
   const snackbarMessage = ref('')
   const snackbarColor = ref('success')
 
-  const detailTab = ref('overview')
-  const projectTasks = ref([])
-  const projectRevisions = ref([])
+  const STATUS_OPTIONS = ['Planning', 'Not Started', 'In Progress', 'On Hold', 'Completed', 'Cancelled']
+  const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical']
 
   const headers = [
     { title: 'Project No', key: 'proj_no', sortable: true },
@@ -402,49 +504,67 @@
     return list
   })
 
-  async function loadProjectDetails(projectId) {
+  function canEditProject(project) {
+    const role = userRole.value;
+    // 1. Admin and Manager can edit ANY project
+    if (['Admin', 'Manager'].includes(role)) return true;
+  
+    // 2. Team Lead is allowed to click the dropdown. 
+    if (role === 'Team Lead') return true; 
+  
+    return false;
+  }
+
+  // --- Add these API Update Methods ---
+  async function updateStatus(project, newStatus) {
+    if (project.status === newStatus) return;
+
     try {
-      // Fetch tasks for this project
-      const tasksResult = await projectStore.getProjectTasks(projectId)
-      projectTasks.value = tasksResult?.data || []
-
-      // Fetch revision history (if available in your API)
-      // For now, use mock data structure:
-      projectRevisions.value = [
-        {
-          revision_number: 1,
-          revision_date: new Date(),
-          revision_notes: 'Initial project launch',
-          previous_target_date: null,
-          new_target_date: selectedProject.value.target_completion_date
-        }
-      ]
+      const result = await api.put(`/project/${project.proj_id}/status`, { status: newStatus });
+      if (result?.success || result?.data?.success) {
+        project.status = newStatus;
+        snackbarMessage.value = 'Project status updated';
+        snackbarColor.value = 'success';
+      } else {
+        snackbarMessage.value = result?.message || 'Failed to update status';
+        snackbarColor.value = 'error';
+      }
     } catch (err) {
-      console.error('Error loading project details:', err)
+      snackbarMessage.value = err?.response?.data?.message || 'Unauthorized or server error';
+      snackbarColor.value = 'error';
     }
+    snackbar.value = true;
   }
 
-  function getRevisionColor(index) {
-    const colors = ['primary', 'success', 'warning', 'error']
-    return colors[index % colors.length]
-  }
+  async function updatePriority(project, newPriority) {
+    if (project.priority === newPriority) return;
 
-  function formatDateTime(date) {
-    if (!date) return 'N/A'
-    return new Date(date).toLocaleString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    })
+    try {
+      const payload = {
+        proj_name: project.proj_name,
+        description: project.description,
+        dept_id: project.dept_id,
+        priority: newPriority,
+        status: project.status,
+        project_start_date: project.project_start_date,
+        target_completion_date: project.target_completion_date
+      };
+    
+      const result = await api.put(`/project/${project.proj_id}`, payload);
+      if (result?.success || result?.data?.success) {
+        project.priority = newPriority;
+        snackbarMessage.value = 'Project priority updated';
+        snackbarColor.value = 'success';
+      } else {
+        snackbarMessage.value = result?.message || 'Failed to update priority';
+        snackbarColor.value = 'error';
+      }
+    } catch (err) {
+      snackbarMessage.value = err?.response?.data?.message || 'Unauthorized or server error';
+      snackbarColor.value = 'error';
+    }
+    snackbar.value = true;
   }
-
-  // Update viewProject function to load details
-  function viewProject(project) {
-    selectedProject.value = project
-    showDetailDialog.value = true
-    loadProjectDetails(project.proj_id)
-  }
-
-  // ── Stage pipeline helpers ──────────────────────────────────────────────────
 
   const STAGE_SHORT = {
     '0.0': 'Enquiry', '1.0': 'Proj Start', '2.0': 'Pilot Mould',
@@ -454,6 +574,35 @@
   const STAGE_COLORS_MAP = {
     '0.0': '#607D8B', '1.0': '#1976D2', '2.0': '#7B1FA2',
     '3.0': '#00796B', '4.0': '#303F9F', '5.0': '#E64A19'
+  }
+
+  function getInitials(name) {
+    if (!name) return '?'
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  }
+
+  function getRevisionColor(index) {
+    const colors = ['primary', 'success', 'warning', 'error', 'info']
+    return colors[index % colors.length]
+  }
+
+  function formatDate(date) {
+    if (!date) return 'N/A'
+    if (typeof date === 'string') {
+      const parts = date.split('-')
+      if (parts.length === 3)
+        return new Date(parts[0], parts[1] - 1, parts[2])
+          .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    }
+    return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+
+  function formatDateTime(date) {
+    if (!date) return 'N/A'
+    return new Date(date).toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    })
   }
 
   function getProjectStages(project) {
@@ -493,15 +642,12 @@
     return 'rgba(0,0,0,0.03)'
   }
 
-  // ── Other helpers ────────────────────────────────────────────────────────────
-
   function canManageProject(project) {
     const isNpiOrAdmin = userRole.value === 'NPI Team' || userRole.value === 'Admin'
     const canManage = project.status === 'Planning' || project.status === 'In Progress'
     return isNpiOrAdmin && canManage
   }
 
-  // Only Admins can delete projects
   function canDeleteProject(project) {
     return userRole.value === 'Admin'
   }
@@ -514,18 +660,40 @@
     return { 'Low': 'success', 'Medium': 'info', 'High': 'warning', 'Critical': 'error' }[priority] || 'grey'
   }
 
-  function formatDate(date) {
-    if (!date) return 'N/A'
-    if (typeof date === 'string') {
-      const parts = date.split('-')
-      if (parts.length === 3)
-        return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    }
-    return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-  }
-
   function manageProject(projId) { router.push(`/projects/${projId}/setup`) }
   function viewGantt(projId) { router.push(`/projects/${projId}/gantt`) }
+
+  async function loadProjectDetails(projectId) {
+    try {
+      const result = await projectStore.fetchProjectById(projectId)
+      if (result?.success && result.data) {
+        const project = result.data
+
+        projectTeamMembers.value = project.team_members || []
+
+        projectRevisions.value = (project.revisions || [])
+          .sort((a, b) => new Date(b.revision_date) - new Date(a.revision_date))
+
+        // Initialize expand state for task revisions
+        projectRevisions.value.forEach(rev => {
+          showTaskRevisions.value[rev.revision_id] = false
+        })
+      }
+    } catch (err) {
+      console.error('Error loading project details:', err)
+      snackbarMessage.value = 'Failed to load project details'
+      snackbarColor.value = 'error'
+      snackbar.value = true
+    }
+  }
+
+  // Update viewProject function to load details
+  function viewProject(project) {
+    selectedProject.value = project
+    projectDetailTab.value = 'overview'
+    showDetailDialog.value = true
+    loadProjectDetails(project.proj_id)
+  }
 
   function openDeleteProjectDialog(project) {
     deleteProjectTarget.value = project
@@ -613,5 +781,9 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+  }
+
+  .cursor-pointer {
+    cursor: pointer;
   }
 </style>
