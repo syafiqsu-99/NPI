@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NPI.Server.Data;
 
@@ -11,9 +12,11 @@ using NPI.Server.Data;
 namespace NPI.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260408032412_NPI13")]
+    partial class NPI13
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -730,43 +733,42 @@ namespace NPI.Server.Migrations
 
             modelBuilder.Entity("NPI.Server.Models.ProjectRoles", b =>
                 {
-                    b.Property<int>("proj_role_id")
+                    b.Property<int>("project_role_id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("proj_role_id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("project_role_id"));
 
-                    b.Property<DateTime>("created_at")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTime>("assigned_at")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETDATE()");
 
-                    b.Property<string>("description")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<bool>("is_active")
-                        .HasColumnType("bit");
+                    b.Property<int?>("assigned_by")
+                        .HasColumnType("int");
 
                     b.Property<int>("proj_id")
                         .HasColumnType("int");
 
                     b.Property<string>("role_name")
                         .IsRequired()
+                        .ValueGeneratedOnAdd()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime?>("updated_at")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("Member");
 
                     b.Property<int>("user_id")
                         .HasColumnType("int");
 
-                    b.HasKey("proj_role_id");
+                    b.HasKey("project_role_id");
+
+                    b.HasIndex("assigned_by");
 
                     b.HasIndex("user_id");
 
                     b.HasIndex("proj_id", "user_id")
                         .IsUnique()
-                        .HasDatabaseName("IX_ProjectRoles_ProjUser");
+                        .HasDatabaseName("IX_ProjectRoles_Project_User");
 
                     b.ToTable("ProjectRoles");
                 });
@@ -1583,6 +1585,11 @@ namespace NPI.Server.Migrations
 
             modelBuilder.Entity("NPI.Server.Models.ProjectRoles", b =>
                 {
+                    b.HasOne("NPI.Server.Models.Users", "AssignedByUser")
+                        .WithMany()
+                        .HasForeignKey("assigned_by")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("NPI.Server.Models.Projects", "Project")
                         .WithMany()
                         .HasForeignKey("proj_id")
@@ -1592,8 +1599,10 @@ namespace NPI.Server.Migrations
                     b.HasOne("NPI.Server.Models.Users", "User")
                         .WithMany()
                         .HasForeignKey("user_id")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
+
+                    b.Navigation("AssignedByUser");
 
                     b.Navigation("Project");
 

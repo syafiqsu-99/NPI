@@ -33,11 +33,22 @@ namespace NPI.Server.Data
                 {
                     new Roles { role_name = "Admin", description = "System Administrator" },
                     new Roles { role_name = "Manager", description = "Department Manager" },
+                    new Roles { role_name = "Member", description = "Team Member" }
+                };
+                await context.Roles.AddRangeAsync(roles);
+                await context.SaveChangesAsync();
+            }
+
+            // Seed Project Roles
+            if (!await context.ProjectRoles.AnyAsync())
+            {
+                var projectroles = new[]
+                {
                     new Roles { role_name = "Team Lead", description = "Team Leader" },
                     new Roles { role_name = "Member", description = "Team Member" },
                     new Roles { role_name = "Viewer", description = "Read-only access" }
                 };
-                await context.Roles.AddRangeAsync(roles);
+                await context.Roles.AddRangeAsync(projectroles);
                 await context.SaveChangesAsync();
             }
 

@@ -9,7 +9,7 @@
                    prepend-icon="mdi-clipboard-text-outline" />
     </v-list>
 
-    <v-divider></v-divider>
+    <v-divider />
 
     <v-list nav>
       <v-list-item to="/" title="Dashboard" prepend-icon="mdi-view-dashboard" />
@@ -17,10 +17,15 @@
       <v-list-item to="/projects" title="Projects" prepend-icon="mdi-folder-multiple" />
       <v-list-item to="/tasks" title="Tasks" prepend-icon="mdi-check-circle" />
       <v-list-item to="/files" title="Files" prepend-icon="mdi-file-document" />
-      <v-list-item v-if="authStore.userRole === 'Admin', 'Manager'" to="/settings" title="Settings" prepend-icon="mdi-cog" />
+
+      <v-list-item v-if="authStore.isAdmin || authStore.isManager"
+                   to="/settings"
+                   title="Settings"
+                   prepend-icon="mdi-cog" />
     </v-list>
 
     <template #append>
+      <!-- Notifications bell -->
       <v-menu v-model="notifMenu" :close-on-content-click="false" location="end">
         <template #activator="{ props }">
           <v-list-item v-bind="props" prepend-icon="mdi-bell" title="Notifications">
@@ -40,9 +45,12 @@
           <v-divider />
           <v-list density="compact" style="max-height: 420px; overflow-y: auto;">
             <v-list-item v-if="notifications.length === 0">
-              <v-list-item-title class="text-caption text-grey">No new notifications</v-list-item-title>
+              <v-list-item-title class="text-caption text-grey">
+                No new notifications
+              </v-list-item-title>
             </v-list-item>
-            <v-list-item v-for="n in notifications" :key="n.notif_id"
+            <v-list-item v-for="n in notifications"
+                         :key="n.notif_id"
                          :class="{ 'bg-blue-lighten-5': !n.is_read }"
                          @click="openNotif(n)">
               <template #prepend>
@@ -56,12 +64,14 @@
           </v-list>
         </v-card>
       </v-menu>
+
       <v-divider />
+
       <v-list>
         <v-list-item :title="authStore.currentUser?.full_name"
                      :subtitle="authStore.userDepartment"
-                     prepend-icon="mdi-account-circle"
-                     @click="$router.push('/profile')" />
+                     prepend-icon="mdi-account-circle" />
+
         <v-list-item title="Logout"
                      prepend-icon="mdi-logout"
                      @click="handleLogout" />
@@ -71,7 +81,7 @@
 </template>
 
 <script setup>
-  import { ref, onMounted, onBeforeUnmount } from 'vue'
+  import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
   import { useRouter } from 'vue-router'
   import { useAuthStore } from '@/stores/auth'
   import { api } from '@/utils/api'
@@ -84,6 +94,11 @@
   const unreadCount = ref(0)
 
   let pollInterval = null
+
+  const roleChipColor = computed(() => {
+    const map = { Admin: 'error', Manager: 'primary', Member: 'grey' }
+    return map[authStore.userRole] ?? 'grey'
+  })
 
   async function loadNotifications() {
     if (!authStore.isAuthenticated) return
@@ -99,9 +114,7 @@
       await api.post('/notification/mark-all-read', {})
       notifications.value.forEach(n => { n.is_read = true })
       unreadCount.value = 0
-    } catch (err) {
-      console.error('Mark all read failed:', err)
-    }
+    } catch { }
   }
 
   async function openNotif(notification) {
@@ -113,9 +126,8 @@
       } catch { }
     }
     notifMenu.value = false
-    if (notification.proj_id) {
+    if (notification.proj_id)
       router.push(`/projects/${notification.proj_id}/gantt`)
-    }
   }
 
   function typeColor(type) {
@@ -148,15 +160,13 @@
     return `${Math.floor(diff / 86400)}d ago`
   }
 
-  const handleLogout = async () => {
+  async function handleLogout() {
     await authStore.logout()
     router.push('/login')
   }
 
   onMounted(async () => {
-    if (authStore.token) {
-      await authStore.checkAuth()
-    }
+    if (authStore.token) await authStore.checkAuth()
     await loadNotifications()
     pollInterval = setInterval(loadNotifications, 60_000)
   })

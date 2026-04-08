@@ -356,62 +356,62 @@ namespace NPI.Server.Services
         /// Task-level status update. Does NOT trigger project-level status changes.
         /// Tasks remain independent from project lifecycle management.
         /// </summary>
-        public async Task<(bool success, string message)> UpdateTaskStatusAsync(int taskId, string status, int userId, string userRole)
+        public async Task<(bool success, string message)> UpdateTaskStatusAsync(
+    int taskId, string status, int userId, string userRole)
         {
             try
             {
                 var (authorized, authMessage) = await ValidateTaskWriteAccessAsync(taskId, userId, userRole);
                 if (!authorized)
-                {
                     return (false, authMessage);
-                }
 
                 var task = await _context.Tasks.FindAsync(taskId);
-
-                if (task == null)
-                {
+                if (task is null)
                     return (false, "Task not found");
-                }
 
                 var validStatuses = new[] { "Not Started", "In Progress", "On Hold", "Completed", "Cancelled" };
                 if (!validStatuses.Contains(status))
-                {
                     return (false, "Invalid status value");
-                }
 
                 task.status = status;
                 task.updated_at = DateTime.Now;
 
-                // Auto-update progress based on status
                 if (status == "Completed" && task.per_complete < 100)
-                {
                     task.per_complete = 100;
-                }
                 else if (status == "In Progress" && task.per_complete == 0)
-                {
                     task.per_complete = 10;
-                }
                 else if (status == "Not Started")
-                {
                     task.per_complete = 0;
-                }
 
-                if (status == "In Progress" && task.actual_start_date == null)
-                {
+                if (status == "In Progress" && task.actual_start_date is null)
                     task.actual_start_date = DateOnly.FromDateTime(DateTime.Now);
-                }
 
-                if (status == "Completed" && task.actual_end_date == null)
+                if (status == "Completed" && task.actual_end_date is null)
                 {
                     task.actual_end_date = DateOnly.FromDateTime(DateTime.Now);
                     task.completed_at = DateTime.Now;
                 }
 
+                var auditRevision = new TaskRevisions
+                {
+                    revision_id = null,
+                    task_id = taskId,
+                    title = task.title,
+                    old_start_date = task.planned_start_date,
+                    old_end_date = task.planned_end_date,
+                    new_start_date = task.planned_start_date,
+                    new_end_date = task.planned_end_date,
+                    note = $"Status changed to '{status}' by user {userId}",
+                    revised_on = DateTime.Now,
+                    status = status,
+                    dept_id = task.dept_id
+                };
+
+                _context.TaskRevisions.Add(auditRevision);
                 await _context.SaveChangesAsync();
 
                 if (status == "Completed")
                 {
-                    // N1 + N2: Task completed triggers
                     await _triggerService.OnTaskCompletedAsync(taskId, task.proj_id, task.stage_id);
 
                     if (!string.IsNullOrEmpty(task.stage_id))
@@ -429,23 +429,6 @@ namespace NPI.Server.Services
                     if (task.task_code == "5.8")
                         await _triggerService.OnFaiCompletedAsync(task.proj_id, taskId);
                 }
-
-                // Create TaskRevision for audit trail
-                var revision = new TaskRevisions
-                {
-                    task_id = taskId,
-                    title = task.title,
-                    old_start_date = task.planned_start_date,
-                    old_end_date = task.planned_end_date,
-                    new_start_date = task.planned_start_date,
-                    new_end_date = task.planned_end_date,
-                    note = $"Status changed to {status}",
-                    revised_on = DateTime.Now,
-                    status = status
-                };
-
-                _context.TaskRevisions.Add(revision);
-                await _context.SaveChangesAsync();
 
                 return (true, "Task status updated successfully");
             }
