@@ -78,8 +78,20 @@ namespace NPI.Server.Controllers
         {
             try
             {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Invalid department data",
+                        errors = ModelState
+                    });
+                }
+
+                var normalizedName = dto.dept_name.Trim().ToLower();
+
                 var exists = await _context.Departments
-                    .AnyAsync(d => d.dept_name == dto.dept_name);
+                    .AnyAsync(d => d.dept_name.ToLower() == normalizedName);
 
                 if (exists)
                 {
@@ -90,7 +102,7 @@ namespace NPI.Server.Controllers
                 {
                     dept_name = dto.dept_name,
                     description = dto.description,
-                    created_at = DateTime.Now
+                    created_at = DateTime.UtcNow
                 };
 
                 _context.Departments.Add(department);
@@ -115,6 +127,16 @@ namespace NPI.Server.Controllers
         {
             try
             {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Invalid department data",
+                        errors = ModelState
+                    });
+                }
+
                 var department = await _context.Departments.FindAsync(id);
 
                 if (department == null)
@@ -135,7 +157,7 @@ namespace NPI.Server.Controllers
 
                 department.dept_name = dto.dept_name;
                 department.description = dto.description;
-                department.updated_at = DateTime.Now;
+                department.updated_at = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 

@@ -63,9 +63,16 @@ export const useNpiFormConfigStore = defineStore('npiFormConfig', () => {
   async function fetchAllSections() {
     loading.value = true
     try {
-      const result = await api.get('/npiformconfig/sections')
-      if (result?.success) sections.value = result.data
-      return result
+      const [sectionsResult, categoriesResult] = await Promise.all([
+        api.get('/npiformconfig/sections'),
+        api.get('/npiformconfig/categories')
+      ])
+      if (sectionsResult?.success) sections.value = sectionsResult.data
+      if (categoriesResult?.success) categories.value = categoriesResult.data
+      return sectionsResult
+    } catch (err) {
+      error.value = err.message
+      return { success: false, message: err.message }
     } finally {
       loading.value = false
     }

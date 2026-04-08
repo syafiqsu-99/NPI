@@ -129,6 +129,17 @@
                           :color="getProjectStatusColor(project.status)" size="small">
                     {{ project.status }}
                   </v-chip>
+                  <v-chip v-if="project.tasks.every(t => t.status === 'Completed' || t.status === 'Cancelled')"
+                          size="x-small" color="success" variant="flat" class="ml-1">
+                    <v-icon start size="x-small">mdi-check-all</v-icon>
+                    All Done
+                  </v-chip>
+
+                  <v-chip v-if="project.tasks.filter(t => isOverdue(t)).length > 0"
+                          size="x-small" color="error" variant="tonal" class="ml-1">
+                    <v-icon start size="x-small">mdi-clock-alert</v-icon>
+                    {{ project.tasks.filter(t => isOverdue(t)).length }} overdue
+                  </v-chip>
                   <v-chip v-if="!showAllStages"
                           :color="getStageColor(getCurrentStageId(project.tasks))"
                           size="small" variant="tonal">
@@ -195,11 +206,13 @@
                         <template #activator="{ props }">
                           <v-chip v-bind="props"
                                   :color="getStatusColor(item.status)"
+                                  :variant="item.status === 'Completed' ? 'flat' : 'tonal'"
                                   size="small"
-                                  :class="!canEditTask(item) ? '' : 'cursor-pointer'"
-                                  :title="!canEditTask(item) ? 'Only authorized members can modify this task' : ''">
+                                  :class="!canEditTask(item) ? '' : 'cursor-pointer'">
                             <v-icon start size="x-small">{{ getStatusIcon(item.status) }}</v-icon>
                             {{ item.status }}
+                            <v-badge v-if="isOverdue(item)"
+                                     color="error" content="!" inline class="ml-1" />
                           </v-chip>
                         </template>
                         <v-list density="compact">
@@ -819,7 +832,6 @@
       showSnack('You are not authorized to modify this task.', 'error')
       return
     }
-
     try {
       const result = await api.put(`/task/${task.task_id}/status`, { status: newStatus })
       if (result?.success) {
@@ -831,11 +843,24 @@
           task.actual_start_date = new Date().toISOString().split('T')[0]
         }
         showSnack('Status updated', 'success')
+
+        autoCollapseIfDone(task.proj_id)
       } else {
         showSnack(result?.message || 'Failed to update status', 'error')
       }
-    } catch (err) {
+    } catch {
       showSnack('Server rejected the request. Check your permissions.', 'error')
+    }
+  }
+
+  function autoCollapseIfDone(projId) {
+    const projectTasks = allTasks.value.filter(t => t.proj_id === projId)
+    const allDone = projectTasks.every(t => t.status === 'Completed' || t.status === 'Cancelled')
+    if (allDone) {
+      setTimeout(() => {
+        const idx = expandedProjects.value.indexOf(projId)
+        if (idx > -1) expandedProjects.value.splice(idx, 1)
+      }, 1200)
     }
   }
 

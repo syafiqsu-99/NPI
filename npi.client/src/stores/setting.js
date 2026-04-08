@@ -187,6 +187,8 @@ export const useSettingsStore = defineStore('setting', () => {
 
   // ============ Department Management ============
   async function fetchDepartments() {
+    loading.value = true
+    error.value = null
     try {
       const result = await api.get('/department')
       if (result?.success && result?.data) {
@@ -195,6 +197,57 @@ export const useSettingsStore = defineStore('setting', () => {
         departments.value = result
       }
       return { success: true, data: departments.value }
+    } catch (err) {
+      error.value = err.message
+      return { success: false, message: err.message }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function getDepartmentById(deptId) {
+    try {
+      const result = await api.get(`/department/${deptId}`)
+      return result
+    } catch (err) {
+      error.value = err.message
+      return { success: false, message: err.message }
+    }
+  }
+
+  async function createDepartment(departmentData) {
+    try {
+      const result = await api.post('/department', departmentData)
+      if (result?.success) {
+        await fetchDepartments()
+      }
+      return result
+    } catch (err) {
+      error.value = err.message
+      return { success: false, message: err.message }
+    }
+  }
+
+  async function updateDepartment(deptId, departmentData) {
+    try {
+      const result = await api.put(`/department/${deptId}`, departmentData)
+      if (result?.success) {
+        await fetchDepartments()
+      }
+      return result
+    } catch (err) {
+      error.value = err.message
+      return { success: false, message: err.message }
+    }
+  }
+
+  async function deleteDepartment(deptId) {
+    try {
+      const result = await api.delete(`/department/${deptId}`)
+      if (result?.success) {
+        await fetchDepartments()
+      }
+      return result
     } catch (err) {
       error.value = err.message
       return { success: false, message: err.message }
@@ -223,6 +276,10 @@ export const useSettingsStore = defineStore('setting', () => {
     deleteRole,
     toggleRoleStatus,
     // Department methods
-    fetchDepartments
+    fetchDepartments,
+    getDepartmentById,
+    createDepartment,
+    updateDepartment,
+    deleteDepartment
   }
 })

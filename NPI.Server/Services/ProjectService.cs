@@ -177,8 +177,7 @@ namespace NPI.Server.Services
             return dto;
         }
 
-        public async Task<(bool success, string message, int projId)> CreateProjectAsync(
-            CreateProjectDto dto, int userId)
+        public async Task<(bool success, string message, int projId)> CreateProjectAsync( CreateProjectDto dto, int userId)
         {
             try
             {
@@ -430,8 +429,7 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool success, string message, int proj_id)> CreateProjectFromEnquiryAsync(
-            int enquiryId, int userId, CreateProjectFromEnquiryDto? dto = null)
+        public async Task<(bool success, string message, int proj_id)> CreateProjectFromEnquiryAsync( int enquiryId, int userId, CreateProjectFromEnquiryDto? dto = null)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
@@ -634,16 +632,14 @@ namespace NPI.Server.Services
             }
         }
 
-        private static void EnsureDeptFolder(
-            string projectPath, string? deptName, HashSet<string> created)
+        private static void EnsureDeptFolder( string projectPath, string? deptName, HashSet<string> created)
         {
             var folderName = SanitizeFolderName(deptName ?? "Others");
             if (created.Add(folderName))
                 Directory.CreateDirectory(Path.Combine(projectPath, folderName));
         }
 
-        public async Task<(bool success, string message, List<string>? folderWarnings)> LaunchProjectAsync(
-        int projectId, LaunchProjectDto dto, int userId)
+        public async Task<(bool success, string message, List<string>? folderWarnings)> LaunchProjectAsync( int projectId, LaunchProjectDto dto, int userId)
         {
             using var tx = await _context.Database.BeginTransactionAsync();
             try
@@ -856,6 +852,9 @@ namespace NPI.Server.Services
                 var projectPath = GetProjectPath(project.proj_name);
                 Directory.CreateDirectory(projectPath);
                 project.storage_path = projectPath;
+
+                var customerFolder = Path.Combine(projectPath, "Customer");
+                Directory.CreateDirectory(customerFolder);
 
                 var allProjectTasks = await _context.Tasks
                     .Include(t => t.Department)

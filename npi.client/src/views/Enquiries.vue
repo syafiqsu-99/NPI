@@ -95,7 +95,7 @@
                 <v-icon size="18">mdi-chart-gantt</v-icon>
               </v-btn>
 
-              <!-- Start project (NPI/Admin, no project yet, right status) -->
+              <!-- Start project (Manager/Admin, no project yet, right status) -->
               <v-btn v-if="canManageProject(item) && !item.proj_id" icon size="small" variant="text" color="primary" @click="viewEnquiryDetail(item.enquiry_id)" title="Start Project">
                 <v-icon size="18">mdi-rocket-launch</v-icon>
               </v-btn>
@@ -224,13 +224,13 @@
   const userRole = computed(() => authStore.user?.role)
 
   function canManageProject(enquiry) {
-    const isNpiOrAdmin = userRole.value === 'NPI Team' || userRole.value === 'Admin'
+    const isAdmin = userRole.value === 'Manager' || userRole.value === 'Admin'
     const canStart = enquiry.status === 'Submitted' || enquiry.status === 'Approved' || enquiry.status === 'Started'
-    return isNpiOrAdmin && canStart
+    return isAdmin && canStart
   }
 
   function canDelete(enquiry) {
-    if (userRole.value === 'Admin') return true
+    if (userRole.value === 'Admin' || userRole.value === 'Manager') return true
     return enquiry.status === 'Draft'
   }
 

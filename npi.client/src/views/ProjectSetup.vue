@@ -491,7 +491,7 @@
             </v-col>
             <v-col cols="12">
               <v-select v-model="newMember.role_in_project"
-                        :items="['Member', 'Team Lead', 'Manager', 'Viewer']"
+                        :items="['Member', 'Team Lead', 'Viewer']"
                         label="Role in Project *"
                         variant="outlined" />
             </v-col>
@@ -920,8 +920,17 @@
       if (stageFlags.value.pilot_mould_required) seedStage('2.0')
       if (stageFlags.value.machine_purchase_required) seedStage('3.0')
 
-      try { const dr = await api.get('/department'); departments.value = dr?.data || dr || [] }
-      catch { showSnack('Warning: Could not load departments', 'warning') }
+      try {
+        const dr = await api.get('/department');
+        const allDepartments = dr?.data || dr || [];
+
+        departments.value = allDepartments.filter(
+          dept => dept.dept_name?.toLowerCase() !== 'management'
+        );
+
+      } catch {
+        showSnack('Warning: Could not load departments', 'warning');
+      }
 
       try { const ur = await api.get('/user'); users.value = ur?.data || ur || [] }
       catch { showSnack('Warning: Could not load users', 'warning') }

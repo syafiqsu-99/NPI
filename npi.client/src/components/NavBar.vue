@@ -17,7 +17,7 @@
       <v-list-item to="/projects" title="Projects" prepend-icon="mdi-folder-multiple" />
       <v-list-item to="/tasks" title="Tasks" prepend-icon="mdi-check-circle" />
       <v-list-item to="/files" title="Files" prepend-icon="mdi-file-document" />
-      <v-list-item v-if="authStore.userRole === 'Admin'" to="/settings" title="Settings" prepend-icon="mdi-cog" />
+      <v-list-item v-if="authStore.userRole === 'Admin', 'Manager'" to="/settings" title="Settings" prepend-icon="mdi-cog" />
     </v-list>
 
     <template #append>

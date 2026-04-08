@@ -1,5 +1,5 @@
 <template>
-  <v-container fluid class="pa-0">
+  <v-container fluid class="pa-0" style="height:100vh; overflow:hidden; display:flex; flex-direction:column;">
     <v-row no-gutters>
       <v-col cols="12">
         <v-card elevation="2">
@@ -100,13 +100,7 @@
                 </v-col>
                 <v-col cols="auto">
                   <v-checkbox v-model="showAllStages" label="Show all stages" hide-details density="compact" />
-                </v-col>
-                <v-col cols="auto">
-                  <v-checkbox v-model="showDependencies"
-                              label="Show Dependencies"
-                              hide-details
-                              density="compact"></v-checkbox>
-                </v-col>
+                </v-col>>
                 <v-spacer></v-spacer>
                 <v-col cols="auto">
                   <div class="text-caption">
@@ -118,13 +112,6 @@
               </v-row>
             </v-sheet>
 
-            <!-- ══════════════════════════════════════════════════════════════
-                 GANTT TABLE
-                 One row per task. Fixed left columns:
-                   title | dept | duration | progress | planned dates | actual dates
-                 Date header columns are empty — all bars drawn on overlay.
-                 Each task row has two stacked bars (planned top, actual bottom).
-            ══════════════════════════════════════════════════════════════ -->
             <div class="gantt-wrapper" ref="ganttWrapper">
 
               <v-data-table ref="ganttTable"
@@ -190,7 +177,7 @@
                       </template>
                       <v-card min-width="200" class="pa-2">
                         <div class="text-caption mb-2 px-2">Update Progress</div>
-                          <v-slider :model-value="item.per_complete || 0"
+                        <v-slider :model-value="item.per_complete || 0"
                                   @update:model-value="val => updateTaskProgress(item, val)"
                                   :min="0" :max="100" :step="5"
                                   thumb-label show-ticks="always"
@@ -228,37 +215,37 @@
               </v-data-table>
 
               <!-- ── Bar overlay ─────────────────────────────────────────────
-                   Absolutely positioned over the date columns.
-                   Each task row has TWO bars stacked vertically:
-                     top ~38% of row height  → planned bar
-                     top ~62% of row height  → actual bar
-              ──────────────────────────────────────────────────────────── -->
+                 Absolutely positioned over the date columns.
+                 Each task row has TWO bars stacked vertically:
+                   top ~38% of row height  → planned bar
+                   top ~62% of row height  → actual bar
+            ──────────────────────────────────────────────────────────── -->
               <div class="gantt-bar-overlay" ref="barOverlay" :style="overlayStyle">
 
                 <template v-for="bar in barLayout" :key="bar.barId">
-                      <v-tooltip location="top">
-                        <template #activator="{ props }">
+                  <v-tooltip location="top">
+                    <template #activator="{ props }">
                       <div v-bind="props" :class="bar.cssClass" :style="bar.style">
                         <span v-if="bar.label" class="gantt-bar-label">{{ bar.label }}</span>
                       </div>
-                        </template>
+                    </template>
                     <div class="tooltip-content">
                       <div class="font-weight-bold mb-1">{{ bar.task_code ? bar.task_code + ' · ' : '' }}{{ bar.title }}</div>
                       <div>
                         <span class="bar-type-dot" :style="{ background: bar.type === 'planned' ? '#64B5F6' : '#81C784' }" />
                         {{ bar.type === 'planned' ? 'Planned' : 'Actual' }}
-                    </div>
+                      </div>
                       <div>Start: {{ formatDate(bar.start) }}</div>
                       <div>End: {{ formatDate(bar.end) }}</div>
                       <div>Progress: {{ bar.per_complete || 0 }}%</div>
                       <div>Status: {{ bar.status }}</div>
-                  </div>
+                    </div>
                   </v-tooltip>
                 </template>
 
                 <!-- Today vertical line -->
                 <div class="today-line" :style="todayLineStyle" />
-            </div>
+              </div>
 
             </div><!-- /gantt-wrapper -->
             <!-- Legend strip -->
@@ -306,7 +293,6 @@
   const tasks = ref([])
   const viewMode = ref('week')
   const showAllStages = ref(false)
-  const showDependencies = ref(false)
   const snackbar = ref(false)
   const snackbarMessage = ref('')
   const snackbarColor = ref('success')
@@ -726,6 +712,15 @@
   .gantt-wrapper {
     position: relative;
     overflow: hidden;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Ensure the card fills available height */
+  :deep(.v-card) {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   /* Table base */

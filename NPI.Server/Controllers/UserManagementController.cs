@@ -8,7 +8,7 @@ namespace NPI.Server.Controllers
 {
     [Route("api/admin/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     public class UserManagementController : ControllerBase
     {
         private readonly IUserService _userService;
@@ -23,7 +23,12 @@ namespace NPI.Server.Controllers
         {
             try
             {
+                var isAdmin = User.IsInRole("Admin");
                 var users = await _userService.GetAllUsersAsync();
+
+                if (!isAdmin)
+                    users = users.Where(u => u.role_name != "Admin").ToList();
+
                 return Ok(new { success = true, data = users });
             }
             catch (Exception ex)
@@ -38,11 +43,11 @@ namespace NPI.Server.Controllers
             try
             {
                 var user = await _userService.GetUserByIdAsync(id);
-
                 if (user == null)
-                {
                     return NotFound(new { success = false, message = "User not found" });
-                }
+
+                if (!User.IsInRole("Admin") && user.role_name == "Admin")
+                    return Forbid();
 
                 return Ok(new { success = true, data = user });
             }
@@ -57,19 +62,24 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var (success, message, userId) = await _userService.CreateUserAsync(dto);
-
-                if (!success)
+                if (!User.IsInRole("Admin") && dto.role_id.HasValue)
                 {
-                    return BadRequest(new { success = false, message });
+                    var roleCheck = await GetRoleNameAsync(dto.role_id.Value);
+                    if (roleCheck == "Admin")
+                        return Forbid();
                 }
 
-                return Ok(new
+                // Default role to "User" if not specified
+                if (dto.role_id == null)
                 {
-                    success = true,
-                    message,
-                    data = new { user_id = userId }
-                });
+                    // Resolve "User" role id dynamically — handled in UserService
+                }
+
+                var (success, message, userId) = await _userService.CreateUserAsync(dto);
+                if (!success)
+                    return BadRequest(new { success = false, message });
+
+                return Ok(new { success = true, message, data = new { user_id = userId } });
             }
             catch (Exception ex)
             {
@@ -82,12 +92,22 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var (success, message) = await _userService.UpdateUserAsync(id, dto);
-
-                if (!success)
+                if (!User.IsInRole("Admin"))
                 {
-                    return BadRequest(new { success = false, message });
+                    var target = await _userService.GetUserByIdAsync(id);
+                    if (target?.role_name == "Admin")
+                        return Forbid();
+                    // Managers cannot promote anyone to Admin
+                    if (dto.role_id.HasValue)
+                    {
+                        var roleName = await GetRoleNameAsync(dto.role_id.Value);
+                        if (roleName == "Admin") return Forbid();
+                    }
                 }
+
+                var (success, message) = await _userService.UpdateUserAsync(id, dto);
+                if (!success)
+                    return BadRequest(new { success = false, message });
 
                 return Ok(new { success = true, message });
             }
@@ -98,23 +118,18 @@ namespace NPI.Server.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteUser(int id)
         {
             try
             {
-                // Prevent self-deletion
-                var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
                 if (id == currentUserId)
-                {
                     return BadRequest(new { success = false, message = "Cannot delete your own account" });
-                }
 
                 var (success, message) = await _userService.DeleteUserAsync(id);
-
                 if (!success)
-                {
                     return BadRequest(new { success = false, message });
-                }
 
                 return Ok(new { success = true, message });
             }
@@ -129,19 +144,42 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                // Prevent self-deactivation
-                var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
                 if (id == currentUserId)
-                {
                     return BadRequest(new { success = false, message = "Cannot deactivate your own account" });
+
+                if (!User.IsInRole("Admin"))
+                {
+                    var target = await _userService.GetUserByIdAsync(id);
+                    if (target?.role_name == "Admin") return Forbid();
                 }
 
                 var (success, message) = await _userService.ToggleUserStatusAsync(id);
-
                 if (!success)
-                {
                     return BadRequest(new { success = false, message });
+
+                return Ok(new { success = true, message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPut("{id}/reset-password")]
+        public async Task<IActionResult> ResetPassword(int id, [FromBody] ResetPasswordDto dto)
+        {
+            try
+            {
+                if (!User.IsInRole("Admin"))
+                {
+                    var target = await _userService.GetUserByIdAsync(id);
+                    if (target?.role_name == "Admin") return Forbid();
                 }
+
+                var (success, message) = await _userService.ResetPasswordAsync(id, dto);
+                if (!success)
+                    return BadRequest(new { success = false, message });
 
                 return Ok(new { success = true, message });
             }
@@ -157,32 +195,8 @@ namespace NPI.Server.Controllers
             try
             {
                 var (success, message) = await _userService.ChangePasswordAsync(id, dto);
-
                 if (!success)
-                {
                     return BadRequest(new { success = false, message });
-                }
-
-                return Ok(new { success = true, message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { success = false, message = ex.Message });
-            }
-        }
-
-        [HttpPut("{id}/reset-password")]
-        public async Task<IActionResult> ResetPassword(int id, [FromBody] ResetPasswordDto dto)
-        {
-            try
-            {
-                var (success, message) = await _userService.ResetPasswordAsync(id, dto);
-
-                if (!success)
-                {
-                    return BadRequest(new { success = false, message });
-                }
-
                 return Ok(new { success = true, message });
             }
             catch (Exception ex)
@@ -197,6 +211,8 @@ namespace NPI.Server.Controllers
             try
             {
                 var users = await _userService.GetUsersByDepartmentAsync(deptId);
+                if (!User.IsInRole("Admin"))
+                    users = users.Where(u => u.role_name != "Admin").ToList();
                 return Ok(new { success = true, data = users });
             }
             catch (Exception ex)
@@ -206,6 +222,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpGet("by-role/{roleId}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetUsersByRole(int roleId)
         {
             try
@@ -217,6 +234,14 @@ namespace NPI.Server.Controllers
             {
                 return StatusCode(500, new { success = false, message = ex.Message });
             }
+        }
+
+        private async Task<string?> GetRoleNameAsync(int roleId)
+        {
+            using var scope = HttpContext.RequestServices.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
+            var role = await db.Roles.FindAsync(roleId);
+            return role?.role_name;
         }
     }
 }

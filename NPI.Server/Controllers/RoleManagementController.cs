@@ -7,7 +7,7 @@ namespace NPI.Server.Controllers
 {
     [Route("api/admin/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     public class RoleManagementController : ControllerBase
     {
         private readonly IRoleService _roleService;

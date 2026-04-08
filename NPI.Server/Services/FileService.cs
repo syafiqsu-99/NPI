@@ -13,6 +13,7 @@ namespace NPI.Server.Services
         private readonly NotificationTriggerService _triggerService;
         private readonly string _basePath;
 
+
         public FileService( ApplicationDbContext context, ITaskService taskService, IConfiguration configuration,NotificationTriggerService triggerService)
         {
             _context = context;
@@ -156,18 +157,7 @@ namespace NPI.Server.Services
             }
         }
 
-        /// <summary>
-        /// Upload single or multiple files with context-aware path routing.
-        /// </summary>
-        public async Task<(bool success, string message, Files? file)> UploadFileAsync(
-            IFormFile file,
-            int projId,
-            int? taskId,
-            int? docTypeId,
-            int uploadBy,
-            int? deptId,
-            int? enquiry_id = null,
-            string? customerName = null)
+        public async Task<(bool success, string message, Files? file)> UploadFileAsync( IFormFile file, int projId, int? taskId, int? docTypeId, int uploadBy, int? deptId, int? enquiry_id = null, string? customerName = null)
         {
             try
             {
@@ -192,21 +182,15 @@ namespace NPI.Server.Services
                 {
                     if (string.IsNullOrWhiteSpace(customerName))
                     {
-                        // Fallback: fetch customer from enquiry
                         var enquiry = await _context.Enquiries
                             .Include(e => e.Customer)
                             .FirstOrDefaultAsync(e => e.enquiry_id == enquiry_id.Value);
-
-                        if (enquiry?.Customer != null)
-                            customerName = enquiry.Customer.comp_name;
-                        else
-                            customerName = $"Enquiry_{enquiry_id.Value}";
+                        customerName = enquiry?.Customer?.comp_name ?? $"Enquiry_{enquiry_id.Value}";
                     }
 
+                    // Save to global customers/ folder
                     var sanitizedName = SanitizeFolderName(customerName);
                     var enquiryPath = Path.Combine(_basePath, "customers", sanitizedName);
-
-                    // ✅ Ensure directory exists (creates full hierarchy)
                     Directory.CreateDirectory(enquiryPath);
                     filePath = BuildUniqueFilePath(enquiryPath, file.FileName);
                 }
@@ -361,6 +345,28 @@ namespace NPI.Server.Services
                 .CountAsync();
         }
 
+        public async Task<string> EnsureCustomerFolderAsync(string companyName)
+        {
+            var safe = SanitizeFolderName(companyName);
+            var path = Path.Combine(_basePath, "customers", safe);
+            Directory.CreateDirectory(path);
+            return path;
+        }
+
+        public async Task<string> EnsureProjectCustomerFolderAsync(int projId)
+        {
+            var project = await _context.Projects
+                .Include(p => p.Customer)
+                .FirstOrDefaultAsync(p => p.proj_id == projId);
+
+            if (project == null) throw new Exception("Project not found");
+
+            var projFolder = SanitizeFolderName(project.proj_name);
+            var path = Path.Combine(_basePath, "projects", projFolder, "Customer");
+            Directory.CreateDirectory(path);
+            return path;
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────────
 
         private static string BuildUniqueFilePath(string folderPath, string originalFileName)
@@ -400,14 +406,6 @@ namespace NPI.Server.Services
                 ext = ".bin";
 
             return stem + ext;
-        }
-
-        private void ValidatePathWithinBase(string path)
-        {
-            var fullPath = Path.GetFullPath(path);
-            var fullBase = Path.GetFullPath(_basePath);
-            if (!fullPath.StartsWith(fullBase, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Path traversal attempt detected.");
         }
 
         private static string SanitizeFolderName(string name)

@@ -240,7 +240,7 @@
     const s = enquiry.value.status
     const role = authStore.user?.role
     return (s === 'Submitted' || s === 'Approved') &&
-      (role === 'NPI Team' || role === 'Admin')
+      (role === 'Manager' || role === 'Admin')
   })
 
   // ── Section / field label helpers ─────────────────────────────────────────────

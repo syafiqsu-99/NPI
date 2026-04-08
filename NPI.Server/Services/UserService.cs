@@ -102,6 +102,13 @@ namespace NPI.Server.Services
                         return (false, "Role not found", 0);
                 }
 
+                if (!dto.role_id.HasValue)
+                {
+                    var defaultRole = await _context.Roles
+                        .FirstOrDefaultAsync(r => r.role_name == "User" || r.role_name == "Member");
+                    dto.role_id = defaultRole?.role_id;
+                }
+
                 // Hash password (use BCrypt or similar in production)
                 var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.password);
 

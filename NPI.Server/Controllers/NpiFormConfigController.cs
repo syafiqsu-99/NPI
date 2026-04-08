@@ -5,16 +5,9 @@ using NPI.Server.Services;
 
 namespace NPI.Server.Controllers
 {
-    /// <summary>
-    /// Provides:
-    ///   GET  /api/NpiFormConfig            — public config (active only)
-    ///   CRUD /api/NpiFormConfig/categories — Admin/NPI Team
-    ///   CRUD /api/NpiFormConfig/sections   — Admin/NPI Team  ← NEW full CRUD
-    ///   CRUD /api/NpiFormConfig/fields     — Admin/NPI Team
-    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
+    [Authorize(Roles = "Admin,Manager")]
     public class NpiFormConfigController : ControllerBase
     {
         private readonly INpiFormConfigService _service;
@@ -24,8 +17,6 @@ namespace NPI.Server.Controllers
             _service = service;
         }
 
-        // ── Public config (all authenticated users) ───────────────────────────
-
         [HttpGet]
         public async Task<IActionResult> GetFormConfig()
         {
@@ -33,12 +24,7 @@ namespace NPI.Server.Controllers
             return Ok(new { success = true, data = config });
         }
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  CATEGORIES
-        // ══════════════════════════════════════════════════════════════════════
-
         [HttpGet("categories")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> GetAllCategories()
         {
             var cats = await _service.GetAllCategoriesAsync();
@@ -46,7 +32,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost("categories")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> CreateCategory([FromBody] UpsertNpiCategoryDto dto)
         {
             var (success, message, id) = await _service.CreateCategoryAsync(dto);
@@ -56,7 +41,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPut("categories/{id}")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> UpdateCategory(int id, [FromBody] UpsertNpiCategoryDto dto)
         {
             var (success, message) = await _service.UpdateCategoryAsync(id, dto);
@@ -66,7 +50,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpDelete("categories/{id}")]
-        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteCategory(int id)
         {
             var (success, message) = await _service.DeleteCategoryAsync(id);
@@ -75,12 +58,7 @@ namespace NPI.Server.Controllers
                 : BadRequest(new { success = false, message });
         }
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  SECTIONS  — full CRUD (previously read-only)
-        // ══════════════════════════════════════════════════════════════════════
-
         [HttpGet("sections")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> GetAllSections()
         {
             var sections = await _service.GetAllSectionsAsync();
@@ -88,7 +66,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpGet("sections/{id}")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> GetSectionById(int id)
         {
             var section = await _service.GetSectionByIdAsync(id);
@@ -98,7 +75,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost("sections")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> CreateSection([FromBody] CreateNpiFormSectionDto dto)
         {
             var (success, message, id) = await _service.CreateSectionAsync(dto);
@@ -108,7 +84,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPut("sections/{id}")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> UpdateSection(int id, [FromBody] UpdateNpiFormSectionDto dto)
         {
             var (success, message) = await _service.UpdateSectionAsync(id, dto);
@@ -118,7 +93,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpDelete("sections/{id}")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> DeleteSection(int id)
         {
             var (success, message) = await _service.DeleteSectionAsync(id);
@@ -128,7 +102,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPatch("sections/{id}/toggle-status")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> ToggleSectionStatus(int id)
         {
             var (success, message) = await _service.ToggleSectionStatusAsync(id);
@@ -138,7 +111,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPatch("sections/reorder")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> ReorderSections([FromBody] List<int> orderedIds)
         {
             if (orderedIds is null || orderedIds.Count == 0)
@@ -150,12 +122,7 @@ namespace NPI.Server.Controllers
                 : BadRequest(new { success = false, message });
         }
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  FIELDS
-        // ══════════════════════════════════════════════════════════════════════
-
         [HttpGet("fields")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> GetAllFields()
         {
             var fields = await _service.GetAllFieldsAsync();
@@ -163,7 +130,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost("fields")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> CreateField([FromBody] UpsertNpiFormFieldDto dto)
         {
             var (success, message, id) = await _service.CreateFieldAsync(dto);
@@ -173,7 +139,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPut("fields/{id}")]
-        [Authorize(Roles = "Admin,NPI Team")]
         public async Task<IActionResult> UpdateField(int id, [FromBody] UpsertNpiFormFieldDto dto)
         {
             var (success, message) = await _service.UpdateFieldAsync(id, dto);
@@ -183,7 +148,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpDelete("fields/{id}")]
-        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteField(int id)
         {
             var (success, message) = await _service.DeleteFieldAsync(id);
