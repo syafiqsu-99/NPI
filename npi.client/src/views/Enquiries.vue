@@ -224,13 +224,21 @@
   const userRole = computed(() => authStore.user?.role)
 
   function canManageProject(enquiry) {
-    const isAdmin = userRole.value === 'Manager' || userRole.value === 'Admin'
-    const canStart = enquiry.status === 'Submitted' || enquiry.status === 'Approved' || enquiry.status === 'Started'
-    return isAdmin && canStart
+    const validStatuses = ['Submitted', 'Approved', 'Started', 'In Progress']
+    if (!validStatuses.includes(enquiry.status)) return false
+
+    if (['Admin', 'Manager'].includes(userRole.value)) return true
+
+    if (enquiry.proj_id) {
+      return authStore.hasProjectRole(enquiry.proj_id, 'Team Lead')
+    }
+
+    return false
   }
 
   function canDelete(enquiry) {
-    if (userRole.value === 'Admin' || userRole.value === 'Manager') return true
+    if (userRole.value === 'Admin') return true
+    if (userRole.value === 'Manager') return true
     return enquiry.status === 'Draft'
   }
 
@@ -304,7 +312,16 @@
     deleteTarget.value = null
   }
 
-  onMounted(() => { enquiryStore.fetchEnquiries() })
+  onMounted(async () => {
+    await enquiryStore.fetchEnquiries()
+
+    const projIds = [...new Set(
+      enquiryStore.enquiries
+        .filter(e => e.proj_id)
+        .map(e => e.proj_id)
+    )]
+    await Promise.all(projIds.map(id => authStore.fetchProjectRole(id)))
+  })
 </script>
 
 <style scoped>

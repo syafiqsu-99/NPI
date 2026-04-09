@@ -49,7 +49,7 @@
                   <v-card-text>
                     <v-progress-linear v-if="projectStore.loading" indeterminate color="primary" />
 
-                    <v-data-table v-else
+                    <v-data-table-virtual v-else
                                   :items="filteredProjects"
                                   :headers="headers"
                                   :search="search"
@@ -167,7 +167,7 @@
                           No projects found. Start a project from an approved enquiry.
                         </v-alert>
                       </template>
-                    </v-data-table>
+                    </v-data-table-virtual>
                   </v-card-text>
                 </v-card>
               </v-window-item>
@@ -505,14 +505,8 @@
   })
 
   function canEditProject(project) {
-    const role = userRole.value;
-    // 1. Admin and Manager can edit ANY project
-    if (['Admin', 'Manager'].includes(role)) return true;
-  
-    // 2. Team Lead is allowed to click the dropdown. 
-    if (role === 'Team Lead') return true; 
-  
-    return false;
+    if (['Admin', 'Manager'].includes(userRole.value)) return true
+    return authStore.hasProjectRole(project.proj_id, 'Team Lead')
   }
 
   // --- Add these API Update Methods ---
@@ -643,13 +637,13 @@
   }
 
   function canManageProject(project) {
-    const isNpiOrAdmin = userRole.value === 'NPI Team' || userRole.value === 'Admin'
-    const canManage = project.status === 'Planning' || project.status === 'In Progress'
-    return isNpiOrAdmin && canManage
+    if (['Admin', 'Manager'].includes(userRole.value)) return true
+    if (!['Planning', 'In Progress'].includes(project.status)) return false
+    return authStore.hasProjectRole(project.proj_id, 'Team Lead')
   }
 
-  function canDeleteProject(project) {
-    return userRole.value === 'Admin'
+  function canDeleteProject() {
+    return ['Admin', 'Manager'].includes(userRole.value)
   }
 
   function getStatusColor(status) {
@@ -718,15 +712,15 @@
       snackbarMessage.value = result.message || 'Failed to load projects'
       snackbarColor.value = 'error'
       snackbar.value = true
+      return
     }
+    await Promise.all(
+      projectStore.projects.map(p => authStore.fetchProjectRole(p.proj_id))
+    )
   })
 </script>
 
 <style scoped>
-  .v-data-table {
-    background-color: transparent;
-  }
-
   .stage-pipeline {
     flex-wrap: nowrap;
   }

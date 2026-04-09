@@ -1,103 +1,83 @@
 <template>
-  <v-container fluid class="settings-root pa-0 d-flex flex-column">
-    <v-card class="flex-grow-1 d-flex flex-column overflow-hidden" elevation="2">
-      <v-card-title class="bg-primary text-white d-flex align-center pa-4 flex-shrink-0">
+  <div class="settings-root d-flex flex-column">
+    <v-card elevation="2" class="flex-shrink-0">
+      <v-card-title class="bg-primary text-white d-flex align-center pa-3">
         <v-icon class="mr-2">mdi-cog</v-icon>
         Settings
       </v-card-title>
 
-      <v-tabs v-model="activeTab" bg-color="primary" class="flex-shrink-0">
-        <!-- User: Admin + Manager -->
-        <v-tab v-if="canManageRoles" value="users">
-          <v-icon start>mdi-account-multiple</v-icon>
-          User Management
+      <v-tabs v-model="activeTab" bg-color="grey-lighten-4" color="primary" density="compact">
+        <v-tab v-if="canManageUsers" value="users">
+          <v-icon start size="18">mdi-account-multiple</v-icon>
+          Users
         </v-tab>
-
-        <!-- System roles: Admin + Manager -->
         <v-tab v-if="canManageRoles" value="systemRoles">
-          <v-icon start>mdi-shield-account</v-icon>
+          <v-icon start size="18">mdi-shield-account</v-icon>
           System Roles
-          <v-chip size="x-small" color="error" variant="outlined" class="ml-2">System</v-chip>
         </v-tab>
-
-        <!-- Project roles: Admin + Manager -->
         <v-tab v-if="canManageRoles" value="projectRoles">
-          <v-icon start>mdi-folder-account</v-icon>
+          <v-icon start size="18">mdi-folder-account</v-icon>
           Project Roles
-          <v-chip size="x-small" color="primary" variant="outlined" class="ml-2">Per-Project</v-chip>
         </v-tab>
-
-        <!-- Departments: Admin + Manager -->
         <v-tab v-if="canManageDepts" value="departments">
-          <v-icon start>mdi-domain</v-icon>
+          <v-icon start size="18">mdi-domain</v-icon>
           Departments
         </v-tab>
-
-        <!-- System settings: Admin only -->
         <v-tab v-if="isAdmin" value="system">
-          <v-icon start>mdi-cog-outline</v-icon>
-          System Settings
+          <v-icon start size="18">mdi-cog-outline</v-icon>
+          System
         </v-tab>
-
-        <!-- NPI Form Config: Admin + Manager -->
         <v-tab v-if="canManageFormConfig" value="npiConfig">
-          <v-icon start>mdi-form-select</v-icon>
-          NPI Form Config
+          <v-icon start size="18">mdi-form-select</v-icon>
+          NPI Form
         </v-tab>
       </v-tabs>
-
-      <v-window v-model="activeTab" class="flex-grow-1 overflow-hidden d-flex flex-column">
-
-        <v-window-item value="users" class="flex-grow-1 overflow-hidden">
-          <UserManagement :is-admin="isAdmin" />
-        </v-window-item>
-
-        <!-- System Roles: controls page/navigation access -->
-        <v-window-item v-if="canManageRoles" value="systemRoles" class="flex-grow-1 overflow-hidden">
-          <div class="pa-4">
-            <v-alert type="info" variant="tonal" class="mb-4">
-              <strong>System Roles</strong> control what pages and modules a user can access across
-              the entire application.
-              <ul class="mt-2 ml-4">
-                <li><strong>Admin</strong> — Full access including Settings, delete, and all modules.</li>
-                <li><strong>Manager</strong> — All modules. Settings visible but cannot create/delete Admins.</li>
-                <li><strong>Member</strong> — No access to Settings. Read-only on sensitive data.</li>
-              </ul>
-            </v-alert>
-          </div>
-          <RoleManagement />
-        </v-window-item>
-
-        <!-- Project Roles: controls per-project permissions -->
-        <v-window-item v-if="canManageRoles" value="projectRoles" class="flex-grow-1 overflow-hidden">
-          <div class="pa-4">
-            <v-alert type="info" variant="tonal" class="mb-4">
-              <strong>Project Roles</strong> control what a user can do within a specific project,
-              independent of their system-level role.
-              <ul class="mt-2 ml-4">
-                <li><strong>Team Lead</strong> — Can update project status, priority, task statuses, and upload files.</li>
-                <li><strong>Member</strong> — Can update task statuses and upload files for tasks in their department.</li>
-                <li><strong>Viewer</strong> — Read-only access to all project data and Gantt chart.</li>
-              </ul>
-            </v-alert>
-            <ProjectRoleManagement />
-          </div>
-        </v-window-item>
-
-        <v-window-item v-if="canManageDepts" value="departments" class="flex-grow-1 overflow-hidden">
-          <DepartmentManagement />
-        </v-window-item>
-
-        <v-window-item v-if="isAdmin" value="system" class="flex-grow-1 overflow-hidden">
-          <SystemSettings />
-        </v-window-item>
-
-        <v-window-item v-if="canManageFormConfig" value="npiConfig" class="flex-grow-1 overflow-hidden">
-          <NpiFormConfig />
-        </v-window-item>
-      </v-window>
     </v-card>
-  </v-container>
+
+    <v-window v-model="activeTab" class="settings-content flex-grow-1 overflow-hidden">
+
+      <v-window-item value="users" class="fill-height">
+        <UserManagement :is-admin="isAdmin" />
+      </v-window-item>
+
+      <v-window-item v-if="canManageRoles" value="systemRoles" class="fill-height overflow-y-auto">
+        <div class="pa-4">
+          <v-alert type="info" variant="tonal" density="compact" class="mb-4">
+            <strong>System Roles</strong> control page and module access.
+            <strong>Admin</strong> = full access.
+            <strong>Manager</strong> = all modules, restricted user management.
+            <strong>Member</strong> = no Settings access.
+          </v-alert>
+          <RoleManagement />
+        </div>
+      </v-window-item>
+
+      <v-window-item v-if="canManageRoles" value="projectRoles" class="fill-height overflow-y-auto">
+        <div class="pa-4">
+          <v-alert type="info" variant="tonal" density="compact" class="mb-4">
+            <strong>Project Roles</strong> control per-project permissions.
+            <strong>Team Lead</strong> = manage tasks, status, files.
+            <strong>Member</strong> = update own dept tasks.
+            <strong>Viewer</strong> = read-only.
+          </v-alert>
+          <ProjectRoleManagement />
+        </div>
+      </v-window-item>
+
+      <v-window-item v-if="canManageDepts" value="departments" class="fill-height">
+        <DepartmentManagement />
+      </v-window-item>
+
+      <v-window-item v-if="isAdmin" value="system" class="fill-height overflow-y-auto">
+        <SystemSettings />
+      </v-window-item>
+
+      <v-window-item v-if="canManageFormConfig" value="npiConfig" class="fill-height overflow-y-auto">
+        <NpiFormConfig />
+      </v-window-item>
+
+    </v-window>
+  </div>
 </template>
 
 <script setup>
@@ -114,25 +94,34 @@
   const activeTab = ref('users')
 
   const isAdmin = computed(() => authStore.isAdmin)
-  const isManager = computed(() => authStore.isManager)
-
-  const canManageRoles = computed(() => isAdmin.value || isManager.value)
-  const canManageDepts = computed(() => isAdmin.value || isManager.value)
-  const canManageFormConfig = computed(() => isAdmin.value || isManager.value)
+  const canManageUsers = computed(() => authStore.isAdmin || authStore.isManager)
+  const canManageRoles = computed(() => authStore.isAdmin || authStore.isManager)
+  const canManageDepts = computed(() => authStore.isAdmin || authStore.isManager)
+  const canManageFormConfig = computed(() => authStore.isAdmin || authStore.isManager)
 </script>
 
 <style scoped>
   .settings-root {
-    height: 100vh !important;
-    overflow: hidden !important;
+    height: 100vh;
+    overflow: hidden;
     background-color: #f5f6f8;
-    padding: 16px;
   }
 
-  .v-window,
+  .settings-content {
+    min-height: 0;
+  }
+
   :deep(.v-window__container),
   :deep(.v-window-item) {
     height: 100% !important;
-    min-height: 0 !important;
+  }
+
+  .fill-height {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .overflow-y-auto {
+    overflow-y: auto !important;
   }
 </style>

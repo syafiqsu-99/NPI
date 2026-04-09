@@ -9,7 +9,8 @@ namespace NPI.Server.Services
     {
         private readonly ApplicationDbContext _context;
 
-        private static readonly List<string> RoleHierarchy = ["Team Lead", "Member", "Viewer"];
+        private static readonly List<string> RoleHierarchy =
+            ["Team Lead", "Member", "Viewer"];
 
         public ProjectRoleService(ApplicationDbContext context)
         {
@@ -18,23 +19,32 @@ namespace NPI.Server.Services
 
         public async Task<string?> GetProjectRoleAsync(int projectId, int userId)
         {
-            var record = await _context.ProjectRoles
+            // Check ProjectRoles table first (explicit assignment)
+            var projectRole = await _context.ProjectRoles
                 .AsNoTracking()
-                .FirstOrDefaultAsync(pr => pr.proj_id == projectId
-                                        && pr.user_id == userId
-                                        && pr.is_active);
-            return record?.role_name;
+                .Where(pr => pr.proj_id == projectId && pr.user_id == userId && pr.is_active)
+                .Select(pr => pr.role_name)
+                .FirstOrDefaultAsync();
+
+            if (projectRole != null)
+                return projectRole;
+
+            var isTeamMember = await _context.ProjectTeams
+                .AnyAsync(pt => pt.proj_id == projectId && pt.user_id == userId);
+
+            return isTeamMember ? "Member" : null;
         }
 
-        public async Task<bool> HasProjectRoleAsync(int projectId, int userId, string minimumRole)
+        public async Task<bool> HasProjectRoleAsync(
+            int projectId, int userId, string minimumRole)
         {
-            // Check system-level bypass first
             var systemRole = await _context.Users
                 .AsNoTracking()
                 .Where(u => u.user_id == userId)
                 .Select(u => u.Role!.role_name)
                 .FirstOrDefaultAsync();
 
+            // System Admins and Managers always pass
             if (systemRole is "Admin" or "Manager")
                 return true;
 
@@ -45,8 +55,6 @@ namespace NPI.Server.Services
             var userIdx = RoleHierarchy.IndexOf(projectRole);
             var minIdx = RoleHierarchy.IndexOf(minimumRole);
 
-            // Both must exist in hierarchy; user rank must be <= minimum rank index
-            // (lower index = higher privilege)
             return userIdx >= 0 && minIdx >= 0 && userIdx <= minIdx;
         }
 
@@ -54,7 +62,8 @@ namespace NPI.Server.Services
             int projectId, int userId, string roleName, int assignedBy)
         {
             if (!RoleHierarchy.Contains(roleName))
-                return (false, $"Invalid project role '{roleName}'. Valid: {string.Join(", ", RoleHierarchy)}");
+                return (false,
+                    $"Invalid project role '{roleName}'. Valid: {string.Join(", ", RoleHierarchy)}");
 
             var existing = await _context.ProjectRoles
                 .FirstOrDefaultAsync(pr => pr.proj_id == projectId && pr.user_id == userId);

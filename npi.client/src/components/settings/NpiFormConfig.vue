@@ -33,7 +33,7 @@
         </div>
 
         <v-card>
-          <v-data-table :headers="catHeaders"
+          <v-data-table-virtual :headers="catHeaders"
                         :items="configStore.categories"
                         :loading="configStore.loading"
                         density="comfortable">
@@ -49,7 +49,7 @@
               <v-btn icon="mdi-delete" size="small" variant="text" color="error"
                      @click="confirmDeleteCat(item)" />
             </template>
-          </v-data-table>
+          </v-data-table-virtual>
         </v-card>
       </v-window-item>
 
@@ -71,7 +71,7 @@
         </div>
 
         <v-card>
-          <v-data-table :headers="sectionHeaders"
+          <v-data-table-virtual :headers="sectionHeaders"
                         :items="configStore.sections"
                         :loading="configStore.loading"
                         density="comfortable"
@@ -129,7 +129,7 @@
             <template #expanded-row="{ item }">
               <tr>
                 <td :colspan="sectionHeaders.length" class="pa-0">
-                  <v-table density="compact" class="bg-grey-lighten-5">
+                  <v-data-table-virtual density="compact" class="bg-grey-lighten-5">
                     <thead>
                       <tr>
                         <th class="text-caption">Order</th>
@@ -181,11 +181,11 @@
                         </td>
                       </tr>
                     </tbody>
-                  </v-table>
+                  </v-data-table-virtual>
                 </td>
               </tr>
             </template>
-          </v-data-table>
+          </v-data-table-virtual>
         </v-card>
 
         <!-- Reorder button -->
@@ -230,7 +230,7 @@
             {{ section.section_label }}
           </v-card-title>
 
-          <v-data-table :headers="fieldHeaders"
+          <v-data-table-virtual :headers="fieldHeaders"
                         :items="section.fields || []"
                         density="compact"
                         hide-default-footer
@@ -254,7 +254,7 @@
               <v-btn icon="mdi-delete" size="small" variant="text" color="error"
                      @click="confirmDeleteField(item)" />
             </template>
-          </v-data-table>
+          </v-data-table-virtual>
         </v-card>
       </v-window-item>
     </v-window>

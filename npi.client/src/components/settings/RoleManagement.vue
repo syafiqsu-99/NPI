@@ -15,12 +15,12 @@
 
         <!-- Roles Table -->
         <v-card>
-          <v-data-table :headers="headers"
-                        :items="roles"
-                        :loading="loading"
-                        class="elevation-1"
-                        density="comfortable"
-                        :items-per-page="10">
+          <v-data-table-virtual :headers="headers"
+                                :items="roles"
+                                :loading="loading"
+                                class="elevation-1"
+                                density="comfortable"
+                                :items-per-page="10">
             <!-- Role Name Column -->
             <template #item.role_name="{ item }">
               <div class="d-flex align-center">
@@ -97,7 +97,7 @@
                 </v-list>
               </v-menu>
             </template>
-          </v-data-table>
+          </v-data-table-virtual>
         </v-card>
       </v-col>
     </v-row>

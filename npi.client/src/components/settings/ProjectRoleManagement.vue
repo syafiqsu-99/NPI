@@ -21,7 +21,7 @@
             <v-list-item v-for="proj in filteredProjects"
                          :key="proj.proj_id"
                          :active="selectedProjId === proj.proj_id"
-                         active-color="primary"
+                         color="primary"
                          @click="selectProject(proj)">
               <v-list-item-title>{{ proj.proj_name }}</v-list-item-title>
               <v-list-item-subtitle>{{ proj.proj_no }}</v-list-item-subtitle>

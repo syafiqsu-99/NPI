@@ -1,73 +1,79 @@
 <template>
-  <div class="user-mgmt-root d-flex flex-column pa-4" style="height:100%; overflow:hidden;">
-    <!-- Header -->
-    <div class="d-flex justify-space-between align-center mb-3 flex-shrink-0">
-      <div>
-        <h2 class="text-h5">User Management</h2>
-        <p class="text-caption text-grey">Manage system users and permissions</p>
-      </div>
-      <v-btn color="primary" prepend-icon="mdi-account-plus" @click="openCreateDialog">
-        Add User
-      </v-btn>
+  <div class="user-mgmt-root d-flex flex-column">
+
+    <!-- Filters strip (fixed) -->
+    <div class="pa-3 flex-shrink-0 border-b">
+      <v-row dense align="center">
+        <v-col cols="12" sm="4">
+          <v-text-field v-model="search"
+                        prepend-inner-icon="mdi-magnify"
+                        label="Search users"
+                        variant="outlined" density="compact"
+                        clearable hide-details />
+        </v-col>
+        <v-col cols="6" sm="3">
+          <v-select v-model="filterDept"
+                    :items="departments"
+                    item-title="dept_name" item-value="dept_id"
+                    label="Department" variant="outlined"
+                    density="compact" clearable hide-details />
+        </v-col>
+        <v-col v-if="isAdmin" cols="6" sm="2">
+          <v-select v-model="filterRole"
+                    :items="roles"
+                    item-title="role_name" item-value="role_id"
+                    label="Role" variant="outlined"
+                    density="compact" clearable hide-details />
+        </v-col>
+        <v-col cols="6" sm="2">
+          <v-select v-model="filterStatus"
+                    :items="['Active', 'Inactive']"
+                    label="Status" variant="outlined"
+                    density="compact" clearable hide-details />
+        </v-col>
+        <v-col cols="auto" class="ml-auto">
+          <v-btn color="primary" prepend-icon="mdi-account-plus"
+                 size="small" @click="openCreateDialog">
+            Add User
+          </v-btn>
+        </v-col>
+      </v-row>
     </div>
 
-    <!-- Filters -->
-    <v-card class="mb-3 flex-shrink-0" variant="outlined">
-      <v-card-text class="pa-3">
-        <v-row dense>
-          <v-col cols="12" md="4">
-            <v-text-field v-model="search" prepend-inner-icon="mdi-magnify"
-                          label="Search users" variant="outlined" density="compact"
-                          clearable hide-details />
-          </v-col>
-          <v-col cols="6" md="3">
-            <v-select v-model="filterDept" :items="departments" item-title="dept_name"
-                      item-value="dept_id" label="Department" variant="outlined"
-                      density="compact" clearable hide-details />
-          </v-col>
-          <v-col v-if="isAdmin" cols="6" md="3">
-            <v-select v-model="filterRole" :items="roles" item-title="role_name"
-                      item-value="role_id" label="Role" variant="outlined"
-                      density="compact" clearable hide-details />
-          </v-col>
-          <v-col cols="6" md="2">
-            <v-select v-model="filterStatus" :items="['Active', 'Inactive']"
-                      label="Status" variant="outlined" density="compact"
-                      clearable hide-details />
-          </v-col>
-        </v-row>
-      </v-card-text>
-    </v-card>
-
-    <!-- Virtual table fills remaining height -->
-    <v-card class="flex-grow-1 d-flex flex-column overflow-hidden" variant="outlined">
+    <!-- Virtual table (fills remaining height) -->
+    <div class="flex-grow-1" style="min-height:0; overflow:hidden;">
       <v-data-table-virtual :headers="visibleHeaders"
                             :items="filteredUsers"
                             :search="search"
                             :loading="loading"
                             density="comfortable"
-                            height="100%"
                             fixed-header
-                            class="user-table flex-grow-1">
+                            height="100%"
+                            class="user-table">
 
         <template #item.username="{ item }">
-          <div class="d-flex align-center py-1">
-            <v-avatar color="primary" size="34" class="mr-3">
-              <span class="text-white text-caption">{{ getInitials(item.full_name || item.username) }}</span>
+          <div class="d-flex align-center py-1 ga-3">
+            <v-avatar color="primary" size="32">
+              <span class="text-white text-caption font-weight-bold">
+                {{ getInitials(item.full_name || item.username) }}
+              </span>
             </v-avatar>
             <div>
-              <div class="font-weight-medium">{{ item.username }}</div>
+              <div class="font-weight-medium text-body-2">{{ item.username }}</div>
               <div class="text-caption text-grey">{{ item.full_name }}</div>
             </div>
           </div>
         </template>
 
         <template #item.dept_name="{ item }">
-          <v-chip size="small" variant="tonal" color="blue">{{ item.dept_name || 'None' }}</v-chip>
+          <v-chip size="small" variant="tonal" color="primary">
+            {{ item.dept_name || 'None' }}
+          </v-chip>
         </template>
 
         <template #item.role_name="{ item }">
-          <v-chip v-if="isAdmin" size="small" variant="tonal" :color="getRoleColor(item.role_name)">
+          <v-chip v-if="isAdmin" size="small" variant="tonal"
+                  :color="getRoleColor(item.role_name)">
             <v-icon start size="small">{{ getRoleIcon(item.role_name) }}</v-icon>
             {{ item.role_name || 'None' }}
           </v-chip>
@@ -75,7 +81,6 @@
 
         <template #item.is_active="{ item }">
           <v-chip size="small" :color="item.is_active ? 'success' : 'grey'" variant="flat">
-            <v-icon start size="small">{{ item.is_active ? 'mdi-check-circle' : 'mdi-close-circle' }}</v-icon>
             {{ item.is_active ? 'Active' : 'Inactive' }}
           </v-chip>
         </template>
@@ -85,89 +90,101 @@
         </template>
 
         <template #item.actions="{ item }">
-          <v-menu>
+          <v-menu location="bottom end">
             <template #activator="{ props }">
               <v-btn icon="mdi-dots-vertical" variant="text" size="small" v-bind="props" />
             </template>
-            <v-list density="compact">
+            <v-list density="compact" min-width="160">
               <v-list-item @click="openEditDialog(item)">
                 <template #prepend>
-                  <v-icon>mdi-pencil</v-icon>
+                  <v-icon size="18">mdi-pencil</v-icon>
                 </template>
                 <v-list-item-title>Edit</v-list-item-title>
               </v-list-item>
               <v-list-item @click="openResetPasswordDialog(item)">
                 <template #prepend>
-                  <v-icon>mdi-lock-reset</v-icon>
+                  <v-icon size="18">mdi-lock-reset</v-icon>
                 </template>
                 <v-list-item-title>Reset Password</v-list-item-title>
               </v-list-item>
               <v-list-item @click="toggleUserStatus(item)">
                 <template #prepend>
-                  <v-icon>{{ item.is_active ? 'mdi-account-off' : 'mdi-account-check' }}</v-icon>
+                  <v-icon size="18">
+                    {{ item.is_active ? 'mdi-account-off' : 'mdi-account-check' }}
+                  </v-icon>
                 </template>
-                <v-list-item-title>{{ item.is_active ? 'Deactivate' : 'Activate' }}</v-list-item-title>
+                <v-list-item-title>
+                  {{ item.is_active ? 'Deactivate' : 'Activate' }}
+                </v-list-item-title>
               </v-list-item>
               <v-divider />
-              <v-list-item v-if="isAdmin" @click="openDeleteDialog(item)"
-                           :disabled="item.user_id === currentUserId">
+              <v-list-item v-if="isAdmin"
+                           :disabled="item.user_id === currentUserId"
+                           @click="openDeleteDialog(item)">
                 <template #prepend>
-                  <v-icon color="error">mdi-delete</v-icon>
+                  <v-icon size="18" color="error">mdi-delete</v-icon>
                 </template>
                 <v-list-item-title class="text-error">Delete</v-list-item-title>
               </v-list-item>
             </v-list>
           </v-menu>
         </template>
-      </v-data-table-virtual>
-    </v-card>
 
-    <!-- Create/Edit Dialog -->
-    <v-dialog v-model="userDialog" max-width="700" persistent>
+      </v-data-table-virtual>
+    </div>
+
+    <!-- Create / Edit dialog -->
+    <v-dialog v-model="userDialog" max-width="640" persistent>
       <v-card>
-        <v-card-title class="bg-primary text-white">
-          {{ editMode ? 'Edit User' : 'Create New User' }}
+        <v-card-title class="bg-primary text-white text-subtitle-1">
+          {{ editMode ? 'Edit User' : 'Create User' }}
         </v-card-title>
         <v-card-text class="pt-4">
           <v-form ref="userForm" v-model="formValid">
-            <v-row>
+            <v-row dense>
               <v-col cols="12" md="6">
                 <v-text-field v-model="userFormData.username" label="Username *"
                               prepend-inner-icon="mdi-account" variant="outlined"
-                              :rules="[rules.required, rules.username]" :readonly="editMode" />
+                              density="comfortable"
+                              :rules="[rules.required, rules.username]"
+                              :readonly="editMode" />
               </v-col>
               <v-col cols="12" md="6">
                 <v-text-field v-model="userFormData.full_name" label="Full Name"
-                              prepend-inner-icon="mdi-account-box" variant="outlined" />
+                              prepend-inner-icon="mdi-account-box" variant="outlined"
+                              density="comfortable" />
               </v-col>
               <v-col cols="12" md="6">
                 <v-text-field v-model="userFormData.email" label="Email"
                               prepend-inner-icon="mdi-email" variant="outlined"
-                              type="email" :rules="[rules.email]" />
+                              density="comfortable" type="email"
+                              :rules="[rules.email]" />
               </v-col>
               <v-col v-if="!editMode" cols="12" md="6">
                 <v-text-field v-model="userFormData.password" label="Password *"
                               prepend-inner-icon="mdi-lock" variant="outlined"
+                              density="comfortable"
                               :type="showPassword ? 'text' : 'password'"
                               :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'"
                               @click:append-inner="showPassword = !showPassword"
                               :rules="[rules.required, rules.password]" />
               </v-col>
               <v-col cols="12" md="6">
-                <v-select v-model="userFormData.dept_id" :items="departments"
-                          item-title="dept_name" item-value="dept_id"
+                <v-select v-model="userFormData.dept_id"
+                          :items="departments" item-title="dept_name" item-value="dept_id"
                           label="Department" prepend-inner-icon="mdi-domain"
-                          variant="outlined" clearable />
+                          variant="outlined" density="comfortable" clearable />
               </v-col>
-              <!-- Role selector only shown to Admins -->
               <v-col v-if="isAdmin" cols="12" md="6">
                 <v-select v-model="userFormData.role_id"
-                          :items="rolesForAssignment" item-title="role_name" item-value="role_id"
-                          label="Role" prepend-inner-icon="mdi-shield-account"
-                          variant="outlined" clearable />
+                          :items="rolesForAssignment"
+                          item-title="role_name" item-value="role_id"
+                          label="System Role" prepend-inner-icon="mdi-shield-account"
+                          variant="outlined" density="comfortable" clearable />
               </v-col>
               <v-col cols="12">
-                <v-switch v-model="userFormData.is_active" label="Active" color="success" hide-details />
+                <v-switch v-model="userFormData.is_active" label="Active"
+                          color="success" hide-details density="compact" />
               </v-col>
             </v-row>
           </v-form>
@@ -175,33 +192,32 @@
         <v-card-actions class="pa-4">
           <v-spacer />
           <v-btn variant="text" @click="closeUserDialog">Cancel</v-btn>
-          <v-btn color="primary" variant="elevated" :disabled="!formValid"
-                 :loading="saving" @click="saveUser">
+          <v-btn color="primary" variant="elevated"
+                 :disabled="!formValid" :loading="saving"
+                 @click="saveUser">
             {{ editMode ? 'Update' : 'Create' }}
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- Reset Password Dialog -->
-    <v-dialog v-model="resetPasswordDialog" max-width="500" persistent>
+    <!-- Reset Password dialog -->
+    <v-dialog v-model="resetPasswordDialog" max-width="480" persistent>
       <v-card>
-        <v-card-title class="bg-warning text-white">
-          <v-icon class="mr-2">mdi-lock-reset</v-icon>Reset Password
-        </v-card-title>
+        <v-card-title class="bg-warning text-white text-subtitle-1">Reset Password</v-card-title>
         <v-card-text class="pt-4">
-          <v-alert type="info" variant="tonal" class="mb-4">
-            Reset password for: <strong>{{ selectedUser?.username }}</strong>
+          <v-alert type="info" variant="tonal" density="compact" class="mb-4">
+            Resetting password for: <strong>{{ selectedUser?.username }}</strong>
           </v-alert>
           <v-form ref="resetPasswordForm" v-model="resetPasswordValid">
-            <v-text-field v-model="newPassword" label="New Password"
-                          prepend-inner-icon="mdi-lock" variant="outlined"
+            <v-text-field v-model="newPassword" label="New Password *"
+                          variant="outlined" density="comfortable"
                           :type="showResetPassword ? 'text' : 'password'"
                           :append-inner-icon="showResetPassword ? 'mdi-eye' : 'mdi-eye-off'"
                           @click:append-inner="showResetPassword = !showResetPassword"
                           :rules="[rules.required, rules.password]" class="mb-3" />
-            <v-text-field v-model="confirmPassword" label="Confirm Password"
-                          prepend-inner-icon="mdi-lock-check" variant="outlined"
+            <v-text-field v-model="confirmPassword" label="Confirm Password *"
+                          variant="outlined" density="comfortable"
                           :type="showResetPassword ? 'text' : 'password'"
                           :rules="[rules.required, rules.passwordMatch]" />
           </v-form>
@@ -209,34 +225,37 @@
         <v-card-actions class="pa-4">
           <v-spacer />
           <v-btn variant="text" @click="resetPasswordDialog = false">Cancel</v-btn>
-          <v-btn color="warning" variant="elevated" :disabled="!resetPasswordValid"
-                 :loading="saving" @click="resetPassword">
-            Reset Password
+          <v-btn color="warning" variant="elevated"
+                 :disabled="!resetPasswordValid" :loading="saving"
+                 @click="resetPassword">
+            Reset
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- Delete Dialog -->
-    <v-dialog v-model="deleteDialog" max-width="500">
+    <!-- Delete confirm dialog -->
+    <v-dialog v-model="deleteDialog" max-width="440">
       <v-card>
-        <v-card-title class="bg-error text-white">
+        <v-card-title class="bg-error text-white text-subtitle-1">
           <v-icon class="mr-2">mdi-alert</v-icon>Confirm Delete
         </v-card-title>
         <v-card-text class="pt-4">
-          <v-alert type="error" variant="tonal" class="mb-4">
+          <v-alert type="error" variant="tonal" density="compact">
             Delete user <strong>{{ selectedUser?.username }}</strong>? This cannot be undone.
           </v-alert>
         </v-card-text>
         <v-card-actions class="pa-4">
           <v-spacer />
           <v-btn variant="text" @click="deleteDialog = false">Cancel</v-btn>
-          <v-btn color="error" variant="elevated" :loading="saving" @click="deleteUser">Delete</v-btn>
+          <v-btn color="error" variant="elevated" :loading="saving" @click="deleteUser">
+            Delete
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="snackbar" :color="snackbarColor" :timeout="3000">
+    <v-snackbar v-model="snackbar" :color="snackbarColor" timeout="3000">
       {{ snackbarMessage }}
       <template #actions>
         <v-btn variant="text" @click="snackbar = false">Close</v-btn>
@@ -250,7 +269,7 @@
   import { useSettingsStore } from '@/stores/setting.js'
   import { useAuthStore } from '@/stores/auth.js'
 
-  const props = defineProps({ isAdmin: Boolean })
+  defineProps({ isAdmin: Boolean })
 
   const settingsStore = useSettingsStore()
   const authStore = useAuthStore()
@@ -287,36 +306,33 @@
   const departments = computed(() => settingsStore.departments)
   const roles = computed(() => settingsStore.roles)
 
-  // Managers cannot assign Admin role
   const rolesForAssignment = computed(() =>
     isAdmin.value ? roles.value : roles.value.filter(r => r.role_name !== 'Admin')
   )
 
-  // Conditionally show Role column only for Admins
   const visibleHeaders = computed(() => {
-    const base = [
+    const h = [
       { title: 'User', value: 'username', width: '28%' },
       { title: 'Email', value: 'email', width: '20%' },
-      { title: 'Department', value: 'dept_name', width: '15%' },
+      { title: 'Department', value: 'dept_name', width: '14%' },
       { title: 'Status', value: 'is_active', width: '10%' },
       { title: 'Created', value: 'created_at', width: '12%' },
-      { title: 'Actions', value: 'actions', width: '8%', sortable: false }
+      { title: '', value: 'actions', width: '6%', sortable: false }
     ]
-    if (isAdmin.value) {
-      base.splice(3, 0, { title: 'Role', value: 'role_name', width: '12%' })
-    }
-    return base
+    if (isAdmin.value)
+      h.splice(3, 0, { title: 'Role', value: 'role_name', width: '12%' })
+    return h
   })
 
   const filteredUsers = computed(() => {
-    let result = settingsStore.users
-    if (filterDept.value) result = result.filter(u => u.dept_id === filterDept.value)
-    if (filterRole.value && isAdmin.value) result = result.filter(u => u.role_id === filterRole.value)
+    let list = settingsStore.users
+    if (filterDept.value) list = list.filter(u => u.dept_id === filterDept.value)
+    if (filterRole.value && isAdmin.value) list = list.filter(u => u.role_id === filterRole.value)
     if (filterStatus.value) {
       const active = filterStatus.value === 'Active'
-      result = result.filter(u => u.is_active === active)
+      list = list.filter(u => u.is_active === active)
     }
-    return result
+    return list
   })
 
   const rules = {
@@ -332,14 +348,21 @@
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
   }
   function getRoleColor(r) {
-    return { Admin: 'error', Manager: 'primary', 'Team Lead': 'success', Member: 'info', User: 'grey' }[r] || 'grey'
+    return { Admin: 'error', Manager: 'primary', 'Team Lead': 'success', Member: 'info' }[r] || 'grey'
   }
   function getRoleIcon(r) {
-    return { Admin: 'mdi-shield-crown', Manager: 'mdi-account-tie', 'Team Lead': 'mdi-account-star', Member: 'mdi-account' }[r] || 'mdi-account'
+    return {
+      Admin: 'mdi-shield-crown', Manager: 'mdi-account-tie',
+      'Team Lead': 'mdi-account-star', Member: 'mdi-account'
+    }[r] || 'mdi-account'
   }
   function formatDate(d) {
-    if (!d) return 'N/A'
-    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    return d
+      ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      : 'N/A'
+  }
+  function showSnack(msg, color = 'success') {
+    snackbarMessage.value = msg; snackbarColor.value = color; snackbar.value = true
   }
 
   function openCreateDialog() {
@@ -398,9 +421,10 @@
   async function resetPassword() {
     saving.value = true
     try {
-      const result = await settingsStore.resetUserPassword(selectedUser.value.user_id, newPassword.value)
+      const result = await settingsStore.resetUserPassword(
+        selectedUser.value.user_id, newPassword.value)
       if (result?.success) {
-        showSnack('Password reset successfully')
+        showSnack('Password reset')
         resetPasswordDialog.value = false
       } else {
         showSnack(result?.message || 'Failed', 'error')
@@ -414,20 +438,14 @@
 
   async function toggleUserStatus(user) {
     if (user.user_id === currentUserId.value) {
-      showSnack('Cannot deactivate your own account', 'warning')
-      return
+      showSnack('Cannot deactivate your own account', 'warning'); return
     }
-    try {
-      const result = await settingsStore.toggleUserStatus(user.user_id)
-      showSnack(result?.message || 'Done', result?.success ? 'success' : 'error')
-    } catch {
-      showSnack('Error', 'error')
-    }
+    const result = await settingsStore.toggleUserStatus(user.user_id)
+    showSnack(result?.message || 'Done', result?.success ? 'success' : 'error')
   }
 
   function openDeleteDialog(user) {
-    selectedUser.value = user
-    deleteDialog.value = true
+    selectedUser.value = user; deleteDialog.value = true
   }
 
   async function deleteUser() {
@@ -441,12 +459,6 @@
     } finally {
       saving.value = false
     }
-  }
-
-  function showSnack(msg, color = 'success') {
-    snackbarMessage.value = msg
-    snackbarColor.value = color
-    snackbar.value = true
   }
 
   onMounted(async () => {
@@ -469,11 +481,20 @@
     overflow: hidden;
   }
 
+  .border-b {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
   .user-table :deep(.v-table__wrapper) {
+    height: 100%;
     overflow-y: auto;
   }
 
   .user-table :deep(th) {
     font-weight: 600 !important;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    background: #fafbfc !important;
   }
 </style>
