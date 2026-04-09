@@ -1,55 +1,61 @@
 <template>
-  <div class="user-mgmt-root d-flex flex-column">
+  <div class="module-root d-flex flex-column pa-3 ga-3">
 
-    <!-- Filters strip (fixed) -->
-    <div class="pa-3 flex-shrink-0 border-b">
-      <v-row dense align="center">
-        <v-col cols="12" sm="4">
-          <v-text-field v-model="search"
-                        prepend-inner-icon="mdi-magnify"
-                        label="Search users"
-                        variant="outlined" density="compact"
-                        clearable hide-details />
-        </v-col>
-        <v-col cols="6" sm="3">
-          <v-select v-model="filterDept"
-                    :items="departments"
-                    item-title="dept_name" item-value="dept_id"
-                    label="Department" variant="outlined"
-                    density="compact" clearable hide-details />
-        </v-col>
-        <v-col v-if="isAdmin" cols="6" sm="2">
-          <v-select v-model="filterRole"
-                    :items="roles"
-                    item-title="role_name" item-value="role_id"
-                    label="Role" variant="outlined"
-                    density="compact" clearable hide-details />
-        </v-col>
-        <v-col cols="6" sm="2">
-          <v-select v-model="filterStatus"
-                    :items="['Active', 'Inactive']"
-                    label="Status" variant="outlined"
-                    density="compact" clearable hide-details />
-        </v-col>
-        <v-col cols="auto" class="ml-auto">
-          <v-btn color="primary" prepend-icon="mdi-account-plus"
-                 size="small" @click="openCreateDialog">
-            Add User
-          </v-btn>
-        </v-col>
-      </v-row>
+    <!-- Row 1: Page title -->
+    <div class="flex-shrink-0">
+      <h2 class="text-h6 font-weight-bold">Users Management</h2>
     </div>
 
-    <!-- Virtual table (fills remaining height) -->
-    <div class="flex-grow-1" style="min-height:0; overflow:hidden;">
+    <!-- Row 2: Search + Add button -->
+    <v-card class="flex-shrink-0" elevation="1">
+      <v-card-text class="pa-3">
+        <v-row dense align="center">
+          <v-col cols="12" sm="4">
+            <v-text-field v-model="search"
+                          prepend-inner-icon="mdi-magnify"
+                          label="Search users"
+                          variant="outlined" density="compact"
+                          clearable hide-details />
+          </v-col>
+          <v-col cols="6" sm="3">
+            <v-select v-model="filterDept"
+                      :items="departments"
+                      item-title="dept_name" item-value="dept_id"
+                      label="Department" variant="outlined"
+                      density="compact" clearable hide-details />
+          </v-col>
+          <v-col v-if="isAdmin" cols="6" sm="2">
+            <v-select v-model="filterRole"
+                      :items="roles"
+                      item-title="role_name" item-value="role_id"
+                      label="Role" variant="outlined"
+                      density="compact" clearable hide-details />
+          </v-col>
+          <v-col cols="6" sm="2">
+            <v-select v-model="filterStatus"
+                      :items="['Active', 'Inactive']"
+                      label="Status" variant="outlined"
+                      density="compact" clearable hide-details />
+          </v-col>
+          <v-col cols="auto" class="ml-auto">
+            <v-btn color="primary" prepend-icon="mdi-account-plus"
+                   size="small" @click="openCreateDialog">
+              Add User
+            </v-btn>
+          </v-col>
+        </v-row>
+      </v-card-text>
+    </v-card>
+
+    <!-- Row 3: Data table fills remaining height -->
+    <v-card class="flex-grow-1 d-flex flex-column" elevation="1" style="min-height: 0;">
       <v-data-table-virtual :headers="visibleHeaders"
                             :items="filteredUsers"
-                            :search="search"
                             :loading="loading"
                             density="comfortable"
                             fixed-header
-                            height="100%"
-                            class="user-table">
+                            height="300"
+                            class="user-table flex-grow-1">
 
         <template #item.username="{ item }">
           <div class="d-flex align-center py-1 ga-3">
@@ -113,9 +119,7 @@
                     {{ item.is_active ? 'mdi-account-off' : 'mdi-account-check' }}
                   </v-icon>
                 </template>
-                <v-list-item-title>
-                  {{ item.is_active ? 'Deactivate' : 'Activate' }}
-                </v-list-item-title>
+                <v-list-item-title>{{ item.is_active ? 'Deactivate' : 'Activate' }}</v-list-item-title>
               </v-list-item>
               <v-divider />
               <v-list-item v-if="isAdmin"
@@ -131,7 +135,7 @@
         </template>
 
       </v-data-table-virtual>
-    </div>
+    </v-card>
 
     <!-- Create / Edit dialog -->
     <v-dialog v-model="userDialog" max-width="640" persistent>
@@ -207,41 +211,40 @@
         <v-card-title class="bg-warning text-white text-subtitle-1">Reset Password</v-card-title>
         <v-card-text class="pt-4">
           <v-alert type="info" variant="tonal" density="compact" class="mb-4">
-            Resetting password for: <strong>{{ selectedUser?.username }}</strong>
+            Resetting password for <strong>{{ selectedUser?.username }}</strong>
           </v-alert>
-          <v-form ref="resetPasswordForm" v-model="resetPasswordValid">
-            <v-text-field v-model="newPassword" label="New Password *"
-                          variant="outlined" density="comfortable"
-                          :type="showResetPassword ? 'text' : 'password'"
-                          :append-inner-icon="showResetPassword ? 'mdi-eye' : 'mdi-eye-off'"
-                          @click:append-inner="showResetPassword = !showResetPassword"
-                          :rules="[rules.required, rules.password]" class="mb-3" />
-            <v-text-field v-model="confirmPassword" label="Confirm Password *"
-                          variant="outlined" density="comfortable"
-                          :type="showResetPassword ? 'text' : 'password'"
-                          :rules="[rules.required, rules.passwordMatch]" />
-          </v-form>
+          <v-text-field v-model="newPassword" label="New Password *"
+                        prepend-inner-icon="mdi-lock" variant="outlined"
+                        density="comfortable"
+                        :type="showNewPassword ? 'text' : 'password'"
+                        :append-inner-icon="showNewPassword ? 'mdi-eye' : 'mdi-eye-off'"
+                        @click:append-inner="showNewPassword = !showNewPassword"
+                        :rules="[rules.required, rules.password]" />
+          <v-text-field v-model="confirmPassword" label="Confirm Password *"
+                        prepend-inner-icon="mdi-lock-check" variant="outlined"
+                        density="comfortable"
+                        :type="showNewPassword ? 'text' : 'password'"
+                        :rules="[rules.required, rules.passwordMatch]" />
         </v-card-text>
         <v-card-actions class="pa-4">
           <v-spacer />
           <v-btn variant="text" @click="resetPasswordDialog = false">Cancel</v-btn>
-          <v-btn color="warning" variant="elevated"
-                 :disabled="!resetPasswordValid" :loading="saving"
-                 @click="resetPassword">
+          <v-btn color="warning" variant="elevated" :loading="saving" @click="resetPassword">
             Reset
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- Delete confirm dialog -->
-    <v-dialog v-model="deleteDialog" max-width="440">
+    <!-- Delete Confirmation dialog -->
+    <v-dialog v-model="deleteDialog" max-width="480">
       <v-card>
         <v-card-title class="bg-error text-white text-subtitle-1">
-          <v-icon class="mr-2">mdi-alert</v-icon>Confirm Delete
+          <v-icon class="mr-2">mdi-alert</v-icon>
+          Confirm Delete
         </v-card-title>
         <v-card-text class="pt-4">
-          <v-alert type="error" variant="tonal" density="compact">
+          <v-alert type="error" variant="tonal" class="mb-3">
             Delete user <strong>{{ selectedUser?.username }}</strong>? This cannot be undone.
           </v-alert>
         </v-card-text>
@@ -255,39 +258,39 @@
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="snackbar" :color="snackbarColor" timeout="3000">
+    <v-snackbar v-model="snackbar" :color="snackbarColor" :timeout="3000">
       {{ snackbarMessage }}
       <template #actions>
         <v-btn variant="text" @click="snackbar = false">Close</v-btn>
       </template>
     </v-snackbar>
+
   </div>
 </template>
 
 <script setup>
   import { ref, computed, onMounted } from 'vue'
+  import { useAuthStore } from '@/stores/auth'
   import { useSettingsStore } from '@/stores/setting.js'
-  import { useAuthStore } from '@/stores/auth.js'
 
-  defineProps({ isAdmin: Boolean })
+  const props = defineProps({ isAdmin: Boolean })
 
-  const settingsStore = useSettingsStore()
   const authStore = useAuthStore()
+  const settingsStore = useSettingsStore()
 
   const loading = ref(false)
   const saving = ref(false)
-  const search = ref('')
-  const filterDept = ref(null)
-  const filterRole = ref(null)
-  const filterStatus = ref(null)
-  const showPassword = ref(false)
-  const showResetPassword = ref(false)
   const userDialog = ref(false)
   const resetPasswordDialog = ref(false)
   const deleteDialog = ref(false)
   const editMode = ref(false)
   const formValid = ref(false)
-  const resetPasswordValid = ref(false)
+  const showPassword = ref(false)
+  const showNewPassword = ref(false)
+  const search = ref('')
+  const filterDept = ref(null)
+  const filterRole = ref(null)
+  const filterStatus = ref(null)
   const newPassword = ref('')
   const confirmPassword = ref('')
   const selectedUser = ref(null)
@@ -300,8 +303,7 @@
     dept_id: null, role_id: null, is_active: true
   })
 
-  const userRole = computed(() => authStore.user?.role)
-  const isAdmin = computed(() => userRole.value === 'Admin')
+  const isAdmin = computed(() => authStore.user?.role === 'Admin')
   const currentUserId = computed(() => authStore.currentUser?.user_id)
   const departments = computed(() => settingsStore.departments)
   const roles = computed(() => settingsStore.roles)
@@ -324,15 +326,24 @@
     return h
   })
 
+  // Simplified filter: single computed pass over the user list
   const filteredUsers = computed(() => {
-    let list = settingsStore.users
-    if (filterDept.value) list = list.filter(u => u.dept_id === filterDept.value)
-    if (filterRole.value && isAdmin.value) list = list.filter(u => u.role_id === filterRole.value)
-    if (filterStatus.value) {
-      const active = filterStatus.value === 'Active'
-      list = list.filter(u => u.is_active === active)
-    }
-    return list
+    const users = settingsStore.users
+    const dept = filterDept.value
+    const role = filterRole.value
+    const status = filterStatus.value
+    const q = search.value?.toLowerCase() ?? ''
+
+    return users.filter(u => {
+      if (dept && u.dept_id !== dept) return false
+      if (role && isAdmin.value && u.role_id !== role) return false
+      if (status === 'Active' && !u.is_active) return false
+      if (status === 'Inactive' && u.is_active) return false
+      if (q && !u.username?.toLowerCase().includes(q) &&
+        !u.full_name?.toLowerCase().includes(q) &&
+        !u.email?.toLowerCase().includes(q)) return false
+      return true
+    })
   })
 
   const rules = {
@@ -421,8 +432,7 @@
   async function resetPassword() {
     saving.value = true
     try {
-      const result = await settingsStore.resetUserPassword(
-        selectedUser.value.user_id, newPassword.value)
+      const result = await settingsStore.resetUserPassword(selectedUser.value.user_id, newPassword.value)
       if (result?.success) {
         showSnack('Password reset')
         resetPasswordDialog.value = false
@@ -476,18 +486,9 @@
 </script>
 
 <style scoped>
-  .user-mgmt-root {
+  .module-root {
     height: 100%;
     overflow: hidden;
-  }
-
-  .border-b {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  }
-
-  .user-table :deep(.v-table__wrapper) {
-    height: 100%;
-    overflow-y: auto;
   }
 
   .user-table :deep(th) {
@@ -496,5 +497,10 @@
     text-transform: uppercase;
     letter-spacing: 0.4px;
     background: #fafbfc !important;
+  }
+
+  .user-table :deep(.v-table__wrapper) {
+    height: 100%;
+    overflow-y: auto;
   }
 </style>

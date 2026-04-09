@@ -1,5 +1,7 @@
 <template>
   <div class="settings-root d-flex flex-column">
+
+    <!-- Settings header + tabs -->
     <v-card elevation="2" class="flex-shrink-0">
       <v-card-title class="bg-primary text-white d-flex align-center pa-3">
         <v-icon class="mr-2">mdi-cog</v-icon>
@@ -23,57 +25,41 @@
           <v-icon start size="18">mdi-domain</v-icon>
           Departments
         </v-tab>
-        <v-tab v-if="isAdmin" value="system">
-          <v-icon start size="18">mdi-cog-outline</v-icon>
-          System
-        </v-tab>
         <v-tab v-if="canManageFormConfig" value="npiConfig">
           <v-icon start size="18">mdi-form-select</v-icon>
           NPI Form
         </v-tab>
+        <v-tab v-if="isAdmin" value="system">
+          <v-icon start size="18">mdi-cog-outline</v-icon>
+          System
+        </v-tab>
       </v-tabs>
     </v-card>
 
-    <v-window v-model="activeTab" class="settings-content flex-grow-1 overflow-hidden">
+    <v-window v-model="activeTab" class="settings-content flex-grow-1">
 
       <v-window-item value="users" class="fill-height">
         <UserManagement :is-admin="isAdmin" />
       </v-window-item>
 
-      <v-window-item v-if="canManageRoles" value="systemRoles" class="fill-height overflow-y-auto">
-        <div class="pa-4">
-          <v-alert type="info" variant="tonal" density="compact" class="mb-4">
-            <strong>System Roles</strong> control page and module access.
-            <strong>Admin</strong> = full access.
-            <strong>Manager</strong> = all modules, restricted user management.
-            <strong>Member</strong> = no Settings access.
-          </v-alert>
-          <RoleManagement />
-        </div>
+      <v-window-item v-if="canManageRoles" value="systemRoles" class="fill-height">
+        <RoleManagement />
       </v-window-item>
 
-      <v-window-item v-if="canManageRoles" value="projectRoles" class="fill-height overflow-y-auto">
-        <div class="pa-4">
-          <v-alert type="info" variant="tonal" density="compact" class="mb-4">
-            <strong>Project Roles</strong> control per-project permissions.
-            <strong>Team Lead</strong> = manage tasks, status, files.
-            <strong>Member</strong> = update own dept tasks.
-            <strong>Viewer</strong> = read-only.
-          </v-alert>
-          <ProjectRoleManagement />
-        </div>
+      <v-window-item v-if="canManageRoles" value="projectRoles" class="fill-height">
+        <ProjectRoleManagement />
       </v-window-item>
 
       <v-window-item v-if="canManageDepts" value="departments" class="fill-height">
         <DepartmentManagement />
       </v-window-item>
 
-      <v-window-item v-if="isAdmin" value="system" class="fill-height overflow-y-auto">
-        <SystemSettings />
+      <v-window-item v-if="canManageFormConfig" value="npiConfig" class="fill-height">
+        <NpiFormConfig />
       </v-window-item>
 
-      <v-window-item v-if="canManageFormConfig" value="npiConfig" class="fill-height overflow-y-auto">
-        <NpiFormConfig />
+      <v-window-item v-if="isAdmin" value="system" class="fill-height">
+        <SystemSettings />
       </v-window-item>
 
     </v-window>
@@ -111,6 +97,7 @@
     min-height: 0;
   }
 
+  /* Ensure the v-window and all items fill the flex container */
   :deep(.v-window__container),
   :deep(.v-window-item) {
     height: 100% !important;
@@ -119,9 +106,5 @@
   .fill-height {
     height: 100%;
     overflow: hidden;
-  }
-
-  .overflow-y-auto {
-    overflow-y: auto !important;
   }
 </style>
