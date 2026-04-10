@@ -26,6 +26,7 @@ namespace NPI.Server.Services
                     username = u.username,
                     full_name = u.full_name,
                     email = u.email,
+                    dept_id = u.dept_id,
                     dept_name = u.Department != null ? u.Department.dept_name : null,
                     role_name = u.Role != null ? u.Role.role_name : null,
                     is_active = u.is_active,

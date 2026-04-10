@@ -19,5 +19,8 @@ namespace NPI.Server.Services
         Task<string> EnsureCustomerFolderAsync(string companyName);
         Task<string> EnsureProjectCustomerFolderAsync(int projId);
         Task<List<FileResponseDto>> GetAllCustomerFilesAsync();
+        Task<List<DirectoryNodeDto>> GetPhysicalFolderStructureAsync(int userId);
+        Task<(bool success, byte[]? fileData, string? contentType)> DownloadPhysicalFileAsync(string path);
+        Task<(bool success, string message)> DeletePhysicalFileAsync(string path);
     }
 }

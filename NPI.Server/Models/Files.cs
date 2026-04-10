@@ -26,6 +26,8 @@ namespace NPI.Server.Models
 
         public long file_size { get; set; }
 
+        public DateTime? updated_at { get; set; }
+
         [StringLength(100)]
         public string? content_type { get; set; }
 

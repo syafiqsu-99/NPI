@@ -16,8 +16,25 @@
         public int uploaded_by { get; set; }
         public string? uploaded_by_name { get; set; }
         public DateTime uploaded_at { get; set; }
+        public DateTime? updated_at { get; set; }
         public int file_version { get; set; }
         public string? status { get; set; }
         public bool is_latest { get; set; }
+    }
+
+    public class DirectoryNodeDto
+    {
+        public string id { get; set; } = string.Empty;
+        public string name { get; set; } = string.Empty;
+        public string type { get; set; } = string.Empty;
+        public string? path { get; set; }
+        public long size { get; set; }
+        public DateTime? uploaded_at { get; set; }
+        public DateTime? updated_at { get; set; }
+        public bool can_edit { get; set; }
+        public int? file_id { get; set; }
+        public int? file_version { get; set; }
+        public string? content_type { get; set; }
+        public List<DirectoryNodeDto>? children { get; set; }
     }
 }

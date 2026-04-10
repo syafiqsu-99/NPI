@@ -29,259 +29,33 @@
     <v-window v-model="tab" class="flex-grow-1" style="min-height: 0;">
 
       <!-- ── CATEGORIES ──────────────────────────────────────────────────── -->
-      <v-window-item value="categories" class="fill-height d-flex flex-column ga-3">
-        <!-- Controls card -->
-        <v-card class="flex-shrink-0" elevation="1">
-          <v-card-text class="pa-3">
-            <v-row dense align="center">
-              <v-col cols="auto" class="ml-auto">
-                <v-btn color="primary" prepend-icon="mdi-plus" size="small" @click="openCatDialog()">
-                  Add Category
-                </v-btn>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-        <!-- Data card -->
-        <v-card class="flex-grow-1 d-flex flex-column" elevation="1" style="min-height: 0;">
-          <v-data-table-virtual :headers="catHeaders"
-                                :items="configStore.categories"
-                                :loading="configStore.loading"
-                                density="comfortable"
-                                fixed-header
-                                height="100%"
-                                class="npi-table flex-grow-1">
-
-            <template #item.is_active="{ item }">
-              <v-chip :color="item.is_active ? 'success' : 'grey'" size="small" variant="flat">
-                {{ item.is_active ? 'Active' : 'Inactive' }}
-              </v-chip>
-            </template>
-
-            <template #item.actions="{ item }">
-              <v-menu location="bottom end">
-                <template #activator="{ props }">
-                  <v-btn icon="mdi-dots-vertical" variant="text" size="small" v-bind="props" />
-                </template>
-                <v-list density="compact" min-width="140">
-                  <v-list-item @click="openCatDialog(item)">
-                    <template #prepend>
-                      <v-icon size="18">mdi-pencil</v-icon>
-                    </template>
-                    <v-list-item-title>Edit</v-list-item-title>
-                  </v-list-item>
-                  <v-divider />
-                  <v-list-item @click="confirmDeleteCat(item)">
-                    <template #prepend>
-                      <v-icon size="18" color="error">mdi-delete</v-icon>
-                    </template>
-                    <v-list-item-title class="text-error">Delete</v-list-item-title>
-                  </v-list-item>
-                </v-list>
-              </v-menu>
-            </template>
-          </v-data-table-virtual>
-        </v-card>
-      </v-window-item>
-
-      <!-- ── SECTIONS ───────────────────────────────────────────────────── -->
-      <v-window-item value="sections" class="fill-height d-flex flex-column ga-3">
-        <!-- Controls card -->
-        <v-card class="flex-shrink-0" elevation="1">
-          <v-card-text class="pa-3">
-            <v-row dense align="center">
-              <v-col cols="12" sm="8">
-                <p class="text-caption text-grey mb-0">
-                  Sections group related fields. The <strong>section_key</strong> is set at creation and cannot be changed.
-                </p>
-              </v-col>
-              <v-col cols="auto" class="ml-auto d-flex ga-2">
-                <v-btn variant="outlined" size="small" prepend-icon="mdi-sort" @click="openReorderDialog">
-                  Reorder
-                </v-btn>
-                <v-btn color="primary" size="small" prepend-icon="mdi-plus" @click="openSectionDialog()">
-                  Add Section
-                </v-btn>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-        <!-- Data card -->
-        <v-card class="flex-grow-1 d-flex flex-column" elevation="1" style="min-height: 0;">
-          <v-data-table-virtual :headers="sectionHeaders"
-                                :items="configStore.sections"
-                                :loading="configStore.loading"
-                                density="comfortable"
-                                fixed-header
-                                height="100%"
-                                item-value="section_id"
-                                class="npi-table flex-grow-1">
-
-            <template #item.section_key="{ item }">
-              <v-chip size="small" color="primary" variant="tonal" label>
-                {{ item.section_key }}
-              </v-chip>
-            </template>
-
-            <template #item.trigger_keywords="{ item }">
-              <div class="d-flex flex-wrap ga-1">
-                <v-chip v-for="kw in splitKeywords(item.trigger_keywords)" :key="kw" size="x-small" variant="outlined">
-                  {{ kw }}
-                </v-chip>
-                <span v-if="!item.trigger_keywords" class="text-caption text-grey">None</span>
-              </div>
-            </template>
-
-            <template #item.fields="{ item }">
-              <v-chip size="small" variant="tonal" color="info">
-                {{ item.fields?.length ?? 0 }} fields
-              </v-chip>
-            </template>
-
-            <template #item.is_active="{ item }">
-              <v-chip :color="item.is_active ? 'success' : 'grey'" size="small" variant="flat"
-                      style="cursor:pointer" @click="toggleSection(item)">
-                {{ item.is_active ? 'Active' : 'Inactive' }}
-              </v-chip>
-            </template>
-
-            <template #item.actions="{ item }">
-              <v-menu location="bottom end">
-                <template #activator="{ props }">
-                  <v-btn icon="mdi-dots-vertical" variant="text" size="small" v-bind="props" />
-                </template>
-                <v-list density="compact" min-width="160">
-                  <v-list-item @click="openSectionDialog(item)">
-                    <template #prepend>
-                      <v-icon size="18">mdi-pencil</v-icon>
-                    </template>
-                    <v-list-item-title>Edit</v-list-item-title>
-                  </v-list-item>
-                  <v-list-item @click="openFieldDialog(null, item)">
-                    <template #prepend>
-                      <v-icon size="18" color="primary">mdi-form-textbox-plus</v-icon>
-                    </template>
-                    <v-list-item-title>Add Field</v-list-item-title>
-                  </v-list-item>
-                  <v-divider />
-                  <v-list-item @click="confirmDeleteSection(item)">
-                    <template #prepend>
-                      <v-icon size="18" color="error">mdi-delete</v-icon>
-                    </template>
-                    <v-list-item-title class="text-error">Delete</v-list-item-title>
-                  </v-list-item>
-                </v-list>
-              </v-menu>
-            </template>
-
-            <template #expanded-row="{ item }">
-              <tr>
-                <td :colspan="sectionHeaders.length" class="pa-0">
-                  <v-data-table-virtual density="compact" class="bg-grey-lighten-5">
-                    <thead>
-                      <tr>
-                        <th class="text-caption">Order</th>
-                        <th class="text-caption">Key</th>
-                        <th class="text-caption">Label</th>
-                        <th class="text-caption">Type</th>
-                        <th class="text-caption">Required</th>
-                        <th class="text-caption">Active</th>
-                        <th class="text-caption">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="field in sortedFields(item)" :key="field.field_id">
-                        <td>{{ field.display_order }}</td>
-                        <td><v-chip size="x-small" variant="outlined">{{ field.field_key }}</v-chip></td>
-                        <td>{{ field.field_label }}</td>
-                        <td><v-chip size="x-small" color="secondary" variant="tonal">{{ field.field_type }}</v-chip></td>
-                        <td>
-                          <v-icon v-if="field.is_required" size="small" color="error">mdi-asterisk</v-icon>
-                          <v-icon v-else size="small" color="grey">mdi-minus</v-icon>
-                        </td>
-                        <td>
-                          <v-chip :color="field.is_active ? 'success' : 'grey'" size="x-small" variant="flat">
-                            {{ field.is_active ? 'On' : 'Off' }}
-                          </v-chip>
-                        </td>
-                        <td>
-                          <v-btn icon="mdi-pencil" size="x-small" variant="text" @click="openFieldDialog(field, item)" />
-                          <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="confirmDeleteField(field)" />
-                        </td>
-                      </tr>
-                      <tr v-if="!item.fields?.length">
-                        <td colspan="7" class="text-center pa-3 text-caption text-grey">
-                          No fields yet —
-                          <span class="text-primary" style="cursor:pointer" @click="openFieldDialog(null, item)">
-                            add the first field
-                          </span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </v-data-table-virtual>
-                </td>
-              </tr>
-            </template>
-
-          </v-data-table-virtual>
-        </v-card>
-      </v-window-item>
-
-      <!-- ── FIELDS ─────────────────────────────────────────────────────── -->
-      <v-window-item value="fields" class="fill-height d-flex flex-column ga-3">
-        <!-- Controls card -->
-        <v-card class="flex-shrink-0" elevation="1">
-          <v-card-text class="pa-3">
-            <v-row dense align="center">
-              <v-col cols="12" sm="4">
-                <v-select v-model="fieldSectionFilter"
-                          :items="sectionFilterItems"
-                          item-title="label"
-                          item-value="key"
-                          label="Filter by section"
-                          variant="outlined"
-                          density="compact"
-                          clearable
-                          hide-details />
-              </v-col>
-              <v-col cols="auto" class="ml-auto">
-                <v-btn color="primary" prepend-icon="mdi-plus" size="small" @click="openFieldDialog()">
-                  Add Field
-                </v-btn>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-        <!-- Data cards: one per section, scrollable container -->
-        <div class="flex-grow-1 overflow-y-auto">
-          <v-card v-for="section in configStore.sections" :key="section.section_id"
-                  class="mb-3"
-                  :class="{ 'd-none': fieldSectionFilter && fieldSectionFilter !== section.section_key }"
-                  elevation="1">
-
-            <v-card-title class="bg-grey-lighten-4 text-subtitle-1 pa-3">
-              <v-chip size="small" color="primary" variant="tonal" class="mr-2">
-                {{ section.section_key }}
-              </v-chip>
-              {{ section.section_label }}
-            </v-card-title>
-
-            <v-data-table-virtual :headers="fieldHeaders"
-                                  :items="section.fields || []"
-                                  density="compact"
-                                  hide-default-footer
-                                  :items-per-page="-1"
-                                  class="npi-table">
-
-              <template #item.is_required="{ item }">
-                <v-icon :color="item.is_required ? 'error' : 'grey'" size="small">
-                  {{ item.is_required ? 'mdi-asterisk' : 'mdi-minus' }}
-                </v-icon>
-              </template>
+      <v-window-item value="categories">
+        <div class="fill-height d-flex flex-column ga-3">
+          <!-- Controls card -->
+          <v-card class="flex-shrink-0" elevation="1">
+            <v-card-text class="pa-3">
+              <v-row dense align="center">
+                <v-col cols="auto" class="ml-auto">
+                  <v-btn color="primary" prepend-icon="mdi-plus" size="small" @click="openCatDialog()">
+                    Add Category
+                  </v-btn>
+                </v-col>
+              </v-row>
+            </v-card-text>
+          </v-card>
+          <!-- Data card -->
+          <v-card class="flex-grow-1 d-flex flex-column" elevation="1" style="min-height: 0;">
+            <v-data-table-virtual :headers="catHeaders"
+                                  :items="configStore.categories"
+                                  :loading="configStore.loading"
+                                  density="comfortable"
+                                  fixed-header
+                                  height="300"
+                                  class="npi-table flex-grow-1">
 
               <template #item.is_active="{ item }">
-                <v-chip :color="item.is_active ? 'success' : 'grey'" size="x-small" variant="flat">
-                  {{ item.is_active ? 'Active' : 'Off' }}
+                <v-chip :color="item.is_active ? 'success' : 'grey'" size="small" variant="flat">
+                  {{ item.is_active ? 'Active' : 'Inactive' }}
                 </v-chip>
               </template>
 
@@ -291,14 +65,14 @@
                     <v-btn icon="mdi-dots-vertical" variant="text" size="small" v-bind="props" />
                   </template>
                   <v-list density="compact" min-width="140">
-                    <v-list-item @click="openFieldDialog(item, section)">
+                    <v-list-item @click="openCatDialog(item)">
                       <template #prepend>
                         <v-icon size="18">mdi-pencil</v-icon>
                       </template>
                       <v-list-item-title>Edit</v-list-item-title>
                     </v-list-item>
                     <v-divider />
-                    <v-list-item @click="confirmDeleteField(item)">
+                    <v-list-item @click="confirmDeleteCat(item)">
                       <template #prepend>
                         <v-icon size="18" color="error">mdi-delete</v-icon>
                       </template>
@@ -309,6 +83,238 @@
               </template>
             </v-data-table-virtual>
           </v-card>
+        </div>
+      </v-window-item>
+
+      <!-- ── SECTIONS ───────────────────────────────────────────────────── -->
+      <v-window-item value="sections">
+        <div class="fill-height d-flex flex-column ga-3">
+          <!-- Controls card -->
+          <v-card class="flex-shrink-0" elevation="1">
+            <v-card-text class="pa-3">
+              <v-row dense align="center">
+                <v-col cols="12" sm="8">
+                  <p class="text-caption text-grey mb-0">
+                    Sections group related fields. The <strong>section_key</strong> is set at creation and cannot be changed.
+                  </p>
+                </v-col>
+                <v-col cols="auto" class="ml-auto d-flex ga-2">
+                  <v-btn variant="outlined" size="small" prepend-icon="mdi-sort" @click="openReorderDialog">
+                    Reorder
+                  </v-btn>
+                  <v-btn color="primary" size="small" prepend-icon="mdi-plus" @click="openSectionDialog()">
+                    Add Section
+                  </v-btn>
+                </v-col>
+              </v-row>
+            </v-card-text>
+          </v-card>
+          <!-- Data card -->
+          <v-card class="flex-grow-1 d-flex flex-column" elevation="1" style="min-height: 0;">
+            <v-data-table-virtual :headers="sectionHeaders"
+                                  :items="configStore.sections"
+                                  :loading="configStore.loading"
+                                  density="comfortable"
+                                  fixed-header
+                                  height="300"
+                                  item-value="section_id"
+                                  class="npi-table flex-grow-1">
+
+              <template #item.section_key="{ item }">
+                <v-chip size="small" color="primary" variant="tonal" label>
+                  {{ item.section_key }}
+                </v-chip>
+              </template>
+
+              <template #item.trigger_keywords="{ item }">
+                <div class="d-flex flex-wrap ga-1">
+                  <v-chip v-for="kw in splitKeywords(item.trigger_keywords)" :key="kw" size="x-small" variant="outlined">
+                    {{ kw }}
+                  </v-chip>
+                  <span v-if="!item.trigger_keywords" class="text-caption text-grey">None</span>
+                </div>
+              </template>
+
+              <template #item.fields="{ item }">
+                <v-chip size="small" variant="tonal" color="info">
+                  {{ item.fields?.length ?? 0 }} fields
+                </v-chip>
+              </template>
+
+              <template #item.is_active="{ item }">
+                <v-chip :color="item.is_active ? 'success' : 'grey'" size="small" variant="flat"
+                        style="cursor:pointer" @click="toggleSection(item)">
+                  {{ item.is_active ? 'Active' : 'Inactive' }}
+                </v-chip>
+              </template>
+
+              <template #item.actions="{ item }">
+                <v-menu location="bottom end">
+                  <template #activator="{ props }">
+                    <v-btn icon="mdi-dots-vertical" variant="text" size="small" v-bind="props" />
+                  </template>
+                  <v-list density="compact" min-width="160">
+                    <v-list-item @click="openSectionDialog(item)">
+                      <template #prepend>
+                        <v-icon size="18">mdi-pencil</v-icon>
+                      </template>
+                      <v-list-item-title>Edit</v-list-item-title>
+                    </v-list-item>
+                    <v-list-item @click="openFieldDialog(null, item)">
+                      <template #prepend>
+                        <v-icon size="18" color="primary">mdi-form-textbox-plus</v-icon>
+                      </template>
+                      <v-list-item-title>Add Field</v-list-item-title>
+                    </v-list-item>
+                    <v-divider />
+                    <v-list-item @click="confirmDeleteSection(item)">
+                      <template #prepend>
+                        <v-icon size="18" color="error">mdi-delete</v-icon>
+                      </template>
+                      <v-list-item-title class="text-error">Delete</v-list-item-title>
+                    </v-list-item>
+                  </v-list>
+                </v-menu>
+              </template>
+
+              <template #expanded-row="{ item }">
+                <tr>
+                  <td :colspan="sectionHeaders.length" class="pa-0">
+                    <v-data-table-virtual density="compact" class="bg-grey-lighten-5">
+                      <thead>
+                        <tr>
+                          <th class="text-caption">Order</th>
+                          <th class="text-caption">Key</th>
+                          <th class="text-caption">Label</th>
+                          <th class="text-caption">Type</th>
+                          <th class="text-caption">Required</th>
+                          <th class="text-caption">Active</th>
+                          <th class="text-caption">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="field in sortedFields(item)" :key="field.field_id">
+                          <td>{{ field.display_order }}</td>
+                          <td><v-chip size="x-small" variant="outlined">{{ field.field_key }}</v-chip></td>
+                          <td>{{ field.field_label }}</td>
+                          <td><v-chip size="x-small" color="secondary" variant="tonal">{{ field.field_type }}</v-chip></td>
+                          <td>
+                            <v-icon v-if="field.is_required" size="small" color="error">mdi-asterisk</v-icon>
+                            <v-icon v-else size="small" color="grey">mdi-minus</v-icon>
+                          </td>
+                          <td>
+                            <v-chip :color="field.is_active ? 'success' : 'grey'" size="x-small" variant="flat">
+                              {{ field.is_active ? 'On' : 'Off' }}
+                            </v-chip>
+                          </td>
+                          <td>
+                            <v-btn icon="mdi-pencil" size="x-small" variant="text" @click="openFieldDialog(field, item)" />
+                            <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="confirmDeleteField(field)" />
+                          </td>
+                        </tr>
+                        <tr v-if="!item.fields?.length">
+                          <td colspan="7" class="text-center pa-3 text-caption text-grey">
+                            No fields yet —
+                            <span class="text-primary" style="cursor:pointer" @click="openFieldDialog(null, item)">
+                              add the first field
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </v-data-table-virtual>
+                  </td>
+                </tr>
+              </template>
+
+            </v-data-table-virtual>
+          </v-card>
+        </div>
+      </v-window-item>
+
+      <!-- ── FIELDS ─────────────────────────────────────────────────────── -->
+      <v-window-item value="fields">
+        <div class="fill-height d-flex flex-column ga-3">
+          <!-- Controls card -->
+          <v-card class="flex-shrink-0" elevation="1">
+            <v-card-text class="pa-3">
+              <v-row dense align="center">
+                <v-col cols="12" sm="4">
+                  <v-select v-model="fieldSectionFilter"
+                            :items="sectionFilterItems"
+                            item-title="label"
+                            item-value="key"
+                            label="Filter by section"
+                            variant="outlined"
+                            density="compact"
+                            clearable
+                            hide-details />
+                </v-col>
+                <v-col cols="auto" class="ml-auto">
+                  <v-btn color="primary" prepend-icon="mdi-plus" size="small" @click="openFieldDialog()">
+                    Add Field
+                  </v-btn>
+                </v-col>
+              </v-row>
+            </v-card-text>
+          </v-card>
+          <!-- Data cards: one per section, scrollable container -->
+          <div class="flex-grow-1 overflow-y-auto" style="min-height: 0;">
+            <v-card v-for="section in configStore.sections" :key="section.section_id"
+                    class="mb-3"
+                    :class="{ 'd-none': fieldSectionFilter && fieldSectionFilter !== section.section_key }"
+                    elevation="1">
+
+              <v-card-title class="bg-grey-lighten-4 text-subtitle-1 pa-3">
+                <v-chip size="small" color="primary" variant="tonal" class="mr-2">
+                  {{ section.section_key }}
+                </v-chip>
+                {{ section.section_label }}
+              </v-card-title>
+
+              <v-data-table-virtual :headers="fieldHeaders"
+                                    :items="section.fields || []"
+                                    density="compact"
+                                    hide-default-footer
+                                    :items-per-page="-1"
+                                    class="npi-table">
+
+                <template #item.is_required="{ item }">
+                  <v-icon :color="item.is_required ? 'error' : 'grey'" size="small">
+                    {{ item.is_required ? 'mdi-asterisk' : 'mdi-minus' }}
+                  </v-icon>
+                </template>
+
+                <template #item.is_active="{ item }">
+                  <v-chip :color="item.is_active ? 'success' : 'grey'" size="x-small" variant="flat">
+                    {{ item.is_active ? 'Active' : 'Off' }}
+                  </v-chip>
+                </template>
+
+                <template #item.actions="{ item }">
+                  <v-menu location="bottom end">
+                    <template #activator="{ props }">
+                      <v-btn icon="mdi-dots-vertical" variant="text" size="small" v-bind="props" />
+                    </template>
+                    <v-list density="compact" min-width="140">
+                      <v-list-item @click="openFieldDialog(item, section)">
+                        <template #prepend>
+                          <v-icon size="18">mdi-pencil</v-icon>
+                        </template>
+                        <v-list-item-title>Edit</v-list-item-title>
+                      </v-list-item>
+                      <v-divider />
+                      <v-list-item @click="confirmDeleteField(item)">
+                        <template #prepend>
+                          <v-icon size="18" color="error">mdi-delete</v-icon>
+                        </template>
+                        <v-list-item-title class="text-error">Delete</v-list-item-title>
+                      </v-list-item>
+                    </v-list>
+                  </v-menu>
+                </template>
+              </v-data-table-virtual>
+            </v-card>
+          </div>
         </div>
       </v-window-item>
 

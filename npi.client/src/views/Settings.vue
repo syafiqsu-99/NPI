@@ -9,30 +9,35 @@
       </v-card-title>
 
       <v-tabs v-model="activeTab" bg-color="grey-lighten-4" color="primary" density="compact">
-        <v-tab v-if="canManageUsers" value="users">
+        <v-tab value="users">
           <v-icon start size="18">mdi-account-multiple</v-icon>
           Users
         </v-tab>
-        <v-tab v-if="canManageRoles" value="systemRoles">
+
+        <v-tab v-if="isAdmin" value="systemRoles">
           <v-icon start size="18">mdi-shield-account</v-icon>
           System Roles
         </v-tab>
-        <v-tab v-if="canManageRoles" value="projectRoles">
+
+        <v-tab value="projectRoles">
           <v-icon start size="18">mdi-folder-account</v-icon>
           Project Roles
         </v-tab>
-        <v-tab v-if="canManageDepts" value="departments">
+
+        <v-tab value="departments">
           <v-icon start size="18">mdi-domain</v-icon>
           Departments
         </v-tab>
-        <v-tab v-if="canManageFormConfig" value="npiConfig">
+
+        <v-tab value="npiConfig">
           <v-icon start size="18">mdi-form-select</v-icon>
           NPI Form
         </v-tab>
-        <v-tab v-if="isAdmin" value="system">
+
+        <!--<v-tab value="system">
           <v-icon start size="18">mdi-cog-outline</v-icon>
           System
-        </v-tab>
+        </v-tab>-->
       </v-tabs>
     </v-card>
 
@@ -42,25 +47,25 @@
         <UserManagement :is-admin="isAdmin" />
       </v-window-item>
 
-      <v-window-item v-if="canManageRoles" value="systemRoles" class="fill-height">
+      <v-window-item v-if="isAdmin" value="systemRoles" class="fill-height">
         <RoleManagement />
       </v-window-item>
 
-      <v-window-item v-if="canManageRoles" value="projectRoles" class="fill-height">
+      <v-window-item value="projectRoles" class="fill-height">
         <ProjectRoleManagement />
       </v-window-item>
 
-      <v-window-item v-if="canManageDepts" value="departments" class="fill-height">
+      <v-window-item value="departments" class="fill-height">
         <DepartmentManagement />
       </v-window-item>
 
-      <v-window-item v-if="canManageFormConfig" value="npiConfig" class="fill-height">
+      <v-window-item value="npiConfig" class="fill-height">
         <NpiFormConfig />
       </v-window-item>
 
-      <v-window-item v-if="isAdmin" value="system" class="fill-height">
+      <!--<v-window-item value="system" class="fill-height">
         <SystemSettings />
-      </v-window-item>
+      </v-window-item>-->
 
     </v-window>
   </div>
@@ -80,10 +85,6 @@
   const activeTab = ref('users')
 
   const isAdmin = computed(() => authStore.isAdmin)
-  const canManageUsers = computed(() => authStore.isAdmin || authStore.isManager)
-  const canManageRoles = computed(() => authStore.isAdmin || authStore.isManager)
-  const canManageDepts = computed(() => authStore.isAdmin || authStore.isManager)
-  const canManageFormConfig = computed(() => authStore.isAdmin || authStore.isManager)
 </script>
 
 <style scoped>
@@ -97,7 +98,6 @@
     min-height: 0;
   }
 
-  /* Ensure the v-window and all items fill the flex container */
   :deep(.v-window__container),
   :deep(.v-window-item) {
     height: 100% !important;

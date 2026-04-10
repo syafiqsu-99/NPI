@@ -88,6 +88,7 @@ namespace NPI.Server.DTOs
         public string username { get; set; }
         public string? full_name { get; set; }
         public string? email { get; set; }
+        public int? dept_id { get; set; }
         public string? dept_name { get; set; }
         public string? role_name { get; set; }
         public bool is_active { get; set; }

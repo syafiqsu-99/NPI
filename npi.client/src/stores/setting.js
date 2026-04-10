@@ -14,7 +14,7 @@ export const useSettingsStore = defineStore('setting', () => {
     loading.value = true
     error.value = null
     try {
-      const result = await api.get('/admin/usermanagement')
+      const result = await api.get('/user')
       if (result?.success && result?.data) {
         users.value = result.data
       } else if (Array.isArray(result)) {
@@ -31,7 +31,7 @@ export const useSettingsStore = defineStore('setting', () => {
 
   async function getUserById(userId) {
     try {
-      const result = await api.get(`/admin/usermanagement/${userId}`)
+      const result = await api.get(`/user/${userId}`)
       return result
     } catch (err) {
       error.value = err.message
@@ -41,7 +41,7 @@ export const useSettingsStore = defineStore('setting', () => {
 
   async function createUser(userData) {
     try {
-      const result = await api.post('/admin/usermanagement', userData)
+      const result = await api.post('/user', userData)
       if (result?.success) {
         await fetchUsers()
       }
@@ -54,7 +54,7 @@ export const useSettingsStore = defineStore('setting', () => {
 
   async function updateUser(userId, userData) {
     try {
-      const result = await api.put(`/admin/usermanagement/${userId}`, userData)
+      const result = await api.put(`/user/${userId}`, userData)
       if (result?.success) {
         await fetchUsers()
       }
@@ -67,7 +67,7 @@ export const useSettingsStore = defineStore('setting', () => {
 
   async function deleteUser(userId) {
     try {
-      const result = await api.delete(`/admin/usermanagement/${userId}`)
+      const result = await api.delete(`/user/${userId}`)
       if (result?.success) {
         await fetchUsers()
       }
@@ -80,7 +80,7 @@ export const useSettingsStore = defineStore('setting', () => {
 
   async function toggleUserStatus(userId) {
     try {
-      const result = await api.patch(`/admin/usermanagement/${userId}/toggle-status`)
+      const result = await api.patch(`/user/${userId}/toggle-status`)
       if (result?.success) {
         await fetchUsers()
       }
@@ -93,7 +93,7 @@ export const useSettingsStore = defineStore('setting', () => {
 
   async function resetUserPassword(userId, newPassword) {
     try {
-      const result = await api.put(`/admin/usermanagement/${userId}/reset-password`, {
+      const result = await api.put(`/user/${userId}/reset-password`, {
         new_password: newPassword
       })
       return result
@@ -108,7 +108,7 @@ export const useSettingsStore = defineStore('setting', () => {
     loading.value = true
     error.value = null
     try {
-      const result = await api.get('/admin/rolemanagement')
+      const result = await api.get('/role')
       if (result?.success && result?.data) {
         roles.value = result.data
       } else if (Array.isArray(result)) {
@@ -125,7 +125,7 @@ export const useSettingsStore = defineStore('setting', () => {
 
   async function getRoleById(roleId) {
     try {
-      const result = await api.get(`/admin/rolemanagement/${roleId}`)
+      const result = await api.get(`/role/${roleId}`)
       return result
     } catch (err) {
       error.value = err.message
@@ -135,7 +135,7 @@ export const useSettingsStore = defineStore('setting', () => {
 
   async function createRole(roleData) {
     try {
-      const result = await api.post('/admin/rolemanagement', roleData)
+      const result = await api.post('/role', roleData)
       if (result?.success) {
         await fetchRoles()
       }
@@ -148,7 +148,7 @@ export const useSettingsStore = defineStore('setting', () => {
 
   async function updateRole(roleId, roleData) {
     try {
-      const result = await api.put(`/admin/rolemanagement/${roleId}`, roleData)
+      const result = await api.put(`/role/${roleId}`, roleData)
       if (result?.success) {
         await fetchRoles()
       }
@@ -161,7 +161,7 @@ export const useSettingsStore = defineStore('setting', () => {
 
   async function deleteRole(roleId) {
     try {
-      const result = await api.delete(`/admin/rolemanagement/${roleId}`)
+      const result = await api.delete(`/role/${roleId}`)
       if (result?.success) {
         await fetchRoles()
       }
@@ -174,7 +174,7 @@ export const useSettingsStore = defineStore('setting', () => {
 
   async function toggleRoleStatus(roleId) {
     try {
-      const result = await api.patch(`/admin/rolemanagement/${roleId}/toggle-status`)
+      const result = await api.patch(`/role/${roleId}/toggle-status`)
       if (result?.success) {
         await fetchRoles()
       }

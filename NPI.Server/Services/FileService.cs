@@ -312,6 +312,8 @@ namespace NPI.Server.Services
             {
                 var file = await _context.Files.FindAsync(fileId);
                 if (file is null) return false;
+
+                file.updated_at = DateTime.Now;
                 if (File.Exists(file.file_path)) File.Delete(file.file_path);
                 _context.Files.Remove(file);
                 await _context.SaveChangesAsync();
@@ -326,6 +328,8 @@ namespace NPI.Server.Services
             {
                 var file = await _context.Files.FindAsync(fileId);
                 if (file is null) return (false, "File not found");
+
+                file.updated_at = DateTime.Now;
                 if (File.Exists(file.file_path)) File.Delete(file.file_path);
                 _context.Files.Remove(file);
                 await _context.SaveChangesAsync();
@@ -362,6 +366,169 @@ namespace NPI.Server.Services
                 _basePath, "projects", SanitizeFolderName(projName), "Customer");
             Directory.CreateDirectory(path);
             return path;
+        }
+
+        // ── Physical Structure Access ───────────────────────────────────────
+
+        public async Task<List<DirectoryNodeDto>> GetPhysicalFolderStructureAsync(int userId)
+        {
+            // 1. Resolve User and System Role
+            var user = await _context.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u => u.user_id == userId);
+
+            bool isManagerOrAdmin = user?.Role?.role_name == "Admin" || user?.Role?.role_name == "Manager";
+            int? userDeptId = user?.dept_id;
+
+            // 2. Fetch User's assigned projects from ProjectRoles
+            var assignedProjectIds = await _context.ProjectRoles
+                .Where(pr => pr.user_id == userId)
+                .Select(pr => pr.proj_id)
+                .ToListAsync();
+
+            var allProjects = await _context.Projects.ToListAsync();
+
+            // 3. Map physical path links to database Files to provide file IDs
+            var allFiles = await _context.Files
+                .Where(f => f.status == "Active" && f.is_latest)
+                .ToListAsync();
+
+            var fileMap = allFiles
+                .Where(f => !string.IsNullOrWhiteSpace(f.file_path))
+                .GroupBy(f => f.file_path!)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+            var rootNodes = new List<DirectoryNodeDto>();
+
+            // --- A. Scan "Projects" ---
+            var projectsPath = Path.Combine(_basePath, "projects");
+            var projectsNode = new DirectoryNodeDto
+            {
+                id = "root-projects",
+                name = "Projects",
+                type = "root-projects",
+                children = new List<DirectoryNodeDto>(),
+                can_edit = isManagerOrAdmin
+            };
+
+            if (Directory.Exists(projectsPath))
+            {
+                foreach (var projDir in Directory.GetDirectories(projectsPath))
+                {
+                    var dirName = Path.GetFileName(projDir);
+                    var project = allProjects.FirstOrDefault(p => SanitizeFolderName(p.proj_name) == dirName || p.proj_name == dirName);
+
+                    // Manager/Admin gets override. Otherwise, MUST be assigned to proj AND have same department
+                    bool canEditProject = isManagerOrAdmin;
+                    if (!canEditProject && project != null)
+                    {
+                        canEditProject = assignedProjectIds.Contains(project.proj_id) && project.dept_id == userDeptId;
+                    }
+
+                    var pNode = BuildPhysicalNode(projDir, canEditProject, fileMap, "project");
+                    projectsNode.children.Add(pNode);
+                }
+            }
+            rootNodes.Add(projectsNode);
+
+            // --- B. Scan "Customers" ---
+            var customersPath = Path.Combine(_basePath, "customers");
+            var customersNode = new DirectoryNodeDto
+            {
+                id = "root-customers",
+                name = "Customers",
+                type = "root-customers",
+                children = new List<DirectoryNodeDto>(),
+                can_edit = isManagerOrAdmin
+            };
+
+            if (Directory.Exists(customersPath))
+            {
+                foreach (var custDir in Directory.GetDirectories(customersPath))
+                {
+                    // For standard users, customer folders aren't editable. Only Manager/Admin
+                    var cNode = BuildPhysicalNode(custDir, isManagerOrAdmin, fileMap, "customer");
+                    customersNode.children.Add(cNode);
+                }
+            }
+            rootNodes.Add(customersNode);
+
+            return rootNodes;
+        }
+
+        private DirectoryNodeDto BuildPhysicalNode(
+    string path, bool canEdit, Dictionary<string, Files> fileMap, string defaultType = "folder")
+        {
+            var node = new DirectoryNodeDto
+            {
+                id = path,
+                name = Path.GetFileName(path),
+                type = defaultType,
+                path = path,
+                can_edit = canEdit,
+                children = new List<DirectoryNodeDto>()
+            };
+
+            try
+            {
+                foreach (var dir in Directory.GetDirectories(path))
+                    node.children.Add(BuildPhysicalNode(dir, canEdit, fileMap, "folder"));
+
+                foreach (var file in Directory.GetFiles(path))
+                {
+                    var fNode = new DirectoryNodeDto
+                    {
+                        id = file,
+                        name = Path.GetFileName(file),
+                        type = "file",
+                        path = file,
+                        can_edit = canEdit,
+                        size = new FileInfo(file).Length
+                    };
+
+                    if (fileMap.TryGetValue(file, out var dbFile))
+                    {
+                        fNode.file_id = dbFile.file_id;
+                        fNode.uploaded_at = dbFile.created_at;
+                        fNode.updated_at = dbFile.updated_at;
+                        fNode.file_version = dbFile.file_version;
+                        fNode.content_type = dbFile.content_type;
+                    }
+
+                    node.children.Add(fNode);
+                }
+            }
+            catch (Exception) { /* skip inaccessible folders */ }
+
+            return node;
+        }
+
+        public async Task<(bool success, byte[]? fileData, string? contentType)> DownloadPhysicalFileAsync(string path)
+        {
+            var fullPath = Path.GetFullPath(path);
+            if (!fullPath.StartsWith(Path.GetFullPath(_basePath)) || !File.Exists(fullPath))
+                return (false, null, null);
+
+            var bytes = await File.ReadAllBytesAsync(fullPath);
+            return (true, bytes, "application/octet-stream");
+        }
+
+        public async Task<(bool success, string message)> DeletePhysicalFileAsync(string path)
+        {
+            try
+            {
+                var fullPath = Path.GetFullPath(path);
+                if (!fullPath.StartsWith(Path.GetFullPath(_basePath)))
+                    return (false, "Invalid Path Security");
+
+                if (!File.Exists(fullPath)) return (false, "File not found");
+                File.Delete(fullPath);
+                return (true, "Deleted from disk");
+            }
+            catch (Exception ex)
+            {
+                return (false, $"Delete failed: {ex.Message}");
+            }
         }
 
         // ── Static helpers ────────────────────────────────────────────────────
@@ -431,6 +598,7 @@ namespace NPI.Server.Services
             uploaded_by = f.upload_by,
             uploaded_by_name = f.UploadByUser?.username,
             uploaded_at = f.created_at,
+            updated_at = f.updated_at,
             file_version = f.file_version,
             status = f.status,
             is_latest = f.is_latest

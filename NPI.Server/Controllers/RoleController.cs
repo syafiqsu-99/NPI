@@ -5,14 +5,14 @@ using NPI.Server.Services;
 
 namespace NPI.Server.Controllers
 {
-    [Route("api/admin/[controller]")]
+    [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Admin,Manager")]
-    public class RoleManagementController : ControllerBase
+    [Authorize(Roles = "Admin")]
+    public class RoleController : ControllerBase
     {
         private readonly IRoleService _roleService;
 
-        public RoleManagementController(IRoleService roleService)
+        public RoleController(IRoleService roleService)
         {
             _roleService = roleService;
         }

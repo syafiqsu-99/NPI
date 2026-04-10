@@ -73,7 +73,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> CreateDepartment([FromBody] CreateDepartmentDto dto)
         {
             try
@@ -122,7 +122,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> UpdateDepartment(int id, [FromBody] UpdateDepartmentDto dto)
         {
             try
@@ -170,7 +170,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> DeleteDepartment(int id)
         {
             try
