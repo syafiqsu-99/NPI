@@ -1,266 +1,239 @@
 <template>
-  <v-container fluid class="page-container pa-6 d-flex flex-column">
+  <v-container fluid class="pa-0 dashboard-root d-flex flex-column">
 
-    <!-- Page header -->
-    <v-row class="mb-4 flex-shrink-0">
-      <v-col cols="12">
-        <v-card elevation="2">
-          <v-card-title class="bg-primary text-white d-flex align-center justify-space-between">
-            <div>
-              <v-icon class="mr-2">mdi-clipboard-list-outline</v-icon>
-              My Tasks
+    <!-- Compact Top Header -->
+    <div class="bg-primary text-white d-flex align-center justify-space-between px-4 py-2 flex-shrink-0 shadow-sm">
+      <div class="text-subtitle-1 font-weight-medium d-flex align-center">
+        <v-icon class="mr-2" size="small">mdi-clipboard-list-outline</v-icon>
+        My Tasks
+      </div>
+      <v-btn variant="text" color="white" density="compact" :loading="loading" @click="refresh">
+        <v-icon start size="small">mdi-refresh</v-icon>Refresh
+      </v-btn>
+    </div>
+
+    <!-- KPI Strip (Filtered to current user's ACTIVE tasks only) -->
+    <div class="kpi-strip px-4 pt-3 pb-2 flex-shrink-0">
+      <v-row dense>
+        <v-col v-for="kpi in statCards" :key="kpi.title" cols="12" sm="6" md="3">
+          <v-card class="kpi-card d-flex flex-column justify-center" variant="tonal" :color="kpi.color">
+            <div class="text-caption text-uppercase text-medium-emphasis">{{ kpi.title }}</div>
+            <div class="text-h4 font-weight-bold">{{ kpi.value }}</div>
+          </v-card>
+        </v-col>
+      </v-row>
+    </div>
+
+    <!-- Filters Strip -->
+    <div class="px-4 pb-2 flex-shrink-0">
+      <v-row dense align="center">
+        <v-col cols="12" sm="3">
+          <v-text-field v-model="search"
+                        label="Search tasks…"
+                        prepend-inner-icon="mdi-magnify"
+                        variant="outlined" density="compact"
+                        hide-details clearable bg-color="white" />
+        </v-col>
+        <v-col cols="6" sm="2">
+          <v-select v-model="filterStatus"
+                    :items="['All', ...STATUS_OPTIONS]"
+                    label="Status" variant="outlined"
+                    density="compact" hide-details bg-color="white" />
+        </v-col>
+        <v-col cols="6" sm="2">
+          <v-select v-model="filterPriority"
+                    :items="['All', 'Low', 'Medium', 'High', 'Critical']"
+                    label="Priority" variant="outlined"
+                    density="compact" hide-details bg-color="white" />
+        </v-col>
+        <v-col cols="12" sm="5" class="d-flex justify-end align-center ga-4">
+          <v-switch v-model="showAllStages"
+                    label="All stages"
+                    density="compact" hide-details color="primary" />
+          <v-switch v-model="showCompletedProjects"
+                    label="Show completed"
+                    density="compact" hide-details color="success" />
+        </v-col>
+      </v-row>
+    </div>
+
+    <!-- Dashboard Body -->
+    <div class="dashboard-body px-4 pb-4 flex-grow-1 overflow-hidden d-flex flex-column">
+      <div class="projects-scroll flex-grow-1 overflow-y-auto pr-1">
+
+        <div v-if="!loading && visibleProjects.length === 0" class="text-center pa-10">
+          <v-icon size="72" color="grey-lighten-1">mdi-clipboard-text-off</v-icon>
+          <div class="text-h6 mt-4 text-grey">No projects to display</div>
+        </div>
+
+        <v-skeleton-loader v-if="loading" type="card" class="mb-4" v-for="n in 3" :key="n" />
+
+        <v-card v-for="project in visibleProjects"
+                :key="project.proj_id"
+                elevation="1"
+                class="mb-3 border"
+                :class="{ 'project-card--archived': project.isCompleted }">
+
+          <!-- Project header -->
+          <v-card-title class="project-header cursor-pointer d-flex align-center py-2 px-3"
+                        :class="project.isCompleted ? 'bg-green-lighten-5' : 'bg-grey-lighten-4'"
+                        @click="toggleProject(project.proj_id)">
+
+            <v-icon class="mr-3" :color="project.isCompleted ? 'success' : 'grey-darken-2'">
+              {{ project.isCompleted ? 'mdi-folder-check' : 'mdi-folder-outline' }}
+            </v-icon>
+
+            <div class="flex-grow-1">
+              <div class="text-subtitle-1 font-weight-bold"
+                   :class="project.isCompleted ? 'text-green-darken-3' : 'text-grey-darken-3'">
+                {{ project.proj_name }}
+              </div>
+              <div class="text-caption"
+                   :class="project.isCompleted ? 'text-green-darken-1' : 'text-grey'">
+                {{ project.proj_no }} · {{ project.tasks.length }} task(s)
+              </div>
             </div>
-            <v-btn variant="text" color="white" :loading="loading" @click="refresh">
-              <v-icon start>mdi-refresh</v-icon>Refresh
-            </v-btn>
+
+            <div class="d-flex ga-2 align-center">
+              <v-chip v-if="project.isCompleted" size="small" color="success" variant="flat">
+                <v-icon start size="x-small">mdi-archive</v-icon>Archived
+              </v-chip>
+
+              <v-chip v-if="project.priority" :color="getPriorityColor(project.priority)" size="small" variant="tonal">
+                {{ project.priority }}
+              </v-chip>
+
+              <v-chip v-if="project.tasks.filter(t => isOverdue(t)).length > 0" size="small" color="error" variant="flat">
+                <v-icon start size="x-small">mdi-clock-alert</v-icon>
+                {{ project.tasks.filter(t => isOverdue(t)).length }} overdue
+              </v-chip>
+
+              <v-chip v-if="!showAllStages && !project.isCompleted" :color="getStageColor(getCurrentStageId(project.tasks))" size="small" variant="outlined" class="bg-white">
+                Stage {{ getCurrentStageId(project.tasks) }}
+              </v-chip>
+
+              <v-icon :color="project.isCompleted ? 'success' : ''" class="ml-2">
+                {{ isExpanded(project.proj_id) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+              </v-icon>
+            </div>
           </v-card-title>
 
-          <v-card-text class="pa-4">
-            <!-- Stat cards -->
-            <v-row class="mb-2">
-              <v-col v-for="stat in statCards" :key="stat.label" cols="12" sm="6" md="3">
-                <v-card variant="tonal" :color="stat.color">
-                  <v-card-text>
-                    <div class="d-flex align-center justify-space-between">
-                      <div>
-                        <div class="text-h4 font-weight-bold">{{ stat.value }}</div>
-                        <div class="text-caption">{{ stat.label }}</div>
-                      </div>
-                      <v-icon size="48" :color="`${stat.color}-darken-2`">{{ stat.icon }}</v-icon>
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
+          <!-- Expanded tasks -->
+          <v-expand-transition>
+            <div v-show="isExpanded(project.proj_id)">
+              <v-card-text class="pa-0 border-t">
+                <div v-for="group in getStageGroups(project)" :key="group.stageId">
 
-            <!-- Filters -->
-            <v-row>
-              <v-col cols="12" sm="4">
-                <v-text-field v-model="search"
-                              label="Search tasks…"
-                              prepend-inner-icon="mdi-magnify"
-                              variant="outlined" density="compact"
-                              hide-details clearable />
-              </v-col>
-              <v-col cols="6" sm="3">
-                <v-select v-model="filterStatus"
-                          :items="['All', ...STATUS_OPTIONS]"
-                          label="Status" variant="outlined"
-                          density="compact" hide-details />
-              </v-col>
-              <v-col cols="6" sm="3">
-                <v-select v-model="filterPriority"
-                          :items="['All', 'Low', 'Medium', 'High', 'Critical']"
-                          label="Priority" variant="outlined"
-                          density="compact" hide-details />
-              </v-col>
-              <v-col cols="12" sm="2" class="d-flex align-center">
-                <v-switch v-model="showAllStages"
-                          label="All stages"
-                          density="compact" hide-details color="primary" />
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-
-    <!-- Projects list -->
-    <div class="projects-scroll flex-grow-1 overflow-y-auto">
-      <div v-if="!loading && visibleProjects.length === 0" class="text-center pa-10">
-        <v-icon size="72" color="grey-lighten-1">mdi-clipboard-text-off</v-icon>
-        <div class="text-h6 mt-4 text-grey">No projects assigned to you</div>
-      </div>
-
-      <v-skeleton-loader v-if="loading" type="card" class="mb-4" v-for="n in 3" :key="n" />
-
-      <v-card v-for="project in visibleProjects"
-              :key="project.proj_id"
-              elevation="2"
-              class="mb-4"
-              :class="{ 'project-card--archived': isProjectComplete(project) }">
-
-        <!-- Project header -->
-        <v-card-title class="project-header cursor-pointer d-flex align-center"
-                      :class="isProjectComplete(project) ? 'bg-green-darken-1' : 'bg-grey-lighten-3'"
-                      @click="toggleProject(project.proj_id)">
-          <v-icon class="mr-2"
-                  :color="isProjectComplete(project) ? 'white' : 'grey-darken-2'">
-            {{ isProjectComplete(project) ? 'mdi-folder-check' : 'mdi-folder-outline' }}
-          </v-icon>
-
-          <div class="flex-grow-1">
-            <div class="text-h6"
-                 :class="isProjectComplete(project) ? 'text-white' : ''">
-              {{ project.proj_name }}
-            </div>
-            <div class="text-caption"
-                 :class="isProjectComplete(project) ? 'text-green-lighten-4' : 'text-grey'">
-              {{ project.proj_no }} · {{ project.tasks.length }} task(s)
-            </div>
-          </div>
-
-          <div class="d-flex ga-2 align-center">
-            <!-- Archived label replaces "All Done" chip -->
-            <v-chip v-if="isProjectComplete(project)"
-                    size="small" color="white" variant="outlined">
-              <v-icon start size="x-small">mdi-archive</v-icon>
-              Archived
-            </v-chip>
-
-            <v-chip v-if="project.priority"
-                    :color="getPriorityColor(project.priority)"
-                    size="small" variant="tonal">
-              {{ project.priority }}
-            </v-chip>
-
-            <v-chip v-if="project.tasks.filter(t => isOverdue(t)).length > 0"
-                    size="x-small" color="error" variant="tonal">
-              <v-icon start size="x-small">mdi-clock-alert</v-icon>
-              {{ project.tasks.filter(t => isOverdue(t)).length }} overdue
-            </v-chip>
-
-            <v-chip v-if="!showAllStages && !isProjectComplete(project)"
-                    :color="getStageColor(getCurrentStageId(project.tasks))"
-                    size="small" variant="tonal">
-              Stage {{ getCurrentStageId(project.tasks) }}
-            </v-chip>
-
-            <v-icon :color="isProjectComplete(project) ? 'white' : ''">
-              {{ isExpanded(project.proj_id) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
-            </v-icon>
-          </div>
-        </v-card-title>
-
-        <!-- Expanded tasks -->
-        <v-expand-transition>
-          <div v-show="isExpanded(project.proj_id)">
-            <v-card-text class="pa-0" style="max-height: 520px; overflow-y: auto;">
-              <div v-for="group in getStageGroups(project)" :key="group.stageId">
-
-                <!-- Stage sub-header -->
-                <div class="stage-header d-flex align-center px-4 py-2">
-                  <v-chip :color="getStageColor(group.stageId)"
-                          size="small" variant="tonal" class="mr-2 font-weight-bold">
-                    {{ group.stageId }}
-                  </v-chip>
-                  <span class="text-subtitle-2 font-weight-medium">{{ group.stageName }}</span>
-                  <v-spacer />
-                  <span class="text-caption text-grey mr-2">
-                    {{ group.tasks.filter(t => t.status === 'Completed').length }}/{{ group.tasks.length }} done
-                  </span>
-                  <v-progress-linear :model-value="stagePct(group.tasks)"
-                                     :color="getStageColor(group.stageId)"
-                                     height="4" rounded style="max-width: 80px;" />
-                </div>
-
-                <!-- Tasks virtual table -->
-                <v-data-table-virtual :headers="headers"
-                                      :items="group.tasks"
-                                      density="compact"
-                                      hide-default-footer
-                                      :items-per-page="-1"
-                                      class="tasks-table"
-                                      height="auto">
-
-                  <template #item.task_code="{ item }">
-                    <v-chip :color="getStageColor(item.stage_id)"
-                            size="x-small" variant="tonal" class="font-weight-bold">
-                      {{ item.task_code || '—' }}
+                  <!-- Stage sub-header -->
+                  <div class="stage-header d-flex align-center px-4 py-1">
+                    <v-chip :color="getStageColor(group.stageId)" size="x-small" variant="flat" class="mr-2 font-weight-bold">
+                      {{ group.stageId }}
                     </v-chip>
-                  </template>
+                    <span class="text-caption font-weight-bold text-uppercase text-grey-darken-2">{{ group.stageName }}</span>
+                    <v-spacer />
+                    <span class="text-caption text-grey mr-3">
+                      {{ group.tasks.filter(t => t.status === 'Completed').length }}/{{ group.tasks.length }} done
+                    </span>
+                    <v-progress-linear :model-value="stagePct(group.tasks)"
+                                       :color="getStageColor(group.stageId)"
+                                       height="4" rounded style="max-width: 80px;" />
+                  </div>
 
-                  <template #item.title="{ item }">
-                    <span class="font-weight-medium">{{ item.title }}</span>
-                  </template>
+                  <!-- Tasks virtual table (Removed Progress Column) -->
+                  <v-data-table-virtual :headers="headers"
+                                        :items="group.tasks"
+                                        density="compact"
+                                        hide-default-footer
+                                        :items-per-page="-1"
+                                        class="tasks-table"
+                                        height="auto">
 
-                  <template #item.status="{ item }">
-                    <v-menu :disabled="!canEditTaskItem(item, project.proj_id)">
-                      <template #activator="{ props }">
-                        <v-chip v-bind="props"
-                                :color="getStatusColor(item.status)"
-                                :variant="item.status === 'Completed' ? 'flat' : 'tonal'"
-                                size="small"
-                                :class="canEditTaskItem(item, project.proj_id) ? 'cursor-pointer' : ''">
-                          <v-icon start size="x-small">{{ getStatusIcon(item.status) }}</v-icon>
-                          {{ item.status }}
-                          <v-badge v-if="isOverdue(item)" color="error" content="!" inline class="ml-1" />
-                        </v-chip>
-                      </template>
-                      <v-list density="compact">
-                        <v-list-item v-for="s in STATUS_OPTIONS" :key="s"
-                                     @click="updateStatus(item, s, project.proj_id)">
-                          <template #prepend>
-                            <v-icon size="small" :color="getStatusColor(s)">{{ getStatusIcon(s) }}</v-icon>
-                          </template>
-                          <v-list-item-title>{{ s }}</v-list-item-title>
-                        </v-list-item>
-                      </v-list>
-                    </v-menu>
-                  </template>
-
-                  <template #item.dept_name="{ item }">
-                    <v-chip size="small" variant="outlined" color="primary">
-                      {{ item.dept_name || 'N/A' }}
-                    </v-chip>
-                  </template>
-
-                  <template #item.planned_dates="{ item }">
-                    <div class="text-caption">
-                      <div>{{ formatDate(item.planned_start_date) }}</div>
-                      <div class="text-grey">→ {{ formatDate(item.planned_end_date) }}</div>
-                      <v-chip v-if="isOverdue(item)" size="x-small" color="error" variant="tonal" class="mt-1">
-                        Overdue
+                    <template #item.task_code="{ item }">
+                      <v-chip :color="getStageColor(item.stage_id)" size="x-small" variant="tonal" class="font-weight-bold">
+                        {{ item.task_code || '—' }}
                       </v-chip>
-                    </div>
-                  </template>
+                    </template>
 
-                  <template #item.per_complete="{ item }">
-                    <div style="min-width: 80px;">
-                      <v-progress-linear :model-value="item.per_complete || 0"
-                                         :color="getProgressColor(item.per_complete)"
-                                         height="16" rounded>
-                        <strong class="text-caption">{{ item.per_complete || 0 }}%</strong>
-                      </v-progress-linear>
-                    </div>
-                  </template>
+                    <template #item.title="{ item }">
+                      <span class="font-weight-medium text-body-2">{{ item.title }}</span>
+                    </template>
 
-                  <template #item.actions="{ item }">
-                    <div class="d-flex ga-1">
-                      <v-tooltip v-if="canEditTaskItem(item, project.proj_id)"
-                                 text="Upload Files" location="top">
+                    <template #item.status="{ item }">
+                      <v-menu :disabled="!canEditTaskItem(item, project.proj_id)">
                         <template #activator="{ props }">
-                          <v-btn icon="mdi-file-upload" size="small" variant="text"
-                                 color="primary" v-bind="props"
-                                 @click="openUpload(item, project)" />
+                          <v-chip v-bind="props"
+                                  :color="getStatusColor(item.status)"
+                                  :variant="item.status === 'Completed' ? 'flat' : 'tonal'"
+                                  size="small"
+                                  :class="canEditTaskItem(item, project.proj_id) ? 'cursor-pointer' : ''">
+                            <v-icon start size="x-small">{{ getStatusIcon(item.status) }}</v-icon>
+                            {{ item.status }}
+                            <v-badge v-if="isOverdue(item)" color="error" content="!" inline class="ml-1" />
+                          </v-chip>
                         </template>
-                      </v-tooltip>
+                        <v-list density="compact">
+                          <v-list-item v-for="s in STATUS_OPTIONS" :key="s"
+                                       @click="updateStatus(item, s, project.proj_id)">
+                            <template #prepend>
+                              <v-icon size="small" :color="getStatusColor(s)">{{ getStatusIcon(s) }}</v-icon>
+                            </template>
+                            <v-list-item-title class="text-body-2">{{ s }}</v-list-item-title>
+                          </v-list-item>
+                        </v-list>
+                      </v-menu>
+                    </template>
 
-                      <v-tooltip text="Documents" location="top">
-                        <template #activator="{ props }">
-                          <v-badge :content="item.document_count"
-                                   :model-value="item.document_count > 0" color="success">
-                            <v-btn icon="mdi-file-document-multiple" size="small"
-                                   variant="text" color="info" v-bind="props"
-                                   @click="openDocs(item, project)" />
-                          </v-badge>
-                        </template>
-                      </v-tooltip>
+                    <template #item.dept_name="{ item }">
+                      <v-chip size="x-small" variant="outlined" color="primary">
+                        {{ item.dept_name || 'N/A' }}
+                      </v-chip>
+                    </template>
 
-                      <v-tooltip text="Details" location="top">
-                        <template #activator="{ props }">
-                          <v-btn icon="mdi-eye" size="small" variant="text"
-                                 v-bind="props" @click="openDetails(item, project)" />
-                        </template>
-                      </v-tooltip>
-                    </div>
-                  </template>
-                </v-data-table-virtual>
-              </div>
-            </v-card-text>
-          </div>
-        </v-expand-transition>
-      </v-card>
+                    <template #item.planned_dates="{ item }">
+                      <div class="text-caption lh-tight">
+                        <div class="font-weight-medium">{{ formatDate(item.planned_start_date) }}</div>
+                        <div class="text-grey">→ {{ formatDate(item.planned_end_date) }}</div>
+                        <v-chip v-if="isOverdue(item)" size="x-small" color="error" variant="flat" class="mt-1 px-1" style="height:14px; font-size:9px">
+                          Overdue
+                        </v-chip>
+                      </div>
+                    </template>
+
+                    <template #item.actions="{ item }">
+                      <div class="d-flex ga-1">
+                        <v-tooltip v-if="canEditTaskItem(item, project.proj_id)" text="Upload Files" location="top">
+                          <template #activator="{ props }">
+                            <v-btn icon="mdi-file-upload" size="small" density="compact" variant="text"
+                                   color="primary" v-bind="props" @click="openUpload(item, project)" />
+                          </template>
+                        </v-tooltip>
+
+                        <v-tooltip text="Documents" location="top">
+                          <template #activator="{ props }">
+                            <v-badge :content="item.document_count"
+                                     :model-value="item.document_count > 0" color="success">
+                              <v-btn icon="mdi-file-document-multiple" size="small" density="compact"
+                                     variant="text" color="info" v-bind="props" @click="openDocs(item, project)" />
+                            </v-badge>
+                          </template>
+                        </v-tooltip>
+
+                        <v-tooltip text="Details" location="top">
+                          <template #activator="{ props }">
+                            <v-btn icon="mdi-eye" size="small" density="compact" variant="text"
+                                   v-bind="props" @click="openDetails(item, project)" />
+                          </template>
+                        </v-tooltip>
+                      </div>
+                    </template>
+                  </v-data-table-virtual>
+                </div>
+              </v-card-text>
+            </div>
+          </v-expand-transition>
+        </v-card>
+
+      </div>
     </div>
 
     <!-- ── Upload Dialog ── -->
@@ -343,7 +316,7 @@
         <v-card-title class="bg-primary text-white d-flex align-center justify-space-between">
           <span>
             <v-chip size="small" :color="getStageColor(selectedTask.stage_id)"
-                    variant="tonal" class="mr-2">
+                    variant="tonal" class="mr-2 bg-white">
               {{ selectedTask.task_code || '—' }}
             </v-chip>
             {{ selectedTask.title }}
@@ -435,7 +408,7 @@
 
   const authStore = useAuthStore()
 
-  // ── Auth ──────────────────────────────────────────────────────────────────────
+  // ── Auth & Access ─────────────────────────────────────────────────────────────
   const currentUser = computed(() => authStore.user ?? authStore.currentUser)
   const isViewer = computed(() => authStore.userRole === 'Viewer')
 
@@ -444,7 +417,6 @@
     if (isViewer.value) return false
 
     const projectRole = authStore.getProjectRole(projId)
-
     if (projectRole === 'Team Lead') return true
 
     if (projectRole === 'Member') {
@@ -460,7 +432,7 @@
   const uploading = ref(false)
   const deleting = ref(false)
 
-  const allTasks = ref([])
+  const allTasks = ref([]) // Holds all tasks across projects you are a member of
 
   const uploadDialog = ref(false)
   const docsDialog = ref(false)
@@ -479,8 +451,8 @@
   const filterStatus = ref('All')
   const filterPriority = ref('All')
   const showAllStages = ref(false)
+  const showCompletedProjects = ref(false) // Toggle completed/archived projects
 
-  // Expand state — latest project auto-expanded on mount
   const expandedProjects = ref([])
 
   const snackbar = ref(false)
@@ -489,13 +461,13 @@
 
   const STATUS_OPTIONS = ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Cancelled']
 
+  // Progress column has been removed from this array
   const headers = [
     { title: 'Code', key: 'task_code', width: '80px', sortable: false },
-    { title: 'Task', key: 'title', width: '35%' },
+    { title: 'Task', key: 'title', width: '40%' },
     { title: 'Status', key: 'status', width: '150px' },
     { title: 'Dept', key: 'dept_name', width: '120px' },
     { title: 'Dates', key: 'planned_dates', width: '160px', sortable: false },
-    { title: 'Progress', key: 'per_complete', width: '110px', sortable: false },
     { title: 'Actions', key: 'actions', width: '120px', sortable: false }
   ]
 
@@ -504,9 +476,56 @@
     '3.0': 'teal', '4.0': 'indigo', '5.0': 'deep-orange'
   }
 
-  // ── Derived ───────────────────────────────────────────────────────────────────
-  const filteredTasks = computed(() =>
-    allTasks.value.filter(t => {
+  // ── Derived View Properties ───────────────────────────────────────────────────
+
+  // Determine Project true status first so we can properly filter everything
+  const allProjectsBase = computed(() => {
+    const map = new Map()
+    allTasks.value.forEach(t => {
+      if (!map.has(t.proj_id)) {
+        map.set(t.proj_id, {
+          proj_id: t.proj_id,
+          proj_no: t.proj_no ?? '',
+          proj_name: t.proj_name ?? `Project #${t.proj_id}`,
+          priority: t.proj_priority ?? null,
+          status: t.proj_status ?? null,
+          allTasksForProj: []
+        })
+      }
+      map.get(t.proj_id).allTasksForProj.push(t)
+    })
+
+    return [...map.values()].map(p => {
+      const isCompleted = p.status === 'Completed' ||
+        (p.allTasksForProj.length > 0 && p.allTasksForProj.every(t => t.status === 'Completed' || t.status === 'Cancelled'))
+      return { ...p, isCompleted }
+    })
+  })
+
+  // 1. KPI Task Base: Permanently Excludes Completed Projects + Filters directly down to Active user tasks
+  const mySpecificTasks = computed(() => {
+    const activeProjIds = new Set(allProjectsBase.value.filter(p => !p.isCompleted).map(p => p.proj_id))
+    return allTasks.value.filter(t => activeProjIds.has(t.proj_id) && canEditTaskItem(t, t.proj_id))
+  })
+
+  const statCards = computed(() => [
+    { title: 'My Total Tasks', value: mySpecificTasks.value.length, color: 'primary' },
+    { title: 'In Progress', value: mySpecificTasks.value.filter(t => t.status === 'In Progress').length, color: 'blue' },
+    { title: 'Completed', value: mySpecificTasks.value.filter(t => t.status === 'Completed').length, color: 'green' },
+    { title: 'Overdue', value: mySpecificTasks.value.filter(t => isOverdue(t)).length, color: 'orange' }
+  ])
+
+  // 2. Visible filtered list of tasks for the table data
+  const filteredTasks = computed(() => {
+    const visibleProjIds = new Set(
+      allProjectsBase.value
+        .filter(p => showCompletedProjects.value || !p.isCompleted)
+        .map(p => p.proj_id)
+    )
+
+    return allTasks.value.filter(t => {
+      if (!visibleProjIds.has(t.proj_id)) return false
+
       const q = search.value?.toLowerCase() ?? ''
       const matchSearch = !q || t.title?.toLowerCase().includes(q)
         || t.task_code?.toLowerCase().includes(q) || t.proj_name?.toLowerCase().includes(q)
@@ -514,18 +533,17 @@
       const matchPriority = filterPriority.value === 'All' || t.priority === filterPriority.value
       return matchSearch && matchStatus && matchPriority
     })
-  )
+  })
 
+  // 3. Re-group remaining tasks back into Projects for the UI Map
   const visibleProjects = computed(() => {
     const map = new Map()
     filteredTasks.value.forEach(task => {
       if (!map.has(task.proj_id)) {
+        const baseProj = allProjectsBase.value.find(p => p.proj_id === task.proj_id)
         map.set(task.proj_id, {
-          proj_id: task.proj_id, proj_no: task.proj_no ?? '',
-          proj_name: task.proj_name ?? `Project #${task.proj_id}`,
-          priority: task.proj_priority ?? null,
-          status: task.proj_status ?? null,
-          tasks: []
+          ...baseProj,
+          tasks: [] // Clean slate to push matching tasks only
         })
       }
       map.get(task.proj_id).tasks.push(task)
@@ -533,18 +551,7 @@
     return [...map.values()].sort((a, b) => a.proj_name.localeCompare(b.proj_name))
   })
 
-  const statCards = computed(() => [
-    { label: 'Total Tasks', value: filteredTasks.value.length, color: 'grey', icon: 'mdi-clipboard-list' },
-    { label: 'In Progress', value: filteredTasks.value.filter(t => t.status === 'In Progress').length, color: 'blue', icon: 'mdi-play-circle' },
-    { label: 'Completed', value: filteredTasks.value.filter(t => t.status === 'Completed').length, color: 'success', icon: 'mdi-check-circle' },
-    { label: 'Overdue', value: filteredTasks.value.filter(t => isOverdue(t)).length, color: 'warning', icon: 'mdi-alert-circle' }
-  ])
-
-  // ── Stage helpers ─────────────────────────────────────────────────────────────
-  function isProjectComplete(project) {
-    return project.tasks.length > 0
-      && project.tasks.every(t => t.status === 'Completed' || t.status === 'Cancelled')
-  }
+  // ── Helpers ───────────────────────────────────────────────────────────────────
 
   function deriveStageFromCode(code) {
     if (!code) return null
@@ -564,14 +571,14 @@
   function getStageGroups(project) {
     const groups = new Map()
     const currentStage = getCurrentStageId(project.tasks)
-    const visible = showAllStages.value
+    const visible = showAllStages.value || project.isCompleted // Archived should probably just show its remaining content freely
       ? project.tasks
       : project.tasks.filter(t => (t.stage_id || deriveStageFromCode(t.task_code) || '1.0') === currentStage)
 
     visible.forEach(task => {
       const sid = task.stage_id || deriveStageFromCode(task.task_code) || '1.0'
       if (!groups.has(sid)) groups.set(sid, { stageId: sid, stageName: NPI_STAGES[sid]?.name ?? sid, tasks: [] })
-      groups.get(sid).tasks.push({ ...task, stage_id: sid })
+      groups.get(sid).tasks.push({ ...task, stage_id: sid }) // Clones for display, but mutations must apply to original
     })
     return [...groups.entries()]
       .sort(([a], [b]) => parseFloat(a) - parseFloat(b))
@@ -583,14 +590,12 @@
     return (tasks.filter(t => t.status === 'Completed').length / tasks.length) * 100
   }
 
-  // ── Expand / collapse ─────────────────────────────────────────────────────────
   function toggleProject(projId) {
     const i = expandedProjects.value.indexOf(projId)
     i > -1 ? expandedProjects.value.splice(i, 1) : expandedProjects.value.push(projId)
   }
   function isExpanded(projId) { return expandedProjects.value.includes(projId) }
 
-  // ── Color helpers ─────────────────────────────────────────────────────────────
   function getStageColor(sid) { return STAGE_COLORS[sid] ?? 'grey' }
   function getStatusColor(s) {
     return { 'Not Started': 'grey', 'In Progress': 'blue', 'On Hold': 'orange', 'Completed': 'green', 'Cancelled': 'red' }[s] ?? 'grey'
@@ -607,9 +612,14 @@
     if (v > 0) return 'warning'
     return 'grey'
   }
+
   function isOverdue(task) {
-    if (task.status === 'Completed' || !task.planned_end_date) return false
-    return new Date(task.planned_end_date) < new Date()
+    if (task.status === 'Completed' || task.status === 'Cancelled' || !task.planned_end_date) return false
+    const end = new Date(task.planned_end_date)
+    end.setHours(0, 0, 0, 0)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return end < today
   }
 
   function fileIcon(name) {
@@ -642,8 +652,8 @@
       const result = await api.get('/task/my-tasks')
       allTasks.value = result?.data ?? (Array.isArray(result) ? result : [])
 
-      // ── AUTO-EXPAND: find the project with the most recent In Progress task ──
       if (allTasks.value.length && expandedProjects.value.length === 0) {
+        // Only target auto-expand to incomplete projects if possible
         const inProgressTask = [...allTasks.value]
           .filter(t => t.status === 'In Progress')
           .sort((a, b) => new Date(b.planned_start_date) - new Date(a.planned_start_date))[0]
@@ -652,7 +662,6 @@
         if (targetId) expandedProjects.value = [targetId]
       }
 
-      // Pre-fetch project roles for all unique projects
       const uniqueProjIds = [...new Set(allTasks.value.map(t => t.proj_id))]
       await Promise.all(uniqueProjIds.map(id => authStore.fetchProjectRole(id)))
     } catch {
@@ -667,21 +676,45 @@
     showSnack('Tasks refreshed', 'info')
   }
 
-  async function updateStatus(task, newStatus, projId) {
-    if (!canEditTaskItem(task, projId)) {
+  // Reactive UI update instantly applied to the true original object
+  async function updateStatus(taskItemProxy, newStatus, projId) {
+    if (!canEditTaskItem(taskItemProxy, projId)) {
       showSnack('You are not authorised to modify this task.', 'error')
       return
     }
+
+    // Crucial fix: Find original item in allTasks array to ensure UI Vue reactivity updates globally
+    const realTask = allTasks.value.find(t => t.task_id === taskItemProxy.task_id)
+    if (!realTask) return
+
+    const oldStatus = realTask.status
+    const oldProgress = realTask.per_complete
+
+    // Apply UI update optimistically directly onto the original task reference
+    realTask.status = newStatus
+    if (newStatus === 'Completed') {
+      realTask.per_complete = 100
+      realTask.actual_end_date = realTask.actual_end_date || new Date().toISOString().split('T')[0]
+    } else if (newStatus === 'In Progress') {
+      if (realTask.per_complete === 0) realTask.per_complete = 10
+      realTask.actual_start_date = realTask.actual_start_date || new Date().toISOString().split('T')[0]
+    } else if (newStatus === 'Not Started') {
+      realTask.per_complete = 0
+    }
+
     try {
-      const result = await api.put(`/task/${task.task_id}/status`, { status: newStatus })
+      const result = await api.put(`/task/${realTask.task_id}/status`, { status: newStatus })
       if (result?.success) {
-        task.status = newStatus
-        if (newStatus === 'Completed') task.per_complete = 100
         showSnack('Status updated', 'success')
       } else {
+        // Rollback state on failure
+        realTask.status = oldStatus
+        realTask.per_complete = oldProgress
         showSnack(result?.message || 'Failed to update status', 'error')
       }
     } catch {
+      realTask.status = oldStatus
+      realTask.per_complete = oldProgress
       showSnack('Server rejected the request. Check your permissions.', 'error')
     }
   }
@@ -692,6 +725,7 @@
     uploadFiles.value = []
     uploadDialog.value = true
   }
+
   function closeUpload() {
     uploadDialog.value = false
     selectedTask.value = null
@@ -766,9 +800,22 @@
 </script>
 
 <style scoped>
-  .page-container {
+  /* Base View Constraints */
+  .dashboard-root {
+    background: #f5f6f8;
     height: 100vh !important;
     overflow: hidden !important;
+  }
+
+  .dashboard-body {
+    min-height: 0;
+  }
+
+  /* Compact KPI Styling */
+  .kpi-card {
+    height: 72px; /* Slimmer profile */
+    border-radius: 10px;
+    padding: 12px 16px;
   }
 
   .projects-scroll {
@@ -789,18 +836,24 @@
   }
 
   .stage-header {
-    background-color: rgba(0,0,0,0.03);
-    border-top: 1px solid rgba(0,0,0,0.08);
-    border-bottom: 1px solid rgba(0,0,0,0.08);
-    min-height: 40px;
+    background-color: #fafafa;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
   }
 
   .tasks-table :deep(th) {
     font-weight: 600 !important;
-    background-color: rgb(var(--v-theme-surface));
+    background-color: #ffffff;
   }
 
   .border-b {
     border-bottom: 1px solid rgba(0,0,0,0.12);
+  }
+
+  .border-t {
+    border-top: 1px solid rgba(0,0,0,0.08);
+  }
+
+  .lh-tight {
+    line-height: 1.3;
   }
 </style>
