@@ -88,9 +88,9 @@
                     <v-card-text>
                       <div class="d-flex align-center justify-space-between mb-4">
                         <h3 class="text-h6">Assign Project Team</h3>
-                        <v-btn color="primary" variant="flat" @click="showAddTeamDialog = true">
+                        <v-btn color="primary" variant="flat" size="small" @click="addTeamRow">
                           <v-icon start>mdi-account-plus</v-icon>
-                          Add Team Member
+                          Add Row
                         </v-btn>
                       </div>
 
@@ -99,43 +99,66 @@
                         <v-icon size="48" color="grey-lighten-2" class="d-block mx-auto mb-2">
                           mdi-account-group-outline
                         </v-icon>
-                        No team members added yet. Click "Add Team Member" to start.
+                        Click "Add Row" to add team members.
                       </div>
 
-                      <!-- FIX: key by user_id for proper reactivity -->
-                      <v-row v-else dense>
-                        <v-col v-for="member in teamMembers"
-                               :key="member.user_id"
-                               cols="12"
-                               sm="6"
-                               md="4">
-                          <v-card variant="outlined" class="pa-3 d-flex align-center ga-3">
-                            <v-avatar :color="avatarColor(member.user_name)" size="38">
-                              <span class="text-caption font-weight-bold" style="color:white">
-                                {{ initials(member.user_name) }}
-                              </span>
-                            </v-avatar>
-                            <div class="flex-grow-1 min-width-0">
-                              <div class="text-body-2 font-weight-medium text-truncate">
-                                {{ member.user_name }}
-                              </div>
-                              <div class="text-caption text-medium-emphasis">
-                                {{ member.dept_name }}
-                              </div>
-                              <v-chip size="x-small" color="primary" variant="tonal" class="mt-1">
-                                {{ member.role_in_project }}
-                              </v-chip>
-                            </div>
-                            <v-btn icon
-                                   size="x-small"
-                                   variant="text"
-                                   color="error"
-                                   @click="removeTeamMember(member.user_id)">
-                              <v-icon size="16">mdi-close</v-icon>
-                            </v-btn>
-                          </v-card>
-                        </v-col>
-                      </v-row>
+                      <v-table v-else density="compact" class="team-inline-table">
+                        <thead>
+                          <tr>
+                            <th>Department</th>
+                            <th>User</th>
+                            <th>Project Role</th>
+                            <th style="width:48px;"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="(member, idx) in teamMembers" :key="member._rowId">
+                            <!-- Department selector -->
+                            <td>
+                              <select v-model="member.dept_id"
+                                      class="inline-select"
+                                      @change="onTeamDeptChange(member)">
+                                <option value="">— Dept —</option>
+                                <option v-for="d in departments" :key="d.dept_id" :value="d.dept_id">
+                                  {{ d.dept_name }}
+                                </option>
+                              </select>
+                            </td>
+
+                            <!-- User selector (filtered by dept) -->
+                            <td>
+                              <select v-model="member.user_id"
+                                      class="inline-select"
+                                      :disabled="!member.dept_id"
+                                      @change="onTeamUserChange(member)">
+                                <option value="">— User —</option>
+                                <option v-for="u in getUsersForDept(member.dept_id)"
+                                        :key="u.user_id"
+                                        :value="u.user_id">
+                                  {{ u.username }}
+                                </option>
+                              </select>
+                            </td>
+
+                            <!-- Project role selector -->
+                            <td>
+                              <select v-model="member.role_in_project" class="inline-select">
+                                <option value="Member">Member</option>
+                                <option value="Team Lead">Team Lead</option>
+                                <option value="Viewer">Viewer</option>
+                              </select>
+                            </td>
+
+                            <!-- Remove row -->
+                            <td class="text-center">
+                              <v-btn icon size="x-small" variant="text" color="error"
+                                     @click="removeTeamMember(member.user_id)">
+                                <v-icon size="15">mdi-delete</v-icon>
+                              </v-btn>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </v-table>
                     </v-card-text>
                   </v-card>
                 </v-stepper-window-item>
@@ -517,49 +540,6 @@
       </v-col>
     </v-row>
 
-    <!-- Add Team Member Dialog -->
-    <v-dialog v-model="showAddTeamDialog" max-width="560">
-      <v-card>
-        <v-card-title class="bg-primary text-white">
-          <v-icon class="mr-2">mdi-account-plus</v-icon>
-          Add Team Member
-        </v-card-title>
-        <v-card-text class="pa-6">
-          <v-row>
-            <v-col cols="12">
-              <v-autocomplete v-model="newMember.dept_id"
-                              :items="departments"
-                              item-title="dept_name"
-                              item-value="dept_id"
-                              label="Department *"
-                              variant="outlined"
-                              @update:model-value="onDepartmentChange" />
-            </v-col>
-            <v-col cols="12">
-              <v-autocomplete v-model="newMember.user_id"
-                              :items="filteredUsers"
-                              item-title="username"
-                              item-value="user_id"
-                              label="User *"
-                              :disabled="!newMember.dept_id"
-                              variant="outlined" />
-            </v-col>
-            <v-col cols="12">
-              <v-select v-model="newMember.role_in_project"
-                        :items="['Member', 'Team Lead', 'Viewer']"
-                        label="Role in Project *"
-                        variant="outlined" />
-            </v-col>
-          </v-row>
-        </v-card-text>
-        <v-card-actions class="pa-4">
-          <v-spacer />
-          <v-btn variant="text" @click="showAddTeamDialog = false">Cancel</v-btn>
-          <v-btn color="primary" variant="flat" @click="addTeamMember">Add</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
     <!-- Folder Warning Dialog -->
     <v-dialog v-model="showFolderWarningDialog" max-width="640" persistent>
       <v-card>
@@ -669,8 +649,7 @@
     status: 'Planning',
     description: ''
   })
-
-  // FIX: teamMembers uses a consistent shape; remove by user_id (not index)
+  
   const teamMembers = ref([])
 
   const stageFlags = ref({
@@ -684,7 +663,6 @@
   const departments = ref([])
   const users = ref([])
 
-  const showAddTeamDialog = ref(false)
   const showFolderWarningDialog = ref(false)
   const folderWarnings = ref([])
 
@@ -734,10 +712,6 @@
     allTasks.value.reduce((s, t) => s + (Number(t.working_days) || 0), 0)
   )
 
-  const filteredUsers = computed(() =>
-    users.value.filter(u => u.dept_id === newMember.value.dept_id)
-  )
-
   const folderPreviewDepts = computed(() => {
     const depts = new Set(
       allTasks.value
@@ -759,13 +733,6 @@
     return getStageTaskRows(stageId).length
   }
 
-  // ── Task code generation ──────────────────────────────────────────────────────
-  /**
-   * FIX: Generate the next task code for a given stage.
-   * Finds existing codes (e.g. "1.1", "1.2", "1.10") and increments the highest suffix.
-   * Uses parseFloat for correct numeric comparison (1.10 > 1.9 numerically is wrong,
-   * so we compare the integer suffix only).
-   */
   function getNextTaskCode(stageId) {
     const stagePrefix = stageId.split('.')[0] // e.g. "1" from "1.0"
     const existing = (tasksByStage.value[stageId] || [])
@@ -827,7 +794,6 @@
     const today = new Date().toISOString().split('T')[0]
     if (!tasksByStage.value[stageId]) tasksByStage.value[stageId] = []
 
-    // FIX: use getNextTaskCode for correct incrementing
     const newCode = getNextTaskCode(stageId)
 
     tasksByStage.value[stageId].push({
@@ -855,53 +821,20 @@
   }
 
   function nextStep() {
-    if (step.value === 2 && teamMembers.value.length === 0) {
-      showSnack('Add at least one team member before continuing', 'warning')
-      return
+    if (step.value === 2) {
+      const incomplete = teamMembers.value.filter(m => !m.user_id || !m.dept_id)
+      if (incomplete.length > 0) {
+        showSnack('All team rows must have a department and user selected', 'warning')
+        return
+      }
+      if (teamMembers.value.length === 0) {
+        showSnack('Add at least one team member before continuing', 'warning')
+        return
+      }
     }
     step.value++
   }
 
-  // ── Team management ───────────────────────────────────────────────────────────
-  function onDepartmentChange() {
-    newMember.value.user_id = null
-  }
-
-  function addTeamMember() {
-    if (!newMember.value.user_id || !newMember.value.dept_id) {
-      showSnack('Please select department and user', 'error')
-      return
-    }
-    // FIX: check by user_id, not index
-    if (teamMembers.value.some(m => m.user_id === newMember.value.user_id)) {
-      showSnack('User already added to team', 'warning')
-      return
-    }
-
-    const user = users.value.find(u => u.user_id === newMember.value.user_id)
-    const dept = departments.value.find(d => d.dept_id === newMember.value.dept_id)
-    if (!user || !dept) {
-      showSnack('User or department not found', 'error')
-      return
-    }
-
-    // FIX: push reactive object — Vue tracks this properly
-    teamMembers.value = [
-      ...teamMembers.value,
-      {
-        user_id: newMember.value.user_id,
-        dept_id: newMember.value.dept_id,
-        user_name: user.username,
-        dept_name: dept.dept_name,
-        role_in_project: newMember.value.role_in_project
-      }
-    ]
-
-    showAddTeamDialog.value = false
-    newMember.value = { dept_id: null, user_id: null, role_in_project: 'Member' }
-  }
-
-  // FIX: remove by user_id, not by array index (prevents wrong item deletion)
   function removeTeamMember(userId) {
     teamMembers.value = teamMembers.value.filter(m => m.user_id !== userId)
   }
@@ -1005,6 +938,35 @@
       holidayCache[year] = new Set()
     }
     return holidayCache[year]
+  }
+
+  // ── Team row management (inline table) ────────────────────────────────────────
+
+  function addTeamRow() {
+    teamMembers.value.push({
+      _rowId: Date.now(),
+      user_id: null,
+      dept_id: null,
+      user_name: '',
+      dept_name: '',
+      role_in_project: 'Member'
+    })
+  }
+
+  function getUsersForDept(deptId) {
+    if (!deptId) return []
+    return users.value.filter(u => u.dept_id === deptId)
+  }
+
+  function onTeamDeptChange(member) {
+    member.user_id = null
+    member.user_name = ''
+    member.dept_name = departments.value.find(d => d.dept_id === member.dept_id)?.dept_name ?? ''
+  }
+
+  function onTeamUserChange(member) {
+    const u = users.value.find(u => u.user_id === member.user_id)
+    member.user_name = u?.username ?? ''
   }
 
   // ── Formatting ────────────────────────────────────────────────────────────────
@@ -1269,7 +1231,6 @@
       background: #fafbfc;
     }
 
-  /* Stage 0 rows from DB are visually muted */
   .task-row--stage0 :deep(td) {
     background: rgba(0, 0, 0, 0.02);
     color: rgba(0, 0, 0, 0.45);
@@ -1337,7 +1298,6 @@
     font-weight: 500;
   }
 
-  /* Column widths (fixed layout) */
   .col-code {
     width: 64px;
     text-align: center;
@@ -1383,5 +1343,20 @@
     display: flex;
     align-items: center;
     padding: 2px 0;
+  }
+
+  .team-inline-table :deep(th) {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: rgba(0,0,0,0.5);
+    background: #fafbfc;
+    padding: 6px 8px !important;
+  }
+
+  .team-inline-table :deep(td) {
+    padding: 4px 8px !important;
+    vertical-align: middle;
   }
 </style>

@@ -85,6 +85,7 @@
   const activeTab = ref('users')
 
   const isAdmin = computed(() => authStore.isAdmin)
+  const isManager = computed(() => authStore.isManager)
 </script>
 
 <style scoped>

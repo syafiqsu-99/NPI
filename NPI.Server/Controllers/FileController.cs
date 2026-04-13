@@ -7,7 +7,7 @@ namespace NPI.Server.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] // Default: all endpoints require login
+    [Authorize]
     public class FileController : ControllerBase
     {
         private readonly IFileService _fileService;
@@ -17,10 +17,7 @@ namespace NPI.Server.Controllers
             _fileService = fileService;
         }
 
-        // ── Upload (Admin / Manager only) ─────────────────────────────────────
-
         [HttpPost("upload")]
-        [Authorize(Roles = "Admin,Manager")]
         [RequestSizeLimit(long.MaxValue)]
         [RequestFormLimits(MultipartBodyLengthLimit = long.MaxValue)]
         public async Task<IActionResult> UploadFiles(
@@ -46,7 +43,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost("upload-single")]
-        [Authorize(Roles = "Admin,Manager")]
         [RequestSizeLimit(long.MaxValue)]
         [RequestFormLimits(MultipartBodyLengthLimit = long.MaxValue)]
         public async Task<IActionResult> UploadSingleFile(
@@ -85,8 +81,6 @@ namespace NPI.Server.Controllers
             });
         }
 
-        // ── Queries (any authenticated user) ─────────────────────────────────
-
         [HttpGet("by-task/{taskId}")]
         public async Task<IActionResult> GetFilesByTask(int taskId)
         {
@@ -115,8 +109,6 @@ namespace NPI.Server.Controllers
             return Ok(new { success = true, data = files });
         }
 
-        // ── Download (no login required — link/iframe/img src must work) ─────
-
         [HttpGet("download/{fileId}")]
         [AllowAnonymous]
         public async Task<IActionResult> DownloadFile(int fileId)
@@ -138,7 +130,6 @@ namespace NPI.Server.Controllers
         {
             if (string.IsNullOrWhiteSpace(path)) return BadRequest("Path is required");
 
-            // Path-traversal guard is enforced inside the service (basePath check)
             var (success, fileBytes, contentType) = await _fileService.DownloadPhysicalFileAsync(path);
 
             if (!success || fileBytes is null)
@@ -147,12 +138,11 @@ namespace NPI.Server.Controllers
             return File(fileBytes, contentType!, Path.GetFileName(path));
         }
 
-        // ── Delete (Admin / Manager only) ─────────────────────────────────────
-
         [HttpDelete("{fileId}")]
-        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> DeleteFile(int fileId)
         {
+            if (!IsManagerOrAdmin()) return Forbid(); // Using claims rather than DB lookups
+
             var (success, message) = await _fileService.DeleteFileWithMessageAsync(fileId);
             return success
                 ? Ok(new { success = true, message })
@@ -160,9 +150,10 @@ namespace NPI.Server.Controllers
         }
 
         [HttpDelete("delete-physical")]
-        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> DeletePhysicalFile([FromQuery] string path)
         {
+            if (!IsManagerOrAdmin()) return Forbid(); // Using claims rather than DB lookups
+
             if (string.IsNullOrWhiteSpace(path)) return BadRequest("Path is required");
 
             var (success, message) = await _fileService.DeletePhysicalFileAsync(path);
@@ -170,8 +161,6 @@ namespace NPI.Server.Controllers
                 ? Ok(new { success = true, message })
                 : BadRequest(new { success = false, message });
         }
-
-        // ── Misc (any authenticated user) ─────────────────────────────────────
 
         [HttpGet("task-count/{taskId}")]
         public async Task<IActionResult> GetTaskDocumentCount(int taskId)
@@ -196,6 +185,11 @@ namespace NPI.Server.Controllers
         {
             var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             return int.TryParse(claim, out userId);
+        }
+        private bool IsManagerOrAdmin()
+        {
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+            return role == "Admin" || role == "Manager";
         }
     }
 }

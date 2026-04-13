@@ -252,10 +252,6 @@ namespace NPI.Server.Services
             return files.Select(MapToDto).ToList();
         }
 
-        /// <summary>
-        /// Returns all customer-linked files (enquiry_id is set, proj_id = 0),
-        /// enriched with the customer name from the linked enquiry.
-        /// </summary>
         public async Task<List<FileResponseDto>> GetAllCustomerFilesAsync()
         {
             var files = await _context.Files
@@ -269,7 +265,6 @@ namespace NPI.Server.Services
             return files.Select(f =>
             {
                 var dto = MapToDto(f);
-                // Repurpose dept_name to carry customer name for tree grouping
                 dto.dept_name = f.Enquiry?.Customer?.comp_name ?? "Unknown Customer";
                 return dto;
             }).ToList();
@@ -283,7 +278,7 @@ namespace NPI.Server.Services
             try
             {
                 var file = await _context.Files.FindAsync(fileId);
-                if (file is null || !File.Exists(file.file_path))
+                if (file is null || string.IsNullOrEmpty(file.file_path) || !File.Exists(file.file_path))
                     return (false, null, null);
 
                 var bytes = await File.ReadAllBytesAsync(file.file_path);
@@ -300,7 +295,7 @@ namespace NPI.Server.Services
         {
             var file = await _context.Files.FindAsync(fileId);
             if (file is null) return (false, "File not found", null);
-            if (!File.Exists(file.file_path))
+            if (string.IsNullOrEmpty(file.file_path) || !File.Exists(file.file_path))
                 return (false, "Physical file not found on disk", null);
 
             return (true, "File found", file.file_path);
@@ -314,7 +309,9 @@ namespace NPI.Server.Services
                 if (file is null) return false;
 
                 file.updated_at = DateTime.Now;
-                if (File.Exists(file.file_path)) File.Delete(file.file_path);
+                if (!string.IsNullOrEmpty(file.file_path) && File.Exists(file.file_path))
+                    File.Delete(file.file_path);
+
                 _context.Files.Remove(file);
                 await _context.SaveChangesAsync();
                 return true;
@@ -330,7 +327,9 @@ namespace NPI.Server.Services
                 if (file is null) return (false, "File not found");
 
                 file.updated_at = DateTime.Now;
-                if (File.Exists(file.file_path)) File.Delete(file.file_path);
+                if (!string.IsNullOrEmpty(file.file_path) && File.Exists(file.file_path))
+                    File.Delete(file.file_path);
+
                 _context.Files.Remove(file);
                 await _context.SaveChangesAsync();
                 return (true, "File deleted successfully");
@@ -372,7 +371,6 @@ namespace NPI.Server.Services
 
         public async Task<List<DirectoryNodeDto>> GetPhysicalFolderStructureAsync(int userId)
         {
-            // 1. Resolve User and System Role
             var user = await _context.Users
                 .Include(u => u.Role)
                 .FirstOrDefaultAsync(u => u.user_id == userId);
@@ -380,7 +378,6 @@ namespace NPI.Server.Services
             bool isManagerOrAdmin = user?.Role?.role_name == "Admin" || user?.Role?.role_name == "Manager";
             int? userDeptId = user?.dept_id;
 
-            // 2. Fetch User's assigned projects from ProjectRoles
             var assignedProjectIds = await _context.ProjectTeams
                 .Where(pr => pr.user_id == userId)
                 .Select(pr => pr.proj_id)
@@ -388,7 +385,6 @@ namespace NPI.Server.Services
 
             var allProjects = await _context.Projects.ToListAsync();
 
-            // 3. Map physical path links to database Files to provide file IDs
             var allFiles = await _context.Files
                 .Where(f => f.status == "Active" && f.is_latest)
                 .ToListAsync();
@@ -418,7 +414,6 @@ namespace NPI.Server.Services
                     var dirName = Path.GetFileName(projDir);
                     var project = allProjects.FirstOrDefault(p => SanitizeFolderName(p.proj_name) == dirName || p.proj_name == dirName);
 
-                    // Manager/Admin gets override. Otherwise, MUST be assigned to proj AND have same department
                     bool canEditProject = isManagerOrAdmin;
                     if (!canEditProject && project != null)
                     {
@@ -446,7 +441,6 @@ namespace NPI.Server.Services
             {
                 foreach (var custDir in Directory.GetDirectories(customersPath))
                 {
-                    // For standard users, customer folders aren't editable. Only Manager/Admin
                     var cNode = BuildPhysicalNode(custDir, isManagerOrAdmin, fileMap, "customer");
                     customersNode.children.Add(cNode);
                 }
@@ -506,7 +500,13 @@ namespace NPI.Server.Services
         public async Task<(bool success, byte[]? fileData, string? contentType)> DownloadPhysicalFileAsync(string path)
         {
             var fullPath = Path.GetFullPath(path);
-            if (!fullPath.StartsWith(Path.GetFullPath(_basePath)) || !File.Exists(fullPath))
+            var basePath = Path.GetFullPath(_basePath);
+
+            if (!basePath.EndsWith(Path.DirectorySeparatorChar.ToString()))
+                basePath += Path.DirectorySeparatorChar;
+
+            // Strict directory constraints handling preventing path traversal payload
+            if (!fullPath.StartsWith(basePath) || !File.Exists(fullPath))
                 return (false, null, null);
 
             var bytes = await File.ReadAllBytesAsync(fullPath);
@@ -518,10 +518,17 @@ namespace NPI.Server.Services
             try
             {
                 var fullPath = Path.GetFullPath(path);
-                if (!fullPath.StartsWith(Path.GetFullPath(_basePath)))
+                var basePath = Path.GetFullPath(_basePath);
+
+                if (!basePath.EndsWith(Path.DirectorySeparatorChar.ToString()))
+                    basePath += Path.DirectorySeparatorChar;
+
+                // Strict directory constraints handling preventing path traversal payload
+                if (!fullPath.StartsWith(basePath))
                     return (false, "Invalid Path Security");
 
                 if (!File.Exists(fullPath)) return (false, "File not found");
+
                 File.Delete(fullPath);
                 return (true, "Deleted from disk");
             }

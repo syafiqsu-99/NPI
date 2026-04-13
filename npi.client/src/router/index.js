@@ -24,7 +24,7 @@ const routes = [
     path: '/projects/:id/setup',
     name: 'ProjectSetup',
     component: () => import('@/views/ProjectSetup.vue'),
-    meta: { requiresAuth: true, requiresRole: ['NPI Team', 'Admin'] }
+    meta: { requiresAuth: true, requiresRole: ['Admin', 'Manager'] }
   },
   {
     path: '/projects/:id/gantt',
@@ -66,13 +66,13 @@ const routes = [
     path: '/enquiries/:id/detail',
     name: 'EnquiryManage',
     component: () => import('@/views/EnquiryManage.vue'),
-    meta: { requiresRole: ['NPI Team', 'Admin'] }
+    meta: { requiresRole: ['Admin', 'Manager'] }
   },
   {
     path: '/settings',
     name: 'Settings',
     component: () => import('@/views/Settings.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
+    meta: { requiresAuth: true, requiresRole: ['Admin', 'Manager'] }
   },
   {
     path: '/:pathMatch(.*)*',
@@ -94,11 +94,23 @@ router.beforeEach(async (to, from, next) => {
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
-  } else if (to.path === '/login' && authStore.isAuthenticated) {
-    next('/')
-  } else {
-    next()
+    return
   }
+
+  if (to.path === '/login' && authStore.isAuthenticated) {
+    next('/')
+    return
+  }
+
+  if (to.meta.requiresRole) {
+    const userRole = authStore.userRole
+    if (!to.meta.requiresRole.includes(userRole)) {
+      next('/')
+      return
+    }
+  }
+
+  next()
 })
 
 export default router

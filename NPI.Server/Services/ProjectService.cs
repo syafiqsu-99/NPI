@@ -669,7 +669,7 @@ namespace NPI.Server.Services
                 {
                     string assignedRole = member.role ?? "Member";
 
-                    // 1. Add to ProjectTeams table
+                    // Write ONLY to ProjectTeams — never mutate Users.role_id
                     _context.ProjectTeams.Add(new ProjectTeams
                     {
                         proj_id = projectId,
@@ -677,27 +677,6 @@ namespace NPI.Server.Services
                         role = assignedRole,
                         created_at = DateTime.Now
                     });
-
-                    // 2. Sync the global Users table role_id
-                    var userEntity = await _context.Users.FindAsync(member.user_id);
-                    if (userEntity != null)
-                    {
-                        // Map the string role to the correct integer role_id
-                        int mappedRoleId = assignedRole switch
-                        {
-                            "Admin" => 1,
-                            "Manager" => 2,
-                            "Team Lead" => 3,
-                            "Member" => 4,
-                            "Viewer" => 5,
-                            _ => 4 // Default fallback is Member
-                        };
-
-                        if (userEntity.role_id != mappedRoleId)
-                        {
-                            userEntity.role_id = mappedRoleId;
-                        }
-                    }
                 }
 
                 var existingTasks = await _context.Tasks

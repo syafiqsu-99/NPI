@@ -18,41 +18,32 @@
       <v-progress-circular indeterminate color="primary" size="64" />
     </div>
 
-    <!-- Dashboard Body (Expands to fill remaining height) -->
+    <!-- Dashboard Body -->
     <div v-else class="dashboard-body px-4 pb-4 flex-grow-1 overflow-hidden d-flex flex-column">
       <v-row dense class="fill-height ma-0">
 
         <!-- ── LEFT COLUMN ─────────────────────────────────────────────────── -->
         <v-col cols="12" md="4" class="d-flex flex-column pr-md-2" style="gap:12px; height: 100%;">
 
-          <!-- Calendar card (Flex-grow to fill available column space) -->
+          <!-- Calendar card -->
           <v-card class="d-flex flex-column flex-grow-1 overflow-hidden">
             <v-card-title class="section-title d-flex align-center pa-3 pb-2 flex-shrink-0">
               <v-icon class="mr-2" size="18">mdi-calendar</v-icon>
               Project Calendar
             </v-card-title>
-
             <v-divider class="flex-shrink-0" />
-
-            <!-- Toolbar -->
             <v-sheet height="56" class="flex-shrink-0">
               <v-toolbar flat density="compact">
-                <v-btn class="me-2" size="small" variant="outlined" @click="setToday">
-                  Today
-                </v-btn>
+                <v-btn class="me-2" size="small" variant="outlined" @click="setToday">Today</v-btn>
                 <v-btn icon size="small" variant="text" @click="prev">
                   <v-icon size="18">mdi-chevron-left</v-icon>
                 </v-btn>
                 <v-btn icon size="small" variant="text" @click="next">
                   <v-icon size="18">mdi-chevron-right</v-icon>
                 </v-btn>
-                <v-toolbar-title v-if="calendarRef">
-                  {{ calendarTitle }}
-                </v-toolbar-title>
+                <v-toolbar-title v-if="calendarRef">{{ calendarTitle }}</v-toolbar-title>
               </v-toolbar>
             </v-sheet>
-
-            <!-- Calendar wrapper scales internally -->
             <v-sheet class="calendar-host flex-grow-1 position-relative">
               <v-calendar ref="calendarRef"
                           v-model="calendarFocus"
@@ -63,10 +54,9 @@
                 <template #day="{ day, outside }">
                   <div class="compact-day-cell"
                        :class="{
-                          'is-outside': outside,
-                          'is-today': isSameDate(getSafeDayDate(day), todayDate)
-                        }">
-                    <!-- Day header -->
+                         'is-outside': outside,
+                         'is-today': isSameDate(getSafeDayDate(day), todayDate)
+                       }">
                     <div class="compact-day-header">
                       <div class="compact-day-number">
                         <span v-if="getDayNumber(day) !== null"
@@ -76,8 +66,6 @@
                         </span>
                       </div>
                     </div>
-
-                    <!-- Events -->
                     <div class="compact-day-events" v-if="getSafeDayDate(day)">
                       <template v-for="evt in getDayEvents(getSafeDayDate(day)).visible"
                                 :key="`${evt.proj_id}-${evt.start}`">
@@ -90,10 +78,8 @@
                           <span class="compact-event-text">{{ evt.name }}</span>
                         </button>
                       </template>
-
                       <div v-if="getDayEvents(getSafeDayDate(day)).more > 0"
-                           class="compact-more-events"
-                           :title="`${getDayEvents(getSafeDayDate(day)).more} more event(s)`">
+                           class="compact-more-events">
                         +{{ getDayEvents(getSafeDayDate(day)).more }} more
                       </div>
                     </div>
@@ -101,8 +87,6 @@
                 </template>
               </v-calendar>
             </v-sheet>
-
-            <!-- Tooltip Menu -->
             <v-menu v-model="selectedOpen"
                     :activator="selectedElement"
                     :close-on-content-click="false"
@@ -128,7 +112,7 @@
             </v-menu>
           </v-card>
 
-          <!-- Overdue tasks card (Fixed max height, internal scroll) -->
+          <!-- Overdue tasks card -->
           <v-card class="d-flex flex-column flex-shrink-0" style="max-height: 30vh;">
             <v-card-title class="section-title d-flex align-center justify-space-between pa-3 pb-2 flex-shrink-0">
               <div class="d-flex align-center">
@@ -140,12 +124,9 @@
               </v-chip>
             </v-card-title>
             <v-divider class="flex-shrink-0" />
-
             <v-list v-if="overdueTasks.length" density="compact" class="flex-grow-1 overflow-y-auto pa-0">
-              <v-list-item v-for="t in overdueTasks"
-                           :key="t.task_id"
-                           @click="goToProject(t.proj_id)"
-                           style="cursor:pointer">
+              <v-list-item v-for="t in overdueTasks" :key="t.task_id"
+                           @click="goToProject(t.proj_id)" style="cursor:pointer">
                 <v-list-item-title class="text-body-2">{{ t.title }}</v-list-item-title>
                 <v-list-item-subtitle class="text-caption">
                   {{ t.proj_name }} · Due {{ formatDate(t.planned_end_date) }}
@@ -155,13 +136,11 @@
                 </template>
               </v-list-item>
             </v-list>
-
             <div v-else class="flex-grow-1 d-flex flex-column align-center justify-center text-medium-emphasis py-4">
               <v-icon size="40">mdi-check-circle-outline</v-icon>
               <div class="mt-2 text-caption">No overdue tasks</div>
             </div>
           </v-card>
-
         </v-col>
 
         <!-- ── RIGHT COLUMN — Timeline ──────────────────────────────────────── -->
@@ -179,11 +158,11 @@
             </v-card-title>
             <v-divider class="flex-shrink-0" />
 
-            <!-- Timeline dynamically fits remaining space -->
+            <!-- Timeline wrapper: position:relative so the bar overlay can anchor to it -->
             <div class="timeline-wrapper flex-grow-1 d-flex flex-column position-relative" ref="timelineWrapper">
 
               <v-data-table v-if="projectTimeline.length"
-                            :headers="headersTimeline"
+                            :headers="tlHeaders"
                             :items="projectTimeline"
                             item-value="proj_id"
                             class="timeline-table flex-grow-1"
@@ -193,39 +172,54 @@
                             hide-default-footer
                             :items-per-page="-1"
                             @click:row="(_, row) => goToProject(row.item.proj_id)">
-                <!-- Project name cell (sticky column) -->
+
+                <!--
+                  Project name — the ONLY non-date fixed column.
+                  No proj_no, cust_id, priority, etc.
+                -->
                 <template #item.proj_name="{ item }">
                   <div class="d-flex flex-column py-1">
-                    <span class="text-body-2 font-weight-medium text-truncate tl-proj-name">
+                    <span class="text-body-2 font-weight-medium text-truncate tl-proj-name"
+                          :title="item.proj_name">
                       {{ item.proj_name }}
                     </span>
-                    <div class="d-flex align-center mt-1" style="gap:4px">
-                      <v-chip :color="statusColor(item.status)" size="x-small" variant="tonal">
-                        {{ item.status }}
-                      </v-chip>
-                    </div>
+                    <v-chip :color="statusColor(item.status)"
+                            size="x-small" variant="tonal" class="mt-1" style="width:fit-content;">
+                      {{ item.status }}
+                    </v-chip>
                   </div>
                 </template>
 
-                <!-- Week cells — empty cells that the bar overlay draws on top of -->
-                <template v-for="col in additionalDateHeaders"
+                <!--
+                  Week cells — empty divs.
+                  The bar overlay (absolutely positioned) draws bars on top of these.
+                  We render a slot for every week column to prevent Vuetify from
+                  rendering a default cell that might show raw field data.
+                -->
+                <template v-for="col in timelineWeeks"
                           :key="col.value"
-                          #[`item.${col.value}`]="{ }">
-                  <div class="tl-empty-cell" />
+                          #[`item.${col.value}`]>
+                  <div class="tl-empty-cell"
+                       :class="{ 'is-today': col.isToday }" />
                 </template>
+
               </v-data-table>
 
-              <div v-if="!projectTimeline.length" class="flex-grow-1 d-flex flex-column align-center justify-center text-medium-emphasis">
+              <div v-if="!projectTimeline.length"
+                   class="flex-grow-1 d-flex flex-column align-center justify-center text-medium-emphasis">
                 <v-icon size="56">mdi-folder-open-outline</v-icon>
                 <div class="mt-2">No projects available</div>
               </div>
 
-              <!-- Bar overlay -->
+              <!-- Bar overlay — positioned over the week columns only -->
               <div class="tl-bar-overlay" ref="tlBarOverlay" :style="tlOverlayStyle">
                 <template v-for="bar in tlBarLayout" :key="bar.proj_id">
                   <v-tooltip location="top">
                     <template #activator="{ props }">
-                      <div v-bind="props" :class="bar.cssClass" :style="bar.style" @click.stop="goToProject(bar.proj_id)">
+                      <div v-bind="props"
+                           :class="bar.cssClass"
+                           :style="bar.style"
+                           @click.stop="goToProject(bar.proj_id)">
                         <span v-if="bar.label" class="tl-bar-label">{{ bar.label }}</span>
                       </div>
                     </template>
@@ -236,6 +230,7 @@
                     </div>
                   </v-tooltip>
                 </template>
+                <!-- Today vertical line -->
                 <div class="tl-today-line" :style="tlTodayLineStyle" />
               </div>
 
@@ -262,6 +257,7 @@
 
   const router = useRouter()
 
+  // ── State ─────────────────────────────────────────────────────────────────────
   const loading = ref(false)
   const projects = ref([])
   const myTasks = ref([])
@@ -275,30 +271,45 @@
   const selectedOpen = ref(false)
   const selectedElement = ref(null)
 
+  // Timeline DOM refs & measurements
   const timelineWrapper = ref(null)
   const tlBarOverlay = ref(null)
   const tlOverlayLeft = ref(0)
   const tlOverlayWidth = ref(0)
   const tlRowHeight = ref(52)
   const tlHeaderHeight = ref(36)
-  const TL_FIXED_COLS = 2
+
+  // Number of fixed left columns in the timeline table (only 1 now: proj_name)
+  const TL_FIXED_COLS = 1
 
   const todayDate = new Date()
   todayDate.setHours(0, 0, 0, 0)
 
   const goToProject = id => router.push(`/projects/${id}/gantt`)
 
+  // ── Helpers ───────────────────────────────────────────────────────────────────
   function formatDate(d) {
     if (!d) return 'N/A'
     return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   }
+
   function toMs(d) { return d ? new Date(d).getTime() : NaN }
 
-  function statusColor(s) { return { Completed: 'success', 'In Progress': 'primary', 'On Hold': 'warning', Planning: 'grey', Cancelled: 'error' }[s] ?? 'grey' }
-  function priorityColor(p) { return { Low: 'grey', Medium: 'blue', High: 'orange', Critical: 'red' }[p] ?? 'grey' }
-  function progressColor(v) { if (v >= 100) return 'success'; if (v >= 50) return 'primary'; if (v > 0) return 'warning'; return 'grey' }
-  function statusHex(s) { return { Completed: '#4CAF50', 'In Progress': '#1976D2', 'On Hold': '#FF9800', Planning: '#9E9E9E', Cancelled: '#F44336' }[s] ?? '#9E9E9E' }
+  function statusColor(s) {
+    return {
+      Completed: 'success', 'In Progress': 'primary',
+      'On Hold': 'warning', Planning: 'grey', Cancelled: 'error'
+    }[s] ?? 'grey'
+  }
 
+  function statusHex(s) {
+    return {
+      Completed: '#4CAF50', 'In Progress': '#1976D2',
+      'On Hold': '#FF9800', Planning: '#9E9E9E', Cancelled: '#F44336'
+    }[s] ?? '#9E9E9E'
+  }
+
+  // ── KPIs ──────────────────────────────────────────────────────────────────────
   const kpis = computed(() => [
     { title: 'In Progress', value: projects.value.filter(p => p.status === 'In Progress').length, color: 'blue' },
     { title: 'On Hold', value: projects.value.filter(p => p.status === 'On Hold').length, color: 'orange' },
@@ -306,6 +317,7 @@
     { title: 'Total Projects', value: projects.value.length, color: 'primary' },
   ])
 
+  // ── Overdue tasks ─────────────────────────────────────────────────────────────
   const overdueTasks = computed(() => {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     return myTasks.value
@@ -323,22 +335,15 @@
       .slice(0, 15)
   })
 
+  // ── Calendar helpers ──────────────────────────────────────────────────────────
   const calendarTitle = computed(() => {
     const base = calendarFocus.value ? new Date(calendarFocus.value) : new Date()
-    return base.toLocaleDateString('en-GB', {
-      month: 'long',
-      year: 'numeric',
-    })
+    return base.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
   })
 
   const calendarEvents = computed(() =>
     projectTimeline.value
-      .filter(p => {
-        if (!p.project_start_date || !p.target_completion_date) return false
-        const s = new Date(p.project_start_date)
-        const e = new Date(p.target_completion_date)
-        return !Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime())
-      })
+      .filter(p => p.project_start_date && p.target_completion_date)
       .map(p => ({
         name: p.proj_name,
         start: new Date(p.project_start_date),
@@ -351,21 +356,14 @@
       }))
   )
 
-  function getEventColor(event) { return event.color }
-  function setToday() {
-    calendarFocus.value = new Date()
-  }
-
+  function setToday() { calendarFocus.value = new Date() }
   function prev() {
-    const current = calendarFocus.value ? new Date(calendarFocus.value) : new Date()
-    current.setMonth(current.getMonth() - 1)
-    calendarFocus.value = current
+    const c = calendarFocus.value ? new Date(calendarFocus.value) : new Date()
+    c.setMonth(c.getMonth() - 1); calendarFocus.value = c
   }
-
   function next() {
-    const current = calendarFocus.value ? new Date(calendarFocus.value) : new Date()
-    current.setMonth(current.getMonth() + 1)
-    calendarFocus.value = current
+    const c = calendarFocus.value ? new Date(calendarFocus.value) : new Date()
+    c.setMonth(c.getMonth() + 1); calendarFocus.value = c
   }
 
   function showEventFromSlot(nativeEvent, event) {
@@ -374,51 +372,11 @@
       selectedElement.value = nativeEvent.currentTarget
       requestAnimationFrame(() => requestAnimationFrame(() => (selectedOpen.value = true)))
     }
-
     if (selectedOpen.value) {
       selectedOpen.value = false
       requestAnimationFrame(() => requestAnimationFrame(open))
-    } else {
-      open()
-    }
+    } else { open() }
   }
-
-  const tlFirstMonday = computed(() => {
-    const d = new Date(); d.setHours(0, 0, 0, 0)
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 28)
-    return d
-  })
-
-  const timelineWeeks = computed(() => {
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    return Array.from({ length: 24 }, (_, i) => {
-      const ws = new Date(tlFirstMonday.value); ws.setDate(ws.getDate() + i * 7)
-      const we = new Date(ws); we.setDate(we.getDate() + 6)
-      return {
-        title: ws.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-        value: `tlw_${i}`, width: '72px', align: 'center', sortable: false,
-        date: ws, endDate: we, isToday: today >= ws && today <= we,
-      }
-    })
-  })
-
-  const timelineHeaders = computed(() => [
-    { title: 'Project', value: 'proj_name', width: '220px', sortable: false, fixed: true },
-    { title: 'Progress', value: 'progress', width: '110px', sortable: false, fixed: true },
-    ...timelineWeeks.value,
-  ])
-
-  const tlStart = computed(() => tlFirstMonday.value)
-  const tlEnd = computed(() => { const e = new Date(tlFirstMonday.value); e.setDate(e.getDate() + 24 * 7); return e })
-  const tlMs = computed(() => tlEnd.value - tlStart.value)
-
-  const projectTimeline = computed(() =>
-    projects.value.map(p => {
-      const pt = myTasks.value.filter(t => t.proj_id === p.proj_id)
-      const progress = pt.length ? Math.round(pt.reduce((s, t) => s + (t.per_complete || 0), 0) / pt.length) : 0
-      return { ...p, progress }
-    })
-  )
 
   function normalizeDate(value) {
     if (!value) return null
@@ -429,19 +387,14 @@
   }
 
   function isSameDate(a, b) {
-    const da = normalizeDate(a)
-    const db = normalizeDate(b)
+    const da = normalizeDate(a), db = normalizeDate(b)
     if (!da || !db) return false
     return da.getTime() === db.getTime()
   }
 
   function isDateInRange(target, start, end) {
-    const t = normalizeDate(target)
-    const s = normalizeDate(start)
-    const e = normalizeDate(end)
-
+    const t = normalizeDate(target), s = normalizeDate(start), e = normalizeDate(end)
     if (!t || !s || !e) return false
-
     return t.getTime() >= s.getTime() && t.getTime() <= e.getTime()
   }
 
@@ -449,29 +402,15 @@
     const dayEvents = calendarEvents.value.filter(evt =>
       evt.start && evt.end && isDateInRange(dayDate, evt.start, evt.end)
     )
-
-    const MAX_VISIBLE = 2
-
-    return {
-      visible: dayEvents.slice(0, MAX_VISIBLE),
-      more: Math.max(0, dayEvents.length - MAX_VISIBLE),
-    }
+    return { visible: dayEvents.slice(0, 2), more: Math.max(0, dayEvents.length - 2) }
   }
 
   function getSafeDayDate(day) {
     if (!day) return null
-
-    const raw =
-      day.date ??
-      day?.day?.date ??
-      day?.value ??
-      null
-
+    const raw = day.date ?? day?.day?.date ?? day?.value ?? null
     if (!raw) return null
-
     const d = new Date(raw)
     if (Number.isNaN(d.getTime())) return null
-
     d.setHours(0, 0, 0, 0)
     return d
   }
@@ -481,6 +420,73 @@
     return d ? d.getDate() : null
   }
 
+  // ── Timeline ──────────────────────────────────────────────────────────────────
+
+  // Starting Monday 4 weeks back
+  const tlFirstMonday = computed(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 28)
+    return d
+  })
+
+  /**
+   * 24 weekly columns. Each column represents one week.
+   * value must be unique and must NOT collide with any field name on the project DTO.
+   * We prefix with 'tlw_' to guarantee no collision.
+   */
+  const timelineWeeks = computed(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    return Array.from({ length: 24 }, (_, i) => {
+      const ws = new Date(tlFirstMonday.value); ws.setDate(ws.getDate() + i * 7)
+      const we = new Date(ws); we.setDate(we.getDate() + 6); we.setHours(23, 59, 59, 999)
+      return {
+        title: ws.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+        value: `tlw_${i}`,       // unique key, not a DTO field → no accidental data display
+        width: '72px',
+        align: 'center',
+        sortable: false,
+        date: ws,
+        endDate: we,
+        isToday: today >= ws && today <= we,
+      }
+    })
+  })
+
+  /**
+   * Table headers: ONLY proj_name (fixed) + week columns.
+   * No proj_no, cust_id, status, priority etc. — those were causing the
+   * extra columns to appear. Status is shown inside the proj_name slot.
+   */
+  const tlHeaders = computed(() => [
+    {
+      title: 'Project',
+      value: 'proj_name',
+      width: '220px',
+      sortable: false,
+      fixed: true,
+    },
+    ...timelineWeeks.value,
+  ])
+
+  // Timeline start/end for bar positioning
+  const tlStart = computed(() => tlFirstMonday.value)
+  const tlEnd = computed(() => {
+    const e = new Date(tlFirstMonday.value); e.setDate(e.getDate() + 24 * 7); return e
+  })
+  const tlMs = computed(() => tlEnd.value - tlStart.value)
+
+  // Enrich projects with computed progress
+  const projectTimeline = computed(() =>
+    projects.value.map(p => {
+      const pt = myTasks.value.filter(t => t.proj_id === p.proj_id)
+      const progress = pt.length
+        ? Math.round(pt.reduce((s, t) => s + (t.per_complete || 0), 0) / pt.length)
+        : 0
+      return { ...p, progress }
+    })
+  )
+
+  // ── Overlay geometry measurement ──────────────────────────────────────────────
   function measureTlOverlay() {
     nextTick(() => {
       const wrapper = timelineWrapper.value
@@ -491,13 +497,21 @@
       const allTh = Array.from(table.querySelectorAll('thead tr th'))
       if (allTh.length <= TL_FIXED_COLS) return
 
-      const scrollable = wrapper.querySelector('.v-table__wrapper')
       const wrapperRect = wrapper.getBoundingClientRect()
+      const scrollable = wrapper.querySelector('.v-table__wrapper')
+
+      // The date area starts right after the single fixed "Project" column
       const firstDateTh = allTh[TL_FIXED_COLS]
       const lastDateTh = allTh[allTh.length - 1]
 
-      tlOverlayLeft.value = firstDateTh.getBoundingClientRect().left - wrapperRect.left + (scrollable?.scrollLeft ?? 0)
-      tlOverlayWidth.value = lastDateTh.getBoundingClientRect().right - firstDateTh.getBoundingClientRect().left
+      tlOverlayLeft.value =
+        firstDateTh.getBoundingClientRect().left -
+        wrapperRect.left +
+        (scrollable?.scrollLeft ?? 0)
+
+      tlOverlayWidth.value =
+        lastDateTh.getBoundingClientRect().right -
+        firstDateTh.getBoundingClientRect().left
 
       const firstTr = table.querySelector('tbody tr')
       if (firstTr) tlRowHeight.value = firstTr.getBoundingClientRect().height || 52
@@ -507,12 +521,19 @@
     })
   }
 
+  // ── Bar layout ────────────────────────────────────────────────────────────────
   const tlBarLayout = computed(() => {
     if (!tlOverlayWidth.value || !tlMs.value) return []
-    const tsMs = tlStart.value.getTime(), totMs = tlMs.value, barH = Math.max(8, Math.floor(tlRowHeight.value * 0.42))
+    const tsMs = tlStart.value.getTime()
+    const totMs = tlMs.value
+    const barH = Math.max(8, Math.floor(tlRowHeight.value * 0.42))
+
     return projectTimeline.value.flatMap((p, idx) => {
       if (!p.project_start_date || !p.target_completion_date) return []
-      const sMs = toMs(p.project_start_date), eMs = toMs(p.target_completion_date) + 86400000
+
+      const sMs = toMs(p.project_start_date)
+      const eMs = toMs(p.target_completion_date) + 86400000 // include end day
+
       if (isNaN(sMs) || isNaN(eMs) || eMs <= sMs) return []
 
       const leftPct = Math.max(0, (sMs - tsMs) / totMs) * 100
@@ -523,17 +544,34 @@
       const slug = (p.status ?? 'planning').toLowerCase().replace(/\s+/g, '-')
 
       return [{
-        proj_id: p.proj_id, proj_name: p.proj_name, status: p.status, start: p.project_start_date,
-        end: p.target_completion_date, progress: p.progress, cssClass: `tl-bar tl-bar-${slug}`,
+        proj_id: p.proj_id,
+        proj_name: p.proj_name,
+        status: p.status,
+        start: p.project_start_date,
+        end: p.target_completion_date,
+        progress: p.progress,
+        cssClass: `tl-bar tl-bar-${slug}`,
         label: widthPct > 5 ? p.proj_name : '',
-        style: { top: `${topOffset}px`, left: `${leftPct}%`, width: `${widthPct}%`, height: `${barH}px`, '--tl-progress': `${p.progress}%` }
+        style: {
+          top: `${topOffset}px`,
+          left: `${leftPct}%`,
+          width: `${widthPct}%`,
+          height: `${barH}px`,
+          '--tl-progress': `${p.progress}%`,
+        },
       }]
     })
   })
 
+  // ── Overlay CSS styles ────────────────────────────────────────────────────────
   const tlOverlayStyle = computed(() => ({
-    position: 'absolute', top: `${tlHeaderHeight.value}px`, left: `${tlOverlayLeft.value}px`,
-    width: `${tlOverlayWidth.value}px`, pointerEvents: 'none', overflow: 'visible', zIndex: 5,
+    position: 'absolute',
+    top: `${tlHeaderHeight.value}px`,
+    left: `${tlOverlayLeft.value}px`,
+    width: `${tlOverlayWidth.value}px`,
+    pointerEvents: 'none',
+    overflow: 'visible',
+    zIndex: 5,
   }))
 
   const tlTodayLineStyle = computed(() => {
@@ -543,6 +581,7 @@
     return { display: 'block', left: `${pct}%`, top: '0', height: '100%' }
   })
 
+  // Sync overlay scroll with table scroll
   function attachScrollSync() {
     nextTick(() => {
       const tw = timelineWrapper.value?.querySelector('.v-table__wrapper')
@@ -555,6 +594,7 @@
     })
   }
 
+  // ── Data loading ──────────────────────────────────────────────────────────────
   async function loadDashboardData() {
     loading.value = true
     try {
@@ -572,7 +612,6 @@
   }
 
   watch(projectTimeline, () => nextTick(measureTlOverlay))
-  if (typeof window !== 'undefined') window.addEventListener('resize', measureTlOverlay)
 
   onMounted(async () => {
     window.addEventListener('resize', measureTlOverlay)
@@ -587,7 +626,7 @@
 </script>
 
 <style scoped>
-  /* 1. Strict 100vh Root without scrolling */
+  /* 1. Root */
   .dashboard-root {
     background: #f5f6f8;
     height: 100vh !important;
@@ -605,7 +644,7 @@
     font-weight: 600;
   }
 
-  /* Timeline Layout Cleanup */
+  /* ── Timeline table ─────────────────────────────────────────────────────────── */
   .timeline-table :deep(.v-table__wrapper) {
     overflow-x: auto;
     overflow-y: auto;
@@ -620,8 +659,24 @@
   .timeline-table :deep(th),
   .timeline-table :deep(td) {
     white-space: nowrap;
-    border-right: 1px solid rgba(0, 0, 0, 0.05);
+    border-right: 1px solid rgba(0,0,0,0.05);
     padding: 0 8px !important;
+  }
+
+  /* Only the "Project" column is sticky */
+  .timeline-table :deep(th:first-child),
+  .timeline-table :deep(td:first-child) {
+    background: #ffffff !important;
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    min-width: 220px;
+    max-width: 220px;
+    border-right: 2px solid #e0e0e0 !important;
+  }
+
+  .timeline-table :deep(th:first-child) {
+    z-index: 11;
   }
 
   .timeline-table :deep(tbody tr) {
@@ -629,21 +684,7 @@
   }
 
   .timeline-table :deep(tbody tr:hover td) {
-    background-color: rgba(0, 0, 0, 0.025) !important;
-  }
-
-  /* Sticky Headers for Project/Progress Fixed Columns */
-  .timeline-table :deep(th:nth-child(1)),
-  .timeline-table :deep(td:nth-child(1)),
-  .timeline-table :deep(th:nth-child(2)),
-  .timeline-table :deep(td:nth-child(2)) {
-    background: #ffffff !important;
-    position: sticky;
-    z-index: 15;
-  }
-
-  .timeline-table :deep(th) {
-    z-index: 16;
+    background-color: rgba(0,0,0,0.025) !important;
   }
 
   .timeline-table :deep(tbody tr td) {
@@ -651,18 +692,24 @@
     vertical-align: middle;
   }
 
-  /* Empty Gantt Track Grid */
+  .tl-proj-name {
+    max-width: 200px;
+    display: block;
+  }
+
+  /* Empty week cells — the bar overlay draws on top of these */
   .tl-empty-cell {
     height: 52px;
     width: 100%;
+    display: block;
   }
 
     .tl-empty-cell.is-today {
-      background-color: rgba(33, 150, 243, 0.05);
-      border-left: 2px solid rgba(33, 150, 243, 0.35);
+      background-color: rgba(33,150,243,0.05);
+      border-left: 2px solid rgba(33,150,243,0.35);
     }
 
-  /* Overlay & Bars */
+  /* ── Bar overlay ──────────────────────────────────────────────────────────── */
   .tl-bar-overlay {
     pointer-events: none;
     position: absolute;
@@ -683,56 +730,55 @@
 
     .tl-bar:hover {
       filter: brightness(1.1);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.22);
       z-index: 20;
     }
 
   .tl-bar-planning {
-    background: rgba(158, 158, 158, 0.45);
-    border: 1px solid rgba(158, 158, 158, 0.75);
+    background: rgba(158,158,158,0.45);
+    border: 1px solid rgba(158,158,158,0.75);
   }
 
   .tl-bar-in-progress {
-    background: linear-gradient( to right, rgba(25, 118, 210, 0.9) var(--tl-progress), rgba(25, 118, 210, 0.25) var(--tl-progress) );
-    border: 1px solid rgba(25, 118, 210, 1);
+    background: linear-gradient( to right, rgba(25,118,210,0.9) var(--tl-progress), rgba(25,118,210,0.25) var(--tl-progress) );
+    border: 1px solid rgba(25,118,210,1);
   }
 
   .tl-bar-completed {
-    background: rgba(76, 175, 80, 0.85);
-    border: 1px solid rgba(76, 175, 80, 1);
+    background: rgba(76,175,80,0.85);
+    border: 1px solid rgba(76,175,80,1);
   }
 
   .tl-bar-on-hold {
-    background: rgba(255, 152, 0, 0.85);
-    border: 1px solid rgba(255, 152, 0, 1);
+    background: rgba(255,152,0,0.85);
+    border: 1px solid rgba(255,152,0,1);
   }
 
   .tl-bar-cancelled {
-    background: rgba(244, 67, 54, 0.6);
-    border: 1px solid rgba(244, 67, 54, 0.9);
+    background: rgba(244,67,54,0.6);
+    border: 1px solid rgba(244,67,54,0.9);
   }
 
   .tl-bar-label {
     font-size: 10px;
     font-weight: 500;
     color: white;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.35);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     padding: 0 5px;
   }
 
-  /* Today vertical line */
   .tl-today-line {
     position: absolute;
     width: 2px;
-    background: rgba(33, 150, 243, 0.72);
+    background: rgba(33,150,243,0.72);
     pointer-events: none;
     z-index: 10;
   }
 
-  /* Calendar wrapper must NOT scroll */
+  /* ── Calendar (unchanged) ─────────────────────────────────────────────────── */
   .calendar-host {
     height: 100%;
     min-height: 0;
@@ -741,7 +787,6 @@
     flex-direction: column;
   }
 
-  /* Calendar fills host exactly */
   .compact-calendar {
     height: 100%;
     min-height: 0 !important;
@@ -749,13 +794,7 @@
     overflow: hidden !important;
   }
 
-    /* Internal calendar containers */
-    .compact-calendar :deep(.v-calendar) {
-      height: 100% !important;
-      width: 100% !important;
-      overflow: hidden !important;
-    }
-
+    .compact-calendar :deep(.v-calendar),
     .compact-calendar :deep(.v-calendar-monthly),
     .compact-calendar :deep(.v-calendar-month__container),
     .compact-calendar :deep(.v-calendar-month__days),
@@ -765,7 +804,6 @@
       overflow: hidden !important;
     }
 
-    /* Kill ALL internal scrollbars from VCalendar */
     .compact-calendar :deep(.v-calendar-header),
     .compact-calendar :deep(.v-calendar-month__week),
     .compact-calendar :deep(.v-calendar-month__weekday),
@@ -777,7 +815,6 @@
       overflow: hidden !important;
     }
 
-    /* Ensure 7 columns fit width */
     .compact-calendar :deep(.v-calendar-month__week),
     .compact-calendar :deep(.v-calendar-month__weekdays) {
       display: grid !important;
@@ -785,8 +822,6 @@
       width: 100% !important;
     }
 
-    /* Make the month use full height:
-   1 weekday row + max 6 week rows */
     .compact-calendar :deep(.v-calendar-month__weekdays) {
       flex: 0 0 28px !important;
       min-height: 28px !important;
@@ -800,14 +835,12 @@
       min-height: 0 !important;
     }
 
-    /* Each week row gets equal height */
     .compact-calendar :deep(.v-calendar-month__week) {
       min-height: 0 !important;
       height: 100% !important;
       align-items: stretch;
     }
 
-    /* Each day cell gets equal width and constrained height */
     .compact-calendar :deep(.v-calendar-month__day) {
       min-height: 0 !important;
       height: 100% !important;
@@ -816,7 +849,6 @@
       box-sizing: border-box;
     }
 
-    /* Weekday header */
     .compact-calendar :deep(.v-calendar-weekly__head-weekday),
     .compact-calendar :deep(.v-calendar-month__weekday) {
       font-size: 11px !important;
@@ -827,7 +859,6 @@
       text-align: center;
     }
 
-  /* Custom compact cell */
   .compact-day-cell {
     height: 100%;
     min-height: 0;
@@ -844,10 +875,9 @@
     }
 
     .compact-day-cell.is-today {
-      background: rgba(25, 118, 210, 0.04);
+      background: rgba(25,118,210,0.04);
     }
 
-  /* Day header */
   .compact-day-header {
     display: flex;
     align-items: center;
@@ -863,7 +893,6 @@
     width: 100%;
   }
 
-  /* Day badge fully constrained */
   .compact-day-badge {
     width: 18px;
     height: 18px;
@@ -884,7 +913,6 @@
     color: white;
   }
 
-  /* Event area */
   .compact-day-events {
     display: flex;
     flex-direction: column;
@@ -894,7 +922,6 @@
     flex: 1;
   }
 
-  /* Event pill constrained to cell */
   .compact-event-pill {
     all: unset;
     display: flex;
@@ -936,44 +963,10 @@
   .compact-more-events {
     font-size: 9px;
     line-height: 1.1;
-    color: rgba(0, 0, 0, 0.6);
+    color: rgba(0,0,0,0.6);
     padding: 0 3px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-
-  /* Small-height dashboards */
-  @@media (max-height: 900px) {
-    .compact-calendar :deep(.v-calendar-month__weekdays) {
-      flex: 0 0 24px !important;
-      min-height: 24px !important;
-      max-height: 24px !important;
-    }
-
-    .compact-calendar :deep(.v-calendar-month__days) {
-      height: calc(100% - 24px) !important;
-    }
-
-    .compact-day-header {
-      min-height: 16px;
-    }
-
-    .compact-day-badge {
-      width: 16px;
-      height: 16px;
-      min-width: 16px;
-      font-size: 9px;
-    }
-
-    .compact-event-pill {
-      min-height: 12px;
-      padding: 0 2px;
-    }
-
-    .compact-event-text,
-    .compact-more-events {
-      font-size: 8px;
-    }
   }
 </style>
