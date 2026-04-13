@@ -14,10 +14,6 @@ namespace NPI.Server.Helpers
         public static string GetSystemRole(ClaimsPrincipal user)
             => user.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
 
-        /// <summary>
-        /// Returns true if user has AT LEAST the required project-level role.
-        /// System Admins and Managers always pass.
-        /// </summary>
         public static async Task<bool> HasProjectAccess(
             ClaimsPrincipal user,
             int projectId,

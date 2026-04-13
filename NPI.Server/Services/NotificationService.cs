@@ -1,5 +1,4 @@
-﻿// NPI.Server/Services/NotificationService.cs
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
 using NPI.Server.DTOs;
@@ -37,9 +36,18 @@ namespace NPI.Server.Services
             _ctx.Notifications.Add(notif);
             await _ctx.SaveChangesAsync();
 
-            // Fire-and-forget live push — don't await, don't crash if hub fails
-            _ = _hub.Clients.User(userId.ToString())
-                    .SendAsync("NewNotification", new { notif.notif_id, title, type });
+            _ = _hub.Clients
+                    .Group($"user_{userId}")
+                    .SendAsync("NewNotification", new
+                    {
+                        notif.notif_id,
+                        title,
+                        type,
+                        body,
+                        proj_id = projId,
+                        task_id = taskId,
+                        created_at = notif.created_at
+                    });
         }
 
         public async Task NotifyDepartmentAsync(int deptId, string type, string title,
@@ -66,9 +74,53 @@ namespace NPI.Server.Services
             await _ctx.Notifications.AddRangeAsync(notifications);
             await _ctx.SaveChangesAsync();
 
-            foreach (var uid in userIds)
-                _ = _hub.Clients.User(uid.ToString())
-                        .SendAsync("NewNotification", new { title, type });
+            _ = _hub.Clients
+                    .Group($"dept_{deptId}")
+                    .SendAsync("NewNotification", new { title, type, body, proj_id = projId });
+        }
+
+        public async Task NotifyProjectTeamAsync(int projId, string type, string title,
+                                                  string body, int? taskId = null,
+                                                  int? excludeUserId = null)
+        {
+            var userIds = await _ctx.ProjectTeams
+                .Where(pt => pt.proj_id == projId)
+                .Select(pt => pt.user_id)
+                .Distinct()
+                .ToListAsync();
+
+            if (!userIds.Any()) return;
+
+            var now = DateTime.Now;
+            var notifications = userIds
+                .Where(uid => uid != excludeUserId)
+                .Select(uid => new Notifications
+                {
+                    user_id = uid,
+                    proj_id = projId,
+                    task_id = taskId,
+                    notif_type = type,
+                    subject = title,
+                    body = body,
+                    is_read = false,
+                    created_at = now
+                }).ToList();
+
+            if (notifications.Count == 0) return;
+
+            await _ctx.Notifications.AddRangeAsync(notifications);
+            await _ctx.SaveChangesAsync();
+
+            _ = _hub.Clients
+                    .Group($"project_{projId}")
+                    .SendAsync("NewNotification", new
+                    {
+                        title,
+                        type,
+                        body,
+                        proj_id = projId,
+                        task_id = taskId
+                    });
         }
 
         public async Task<List<NotificationDto>> GetUnreadAsync(int userId, int take = 50)

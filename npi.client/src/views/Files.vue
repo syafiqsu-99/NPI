@@ -2,14 +2,13 @@
   <v-container fluid class="page-container pa-6 d-flex flex-column">
     <v-card class="page-header-card flex-grow-1 d-flex flex-column overflow-hidden" elevation="2">
 
-      <!-- Header -->
-      <v-card-title class="bg-primary text-white d-flex align-center justify-space-between flex-shrink-0"
-                    style="flex: 0 0 auto;">
+      <v-card-title class="bg-primary text-white d-flex align-center justify-space-between flex-shrink-0">
         <div class="page-title">
           <v-icon class="mr-2">mdi-file-document</v-icon>
           Files
         </div>
-        <!-- Search / sort shown only on Files tab -->
+
+        <!-- File Explorer toolbar -->
         <div v-if="activeTab === 'files'" class="d-flex ga-3">
           <v-text-field v-model="search"
                         label="Search files/folders"
@@ -27,8 +26,8 @@
                     hide-details
                     style="max-width:180px" />
         </div>
-        <!-- Customer search shown on customers tab -->
-        <div v-if="activeTab === 'customers'" class="d-flex ga-3">
+
+        <div v-else-if="activeTab === 'customers' && canManageFiles" class="d-flex ga-3">
           <v-text-field v-model="customerSearch"
                         label="Search customers…"
                         density="compact"
@@ -37,8 +36,7 @@
                         variant="outlined"
                         hide-details
                         style="min-width:300px" />
-          <v-btn v-if="canManageFiles"
-                 color="white" variant="outlined"
+          <v-btn color="white" variant="outlined"
                  prepend-icon="mdi-plus"
                  @click="openCustomerDialog()">
             Add Customer
@@ -46,14 +44,17 @@
         </div>
       </v-card-title>
 
-      <!-- Sub-tabs -->
-      <v-tabs v-model="activeTab" bg-color="grey-lighten-4" color="primary" density="compact"
+      <!-- ── Sub-tabs ─────────────────────────────────────────────────────── -->
+      <v-tabs v-model="activeTab"
+              bg-color="grey-lighten-4"
+              color="primary"
+              density="compact"
               class="flex-shrink-0">
         <v-tab value="files">
           <v-icon start size="18">mdi-folder-multiple</v-icon>
           File Explorer
         </v-tab>
-        <v-tab value="customers" v-if="canManageFiles">
+        <v-tab v-if="canManageFiles" value="customers">
           <v-icon start size="18">mdi-domain</v-icon>
           Customers
         </v-tab>
@@ -61,215 +62,219 @@
 
       <v-divider class="flex-shrink-0" />
 
-      <!-- Loading bar -->
       <div style="flex: 0 0 2px; height: 2px;">
-        <v-progress-linear v-if="loading || customersLoading" indeterminate color="primary" height="2" />
+        <v-progress-linear v-if="(activeTab === 'files' && loading) || (activeTab === 'customers' && customersLoading)"
+                           indeterminate color="primary" height="2" />
       </div>
 
-      <!-- Tab windows -->
-      <v-window v-model="activeTab" :key="activeTab" class="flex-grow-1 d-flex flex-column" style="min-height:0;">
+      <v-window v-model="activeTab"
+                class="flex-grow-1 d-flex flex-column"
+                style="min-height:0;">
 
-        <!-- ── FILE EXPLORER TAB ──────────────────────────────────────────── -->
-        <v-window-item value="files" class="fill-height d-flex flex-column">
+        <!-- ── FILE EXPLORER ──────────────────────────────────────────────── -->
+        <v-window-item value="files" class="fill-height">
+          <div class="fill-height d-flex flex-column">
+            <!-- Breadcrumbs -->
+            <v-card-text class="px-4 d-flex align-center flex-shrink-0 py-2"
+                         style="flex: 0 0 24px; overflow: hidden;">
+              <v-breadcrumbs :items="breadcrumbs"
+                             class="pa-0 w-100"
+                             style="white-space: nowrap; flex-wrap: nowrap; overflow: hidden; text-overflow: ellipsis;" />
+            </v-card-text>
 
-          <!-- Breadcrumbs -->
-          <v-card-text class="px-4 d-flex align-center flex-shrink-0 py-2"
-                       style="flex: 0 0 24px; overflow: hidden;">
-            <v-breadcrumbs :items="breadcrumbs"
-                           class="pa-0 w-100"
-                           style="white-space: nowrap; flex-wrap: nowrap; overflow: hidden; text-overflow: ellipsis;" />
-          </v-card-text>
+            <!-- Tree + Preview side-by-side -->
+            <v-card-text class="flex-grow-1 pa-0 w-100 d-flex" style="min-height: 0; overflow: hidden;">
 
-          <!-- Tree + Preview side-by-side -->
-          <v-card-text class="flex-grow-1 pa-0 w-100 d-flex" style="min-height: 0; overflow: hidden;">
+              <!-- Tree panel -->
+              <div :style="previewItem ? 'width:45%; min-width:0;' : 'width:100%;'"
+                   style="overflow-y: auto; transition: width 0.25s ease; border-right: 1px solid #e0e0e0;">
 
-            <!-- Tree panel -->
-            <div :style="previewItem ? 'width:45%; min-width:0;' : 'width:100%;'"
-                 style="overflow-y: auto; transition: width 0.25s ease; border-right: 1px solid #e0e0e0;">
+                <div v-if="!loading && filteredTree.length === 0 && !search"
+                     class="d-flex flex-column align-center mt-12">
+                  <v-icon size="72" color="grey-lighten-1">mdi-folder-open-outline</v-icon>
+                  <div class="text-h6 text-grey-darken-1 mt-4">No files found</div>
+                </div>
 
-              <div v-if="!loading && filteredTree.length === 0 && !search"
-                   class="d-flex flex-column align-center mt-12">
-                <v-icon size="72" color="grey-lighten-1">mdi-folder-open-outline</v-icon>
-                <div class="text-h6 text-grey-darken-1 mt-4">No files found</div>
+                <div v-else-if="!loading && filteredTree.length === 0 && search"
+                     class="d-flex flex-column align-center mt-12">
+                  <v-icon size="72" color="grey-lighten-1">mdi-file-search-outline</v-icon>
+                  <div class="text-h6 text-grey-darken-1 mt-4">No results for "{{ search }}"</div>
+                  <v-btn variant="tonal" class="mt-4" @click="search = ''">Clear search</v-btn>
+                </div>
+
+                <v-treeview v-else
+                            :items="filteredTree"
+                            item-title="name"
+                            item-value="id"
+                            item-children="children"
+                            open-on-click
+                            activatable
+                            v-model:opened="openedIds"
+                            class="pt-2 pl-2"
+                            @update:activated="updateBreadcrumb">
+
+                  <template #prepend="{ item }">
+                    <v-icon v-if="item.type === 'root-projects'" color="primary">mdi-folder-multiple</v-icon>
+                    <v-icon v-else-if="item.type === 'root-customers'" color="teal">mdi-account-group</v-icon>
+                    <v-icon v-else-if="item.type === 'project'" color="amber-darken-2">mdi-folder</v-icon>
+                    <v-icon v-else-if="item.type === 'customer'" color="teal-darken-1">mdi-folder-account</v-icon>
+                    <v-icon v-else-if="item.type === 'folder'" color="blue-darken-1">mdi-folder-open</v-icon>
+                    <v-icon v-else color="grey-darken-1">mdi-file-document-outline</v-icon>
+                  </template>
+
+                  <template #append="{ item }">
+                    <div v-if="item.type === 'file'" class="d-flex align-center ga-1 pr-4">
+                      <v-chip v-if="item.file_version" size="x-small" variant="tonal" color="secondary" class="mr-1">
+                        v{{ item.file_version }}
+                      </v-chip>
+                      <span class="text-caption text-grey mr-2">{{ formatSize(item.size) }}</span>
+                      <span class="text-caption text-grey mr-3">{{ formatDate(item.uploaded_at) }}</span>
+                      <v-tooltip text="Preview" location="top">
+                        <template #activator="{ props }">
+                          <v-btn v-bind="props" icon size="x-small" variant="text"
+                                 :color="previewItem?.id === item.id ? 'primary' : ''"
+                                 @click.stop="handlePreview(item)">
+                            <v-icon size="16">mdi-eye-outline</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                      <v-tooltip text="Download" location="top">
+                        <template #activator="{ props }">
+                          <v-btn v-bind="props" icon size="x-small" variant="text"
+                                 @click.stop="downloadFile(item)">
+                            <v-icon size="16">mdi-download-outline</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                      <v-tooltip v-if="canManageFiles && item.can_edit" text="Delete" location="top">
+                        <template #activator="{ props }">
+                          <v-btn v-bind="props" icon size="x-small" variant="text" color="error"
+                                 @click.stop="deleteFile(item)">
+                            <v-icon size="16">mdi-delete-outline</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                    </div>
+                    <div v-else-if="item.children?.length" class="pr-4">
+                      <v-chip size="x-small" variant="tonal" color="primary">
+                        {{ countFiles(item) }}
+                      </v-chip>
+                    </div>
+                  </template>
+                </v-treeview>
               </div>
 
-              <div v-else-if="!loading && filteredTree.length === 0 && search"
-                   class="d-flex flex-column align-center mt-12">
-                <v-icon size="72" color="grey-lighten-1">mdi-file-search-outline</v-icon>
-                <div class="text-h6 text-grey-darken-1 mt-4">No results for "{{ search }}"</div>
-                <v-btn variant="tonal" class="mt-4" @click="search = ''">Clear search</v-btn>
-              </div>
+              <!-- Inline Preview Panel -->
+              <transition name="slide-preview">
+                <div v-if="previewItem"
+                     class="d-flex flex-column"
+                     style="width:55%; min-width:0; overflow:hidden; background:#fafafa;">
+                  <div class="d-flex align-center px-4 py-2 bg-grey-lighten-4"
+                       style="border-bottom:1px solid #e0e0e0; flex-shrink:0;">
+                    <v-icon class="mr-2" color="primary" size="18">{{ previewIconFor(previewItem) }}</v-icon>
+                    <span class="text-body-2 font-weight-medium text-truncate flex-grow-1"
+                          :title="previewItem.name">{{ previewItem.name }}</span>
+                    <v-btn icon size="x-small" variant="text" class="ml-2" @click="closePreview">
+                      <v-icon size="18">mdi-close</v-icon>
+                    </v-btn>
+                  </div>
+                  <div class="flex-grow-1" style="overflow:hidden; position:relative;">
+                    <div v-if="previewLoading" class="d-flex align-center justify-center fill-height">
+                      <v-progress-circular indeterminate color="primary" />
+                    </div>
+                    <iframe v-else-if="previewType === 'pdf'"
+                            :src="previewBlobUrl" width="100%" height="100%"
+                            style="border:none; display:block;" />
+                    <div v-else-if="previewType === 'image'"
+                         class="d-flex align-center justify-center fill-height pa-4"
+                         style="background:#f0f0f0;">
+                      <img :src="previewBlobUrl" :alt="previewItem.name"
+                           style="max-width:100%; max-height:100%; object-fit:contain;
+                                  border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.15);" />
+                    </div>
+                    <div v-else-if="previewType === 'text'"
+                         style="height:100%; overflow:auto; padding:16px;">
+                      <pre style="font-size:12px; font-family:monospace; white-space:pre-wrap;
+                                  word-break:break-all; margin:0;">{{ previewTextContent }}</pre>
+                    </div>
+                  </div>
+                </div>
+              </transition>
+            </v-card-text>
+          </div>
+        </v-window-item>
 
-              <v-treeview v-else
-                          :items="filteredTree"
-                          item-title="name"
-                          item-value="id"
-                          item-children="children"
-                          open-on-click
-                          activatable
-                          v-model:opened="openedIds"
-                          class="pt-2 pl-2"
-                          @update:activated="updateBreadcrumb">
+        <!-- ── CUSTOMERS ───────────────────────────────────────────────────── -->
+        <!-- FIX: Removed `d-flex flex-column` from v-window-item -->
+        <v-window-item v-if="canManageFiles"
+                       value="customers"
+                       class="fill-height"
+                       style="min-height:0; overflow:hidden;">
+          <!-- FIX: Added fill-height wrapper div so it layouts correctly inside -->
+          <div class="fill-height d-flex flex-column" style="min-height:0; overflow:hidden;">
+            <v-card-text class="flex-grow-1 pa-0 d-flex flex-column" style="min-height:0; overflow:hidden;">
 
-                <template #prepend="{ item }">
-                  <v-icon v-if="item.type === 'root-projects'" color="primary">mdi-folder-multiple</v-icon>
-                  <v-icon v-else-if="item.type === 'root-customers'" color="teal">mdi-account-group</v-icon>
-                  <v-icon v-else-if="item.type === 'project'" color="amber-darken-2">mdi-folder</v-icon>
-                  <v-icon v-else-if="item.type === 'customer'" color="teal-darken-1">mdi-folder-account</v-icon>
-                  <v-icon v-else-if="item.type === 'folder'" color="blue-darken-1">mdi-folder-open</v-icon>
-                  <v-icon v-else color="grey-darken-1">mdi-file-document-outline</v-icon>
+              <v-data-table-virtual :headers="customerHeaders"
+                                    :items="filteredCustomers"
+                                    :loading="customersLoading"
+                                    density="comfortable"
+                                    fixed-header
+                                    height="100%"
+                                    item-key="cust_id"
+                                    class="customers-table flex-grow-1">
+
+                <template #item.comp_name="{ item }">
+                  <div class="d-flex align-center ga-2 py-1">
+                    <v-avatar color="teal" size="30">
+                      <span class="text-white" style="font-size:10px; font-weight:700;">
+                        {{ getInitials(item.comp_name) }}
+                      </span>
+                    </v-avatar>
+                    <span class="font-weight-medium text-body-2">{{ item.comp_name }}</span>
+                  </div>
                 </template>
 
-                <template #append="{ item }">
-                  <div v-if="item.type === 'file'" class="d-flex align-center ga-1 pr-4">
-                    <v-chip v-if="item.file_version" size="x-small" variant="tonal" color="secondary" class="mr-1">
-                      v{{ item.file_version }}
-                    </v-chip>
-                    <span class="text-caption text-grey mr-2">{{ formatSize(item.size) }}</span>
-                    <span class="text-caption text-grey mr-3">{{ formatDate(item.uploaded_at) }}</span>
-                    <v-tooltip text="Preview" location="top">
+                <template #item.is_active="{ item }">
+                  <v-chip :color="item.is_active ? 'success' : 'grey'" size="small" variant="flat">
+                    {{ item.is_active ? 'Active' : 'Inactive' }}
+                  </v-chip>
+                </template>
+
+                <template #item.created_at="{ item }">
+                  <span class="text-caption">{{ formatDate(item.created_at) }}</span>
+                </template>
+
+                <template #item.actions="{ item }">
+                  <div class="d-flex ga-1">
+                    <v-tooltip text="Edit" location="top">
                       <template #activator="{ props }">
-                        <v-btn v-bind="props" icon size="x-small" variant="text"
-                               :color="previewItem?.id === item.id ? 'primary' : ''"
-                               @click.stop="handlePreview(item)">
-                          <v-icon size="16">mdi-eye-outline</v-icon>
+                        <v-btn v-bind="props" icon size="small" variant="text"
+                               @click="openCustomerDialog(item)">
+                          <v-icon size="16">mdi-pencil</v-icon>
                         </v-btn>
                       </template>
                     </v-tooltip>
-                    <v-tooltip text="Download" location="top">
+                    <v-tooltip text="Delete" location="top">
                       <template #activator="{ props }">
-                        <v-btn v-bind="props" icon size="x-small" variant="text"
-                               @click.stop="downloadFile(item)">
-                          <v-icon size="16">mdi-download-outline</v-icon>
-                        </v-btn>
-                      </template>
-                    </v-tooltip>
-                    <v-tooltip text="Delete" location="top" v-if="canManageFiles && item.can_edit">
-                      <template #activator="{ props }">
-                        <v-btn v-bind="props" icon size="x-small" variant="text" color="error"
-                               @click.stop="deleteFile(item)">
+                        <v-btn v-bind="props" icon size="small" variant="text" color="error"
+                               @click="confirmDeleteCustomer(item)">
                           <v-icon size="16">mdi-delete-outline</v-icon>
                         </v-btn>
                       </template>
                     </v-tooltip>
                   </div>
-                  <div v-else-if="item.children?.length" class="pr-4">
-                    <v-chip size="x-small" variant="tonal" color="primary">
-                      {{ countFiles(item) }}
-                    </v-chip>
+                </template>
+
+                <template #no-data>
+                  <div class="d-flex flex-column align-center justify-center pa-10 text-grey">
+                    <v-icon size="56" color="grey-lighten-1">mdi-domain</v-icon>
+                    <div class="mt-2 text-body-2">No customers found</div>
                   </div>
                 </template>
-              </v-treeview>
-            </div>
 
-            <!-- Inline Preview Panel -->
-            <transition name="slide-preview">
-              <div v-if="previewItem"
-                   class="d-flex flex-column"
-                   style="width:55%; min-width:0; overflow:hidden; background:#fafafa;">
-                <div class="d-flex align-center px-4 py-2 bg-grey-lighten-4"
-                     style="border-bottom:1px solid #e0e0e0; flex-shrink:0;">
-                  <v-icon class="mr-2" color="primary" size="18">{{ previewIconFor(previewItem) }}</v-icon>
-                  <span class="text-body-2 font-weight-medium text-truncate flex-grow-1"
-                        :title="previewItem.name">{{ previewItem.name }}</span>
-                  <v-btn icon size="x-small" variant="text" class="ml-2" @click="closePreview">
-                    <v-icon size="18">mdi-close</v-icon>
-                  </v-btn>
-                </div>
-                <div class="flex-grow-1" style="overflow:hidden; position:relative;">
-                  <div v-if="previewLoading" class="d-flex align-center justify-center fill-height">
-                    <v-progress-circular indeterminate color="primary" />
-                  </div>
-                  <iframe v-else-if="previewType === 'pdf'"
-                          :src="previewBlobUrl" width="100%" height="100%"
-                          style="border:none; display:block;" />
-                  <div v-else-if="previewType === 'image'"
-                       class="d-flex align-center justify-center fill-height pa-4"
-                       style="background:#f0f0f0;">
-                    <img :src="previewBlobUrl" :alt="previewItem.name"
-                         style="max-width:100%; max-height:100%; object-fit:contain;
-                                border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.15);" />
-                  </div>
-                  <div v-else-if="previewType === 'text'"
-                       style="height:100%; overflow:auto; padding:16px;">
-                    <pre style="font-size:12px; font-family:monospace; white-space:pre-wrap;
-                                word-break:break-all; margin:0;">{{ previewTextContent }}</pre>
-                  </div>
-                </div>
-              </div>
-            </transition>
-          </v-card-text>
-        </v-window-item>
-
-        <!-- ── CUSTOMERS TAB ──────────────────────────────────────────────── -->
-        <v-window-item value="customers" v-show="canManageFiles" class="fill-height d-flex flex-column"
-                       style="min-height:0; overflow:hidden;">
-          <v-card-text class="flex-grow-1 pa-0 d-flex flex-column" style="min-height:0; overflow:hidden;">
-
-            <v-data-table-virtual :headers="customerHeaders"
-                                  :items="filteredCustomers"
-                                  :loading="customersLoading"
-                                  density="comfortable"
-                                  fixed-header
-                                  height="100%"
-                                  item-key="cust_id"
-                                  class="customers-table flex-grow-1">
-
-              <!-- Company name -->
-              <template #item.comp_name="{ item }">
-                <div class="d-flex align-center ga-2 py-1">
-                  <v-avatar color="teal" size="30">
-                    <span class="text-white" style="font-size:10px; font-weight:700;">
-                      {{ getInitials(item.comp_name) }}
-                    </span>
-                  </v-avatar>
-                  <span class="font-weight-medium text-body-2">{{ item.comp_name }}</span>
-                </div>
-              </template>
-
-              <!-- Status chip -->
-              <template #item.is_active="{ item }">
-                <v-chip :color="item.is_active ? 'success' : 'grey'" size="small" variant="flat">
-                  {{ item.is_active ? 'Active' : 'Inactive' }}
-                </v-chip>
-              </template>
-
-              <!-- Created date -->
-              <template #item.created_at="{ item }">
-                <span class="text-caption">{{ formatDate(item.created_at) }}</span>
-              </template>
-
-              <!-- Actions — visible to Admin/Manager only -->
-              <template #item.actions="{ item }">
-                <div v-if="canManageFiles" class="d-flex ga-1">
-                  <v-tooltip text="Edit" location="top">
-                    <template #activator="{ props }">
-                      <v-btn v-bind="props" icon size="small" variant="text"
-                             @click="openCustomerDialog(item)">
-                        <v-icon size="16">mdi-pencil</v-icon>
-                      </v-btn>
-                    </template>
-                  </v-tooltip>
-                  <v-tooltip text="Delete" location="top">
-                    <template #activator="{ props }">
-                      <v-btn v-bind="props" icon size="small" variant="text" color="error"
-                             @click="confirmDeleteCustomer(item)">
-                        <v-icon size="16">mdi-delete-outline</v-icon>
-                      </v-btn>
-                    </template>
-                  </v-tooltip>
-                </div>
-              </template>
-
-              <template #no-data>
-                <div class="d-flex flex-column align-center justify-center pa-10 text-grey">
-                  <v-icon size="56" color="grey-lighten-1">mdi-domain</v-icon>
-                  <div class="mt-2 text-body-2">No customers found</div>
-                </div>
-              </template>
-
-            </v-data-table-virtual>
-          </v-card-text>
+              </v-data-table-virtual>
+            </v-card-text>
+          </div>
         </v-window-item>
 
       </v-window>
@@ -352,7 +357,7 @@
       </v-card>
     </v-dialog>
 
-    <!-- External software snackbar (file explorer) -->
+    <!-- External software snackbar -->
     <v-snackbar v-model="externalPrompt.show"
                 location="bottom center"
                 :timeout="6000"
@@ -402,7 +407,14 @@
   // ── Tab state ─────────────────────────────────────────────────────────────────
   const activeTab = ref('files')
 
-  // ── File explorer state (unchanged from original) ─────────────────────────────
+  // Guard: if the user somehow lands on 'customers' without permission, reset.
+  watch(activeTab, (tab) => {
+    if (tab === 'customers' && !canManageFiles.value) {
+      activeTab.value = 'files'
+    }
+  })
+
+  // ── File explorer state ───────────────────────────────────────────────────────
   const loading = ref(false)
   const rawTree = ref([])
   const search = ref('')
@@ -508,7 +520,6 @@
       } else {
         result = await customerStore.createCustomer(customerForm.value)
       }
-
       if (result?.success) {
         await customerStore.fetchCustomers()
         customerDialog.value = false
@@ -539,21 +550,20 @@
     }
   }
 
-  // Load customers when tab activates
+  // Load customers lazily when the tab activates (only once if already loaded)
   watch(activeTab, async (tab) => {
-    if (tab === 'customers' && (!customerStore.customers || customerStore.customers.length === 0)) {
+    if (tab === 'customers' && canManageFiles.value &&
+      (!customerStore.customers || customerStore.customers.length === 0)) {
       customersLoading.value = true
       try {
         await customerStore.fetchCustomers()
-      } catch (e) {
-        console.error('Failed to load customers:', e)
       } finally {
         customersLoading.value = false
       }
     }
   })
 
-  // ── File explorer helpers (all unchanged from original) ───────────────────────
+  // ── File explorer helpers ─────────────────────────────────────────────────────
   async function loadStructure() {
     try {
       loading.value = true
@@ -802,7 +812,6 @@
     background-color: #f5f6f8;
   }
 
-  /* Customers table — fixed header, scrollable body */
   .customers-table :deep(th) {
     font-weight: 600 !important;
     font-size: 11px;
@@ -821,7 +830,6 @@
     background-color: rgba(0,0,0,0.025) !important;
   }
 
-  /* Window items need height */
   :deep(.v-window__container),
   :deep(.v-window-item) {
     height: 100% !important;

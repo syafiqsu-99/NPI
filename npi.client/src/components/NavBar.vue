@@ -25,9 +25,11 @@
       <!-- Notifications bell -->
       <v-menu v-model="notifMenu" :close-on-content-click="false" location="end">
         <template #activator="{ props }">
-          <v-list-item v-bind="props" prepend-icon="mdi-bell" title="Notifications">
-            <template #append>
-              <v-badge v-if="unreadCount > 0" :content="unreadCount" color="error" />
+          <v-list-item v-bind="props" title="Notifications">
+            <template #prepend>
+              <v-badge :model-value="unreadCount > 0" :content="unreadCount" color="error">
+                <v-icon>mdi-bell</v-icon>
+              </v-badge>
             </template>
           </v-list-item>
         </template>
@@ -90,6 +92,8 @@
 
   let pollInterval = null
   let hubConnection = null
+  let retryCount = 0
+  const MAX_RETRIES = 5
 
   // ── Load notifications from API ───────────────────────────────────────────────
   async function loadNotifications() {
@@ -133,11 +137,19 @@
         accessTokenFactory: () => authStore.token,
         transport:
           signalR.HttpTransportType.WebSockets |
-          signalR.HttpTransportType.LongPolling
+          signalR.HttpTransportType.LongPolling,
       })
-      .withAutomaticReconnect([0, 2000, 10000, 30000])
-      .configureLogging(signalR.LogLevel.Warning)
+      .withAutomaticReconnect({
+        nextRetryDelayInMilliseconds: (retryContext) => {
+          const delay = Math.min(2 ** retryContext.previousRetryCount * 1000, 30000)
+          return delay
+        }
+      })
+      .configureLogging(
+        import.meta.env.DEV ? signalR.LogLevel.Information : signalR.LogLevel.Warning
+      )
       .build()
+
 
     hubConnection.on('NewNotification', payload => {
       unreadCount.value += 1
@@ -150,7 +162,7 @@
         is_read: false,
         proj_id: payload.proj_id ?? null,
         task_id: payload.task_id ?? null,
-        created_at: new Date().toISOString()
+        created_at: payload.created_at ?? new Date().toISOString()
       })
 
       if (notifications.value.length > 50) {
@@ -162,12 +174,31 @@
       loadNotifications()
     })
 
+    hubConnection.onclose(() => {
+      if (!pollInterval) {
+        pollInterval = setInterval(loadNotifications, 30_000)
+      }
+    })
+
     try {
       await hubConnection.start()
+      retryCount = 0
+      if (pollInterval) {
+        clearInterval(pollInterval)
+        pollInterval = null
+      }
     } catch (err) {
-      console.warn('[SignalR] Connection failed, will rely on polling:', err)
+      console.warn('[SignalR] Initial connection failed — relying on polling:', err?.message ?? err)
     }
   }
+
+  async function joinProjectGroup(projectId) {
+    if (hubConnection?.state === signalR.HubConnectionState.Connected) {
+      await hubConnection.invoke('JoinProjectGroup', projectId).catch(() => { })
+    }
+  }
+
+  defineExpose({ joinProjectGroup })
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
   function typeColor(type) {

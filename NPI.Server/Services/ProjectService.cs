@@ -63,6 +63,11 @@ namespace NPI.Server.Services
                 .OrderByDescending(p => p.created_at)
                 .ToListAsync();
 
+            if (!projects.Any())
+            {
+                return new List<ProjectResponseDto>();
+            }
+
             var projectIds = projects.Select(p => p.proj_id).ToList();
 
             var allTasks = await _context.Tasks
