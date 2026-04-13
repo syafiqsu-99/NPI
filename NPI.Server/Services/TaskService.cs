@@ -25,7 +25,6 @@ namespace NPI.Server.Services
 
         /// <summary>
         /// Validates if the requesting user has write access to a task.
-        /// Only the assigned user, Team Lead, or Admin can modify the task.
         /// </summary>
         private async Task<(bool authorized, string message)> ValidateTaskWriteAccessAsync(int taskId, int userId, string userRole, bool isProjectTask = false)
         {
@@ -37,15 +36,18 @@ namespace NPI.Server.Services
             if (task == null)
                 return (false, "Task not found");
 
-            // 1. System Admins bypass all rules
-            if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+            // 1. Requirement: System Admins & Managers bypass all rules (Full access to uploads/status)
+            if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(userRole, "Manager", StringComparison.OrdinalIgnoreCase))
+            {
                 return (true, string.Empty);
+            }
 
             var currentUser = await _context.Users.FirstOrDefaultAsync(u => u.user_id == userId);
             if (currentUser == null)
                 return (false, "User not found");
 
-            // 2. Query ProjectTeams to get the user's role
+            // 2. Requirement: Verify user assignments for the Member role via ProjectTeams (ProjectRoles table)
             var projectTeamRole = await _context.ProjectTeams
                 .Where(pt => pt.proj_id == task.proj_id && pt.user_id == userId)
                 .FirstOrDefaultAsync();
@@ -160,8 +162,7 @@ namespace NPI.Server.Services
         }
 
         /// <summary>
-        /// Returns all tasks that belong to projects the given user is a member of
-        /// (via ProjectTeams). Admins receive every task in the system.
+        /// Returns tasks. Admins/Managers fetch everything. Members fetch specific to their assignments.
         /// </summary>
         public async Task<List<TaskResponseDto>> GetTasksByProjectTeamsAsync(int userId, string userRole)
         {
@@ -172,9 +173,13 @@ namespace NPI.Server.Services
                 .Include(t => t.AssignedByUser)
                 .Include(t => t.TaskRevisions);
 
-            if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+            // Requirement 1: Admin & Manager Roles must fetch ALL tasks
+            bool hasGlobalAccess = string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                                   string.Equals(userRole, "Manager", StringComparison.OrdinalIgnoreCase);
+
+            if (!hasGlobalAccess)
             {
-                // Get project IDs the user belongs to
+                // Requirement 2: Member Role must fetch ONLY tasks belonging to projects assigned to them
                 var projectIds = await _context.ProjectTeams
                     .Where(pt => pt.user_id == userId)
                     .Select(pt => pt.proj_id)
@@ -185,6 +190,7 @@ namespace NPI.Server.Services
             }
 
             var tasks = await query.OrderBy(t => t.planned_start_date).ToListAsync();
+
             return tasks.Select(MapToResponseDto).ToList();
         }
 

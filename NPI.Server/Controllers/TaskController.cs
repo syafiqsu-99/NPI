@@ -42,6 +42,7 @@ namespace NPI.Server.Controllers
                 {
                     return Unauthorized(new { success = false, message = "Invalid user identity claim." });
                 }
+
                 var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
 
                 var tasks = await _taskService.GetTasksByProjectTeamsAsync(userId, userRole);
