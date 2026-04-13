@@ -1,3 +1,12 @@
+/**
+ * api.js — Central HTTP client for the NPI frontend.
+ *
+ * FIX for Files.vue preview:
+ *   The old fetchApi() ignored responseType for the default JSON path,
+ *   so blob/arraybuffer requests fell through to response.json() and threw.
+ *   Now we handle every responseType ('blob', 'arraybuffer', 'text') explicitly
+ *   before attempting JSON parsing.
+ */
 import router from '@/router'
 
 const API_BASE_URL = '/api'
@@ -14,20 +23,22 @@ async function fetchApi(endpoint, options = {}) {
   const token = localStorage.getItem('token')
 
   const defaultHeaders = {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json'
   }
 
   if (token) {
     defaultHeaders['Authorization'] = `Bearer ${token}`
   }
 
+  const { responseType, ...restOptions } = options
+
   const config = {
-    ...options,
+    ...restOptions,
     headers: {
       ...defaultHeaders,
-      ...options.headers,
+      ...restOptions.headers
     },
-    credentials: 'include',
+    credentials: 'include'
   }
 
   try {
@@ -47,25 +58,39 @@ async function fetchApi(endpoint, options = {}) {
       return null
     }
 
-    // Check if response should be treated as blob
-    if (options.responseType === 'blob') {
+    if (responseType === 'blob') {
       if (!response.ok) {
-        // Try to get error message from JSON if possible
+        let msg = 'An error occurred'
         try {
-          const data = await response.json()
-          throw new ApiError(
-            data.message || data.title || 'An error occurred',
-            response.status,
-            data
-          )
-        } catch {
-          throw new ApiError('An error occurred', response.status, null)
-        }
+          const errData = await response.json()
+          msg = errData.message || errData.title || msg
+        } catch { /* response body not JSON */ }
+        throw new ApiError(msg, response.status, null)
       }
       return await response.blob()
     }
 
-    // Default JSON parsing
+    if (responseType === 'arraybuffer') {
+      if (!response.ok) {
+        let msg = 'An error occurred'
+        try {
+          const errData = await response.json()
+          msg = errData.message || errData.title || msg
+        } catch { /* ignore */ }
+        throw new ApiError(msg, response.status, null)
+      }
+      const buffer = await response.arrayBuffer()
+      return { data: buffer }
+    }
+
+    if (responseType === 'text') {
+      if (!response.ok) {
+        throw new ApiError('An error occurred', response.status, null)
+      }
+      const text = await response.text()
+      return { data: text }
+    }
+
     const data = await response.json()
 
     if (!response.ok) {
@@ -78,51 +103,46 @@ async function fetchApi(endpoint, options = {}) {
 
     return data
   } catch (error) {
-    if (error instanceof ApiError) {
-      throw error
-    }
-    // Network error or parsing error
+    if (error instanceof ApiError) throw error
     throw new ApiError(error.message, 500, null)
   }
 }
 
 export const api = {
-  get: (endpoint, options = {}) => fetchApi(endpoint, {
-    method: 'GET',
-    ...options
-  }),
+  get: (endpoint, options = {}) =>
+    fetchApi(endpoint, { method: 'GET', ...options }),
 
-  post: (endpoint, data) => fetchApi(endpoint, {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }),
+  post: (endpoint, data) =>
+    fetchApi(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
 
-  put: (endpoint, data) => fetchApi(endpoint, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  }),
+  put: (endpoint, data) =>
+    fetchApi(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    }),
 
-  patch: (endpoint, data) => fetchApi(endpoint, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  }),
+  patch: (endpoint, data) =>
+    fetchApi(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    }),
 
-  delete: (endpoint) => fetchApi(endpoint, { method: 'DELETE' }),
+  delete: (endpoint) =>
+    fetchApi(endpoint, { method: 'DELETE' }),
 
-  // File upload
   uploadFile: async (endpoint, formData) => {
     const token = localStorage.getItem('token')
     const headers = {}
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
+    if (token) headers['Authorization'] = `Bearer ${token}`
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
       headers,
       body: formData,
-      credentials: 'include',
+      credentials: 'include'
     })
 
     if (response.status === 401) {
@@ -139,20 +159,14 @@ export const api = {
     return response.json()
   },
 
-  // Download file
   downloadFile: async (endpoint, filename) => {
     const token = localStorage.getItem('token')
-
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
-      credentials: 'include',
+      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include'
     })
 
-    if (!response.ok) {
-      throw new ApiError('Download failed', response.status, null)
-    }
+    if (!response.ok) throw new ApiError('Download failed', response.status, null)
 
     const blob = await response.blob()
     const url = window.URL.createObjectURL(blob)

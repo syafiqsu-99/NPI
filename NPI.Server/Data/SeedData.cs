@@ -44,11 +44,11 @@ namespace NPI.Server.Data
             {
                 var projectroles = new[]
                 {
-                    new Roles { role_name = "Team Lead", description = "Team Leader" },
-                    new Roles { role_name = "Member", description = "Team Member" },
-                    new Roles { role_name = "Viewer", description = "Read-only access" }
+                    new ProjectRoles { role_name = "Team Lead", description = "Team Leader" },
+                    new ProjectRoles { role_name = "Member", description = "Team Member" },
+                    new ProjectRoles { role_name = "Viewer", description = "Read-only access" }
                 };
-                await context.Roles.AddRangeAsync(projectroles);
+                await context.ProjectRoles.AddRangeAsync(projectroles);
                 await context.SaveChangesAsync();
             }
 
@@ -205,7 +205,6 @@ namespace NPI.Server.Data
                 var adminRole = await context.Roles.FirstAsync(r => r.role_name == "Admin");
                 var managerRole = await context.Roles.FirstAsync(r => r.role_name == "Manager");
                 var memberRole = await context.Roles.FirstAsync(r => r.role_name == "Member");
-                var viewerRole = await context.Roles.FirstAsync(r => r.role_name == "Viewer");
 
                 var resources = new[] { "projects", "tasks", "files", "approvals", "users", "departments" };
 
@@ -251,21 +250,6 @@ namespace NPI.Server.Data
                         can_create = true,
                         can_read = true,
                         can_update = true,
-                        can_delete = false,
-                        can_approve = false
-                    });
-                }
-
-                // Viewer - Read-only
-                foreach (var resource in resources)
-                {
-                    permissions.Add(new RolePermissions
-                    {
-                        role_id = viewerRole.role_id,
-                        resource = resource,
-                        can_create = false,
-                        can_read = true,
-                        can_update = false,
                         can_delete = false,
                         can_approve = false
                     });

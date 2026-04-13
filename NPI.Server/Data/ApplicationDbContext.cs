@@ -8,9 +8,7 @@ namespace NPI.Server.Data
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
         // ── Core entities ─────────────────────────────────────────────────────
-        public DbSet<Approvals> Approvals { get; set; }
         public DbSet<AuditLogs> AuditLogs { get; set; }
-        public DbSet<Comments> Comments { get; set; }
         public DbSet<Customers> Customers { get; set; }
         public DbSet<Departments> Departments { get; set; }
         public DbSet<DocumentTypes> DocumentTypes { get; set; }
@@ -47,10 +45,6 @@ namespace NPI.Server.Data
         public DbSet<Users> Users { get; set; }
         public DbSet<UserSessions> UserSessions { get; set; }
 
-        // ── Misc ──────────────────────────────────────────────────────────────
-        public DbSet<StageCompletionLog> StageCompletionLogs { get; set; }
-        public DbSet<TaskDocumentRequirements> TaskDocumentRequirements { get; set; }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -67,24 +61,6 @@ namespace NPI.Server.Data
 
             modelBuilder.Entity<Enquiries>()
                 .HasIndex(e => e.enquiry_no).IsUnique();
-
-            // ── ProjectRoles: one record per user per project ─────────────────
-            modelBuilder.Entity<ProjectRoles>()
-                .HasIndex(pr => new { pr.proj_id, pr.user_id })
-                .IsUnique()
-                .HasDatabaseName("IX_ProjectRoles_ProjUser");
-
-            modelBuilder.Entity<ProjectRoles>()
-                .HasOne(pr => pr.Project)
-                .WithMany()
-                .HasForeignKey(pr => pr.proj_id)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<ProjectRoles>()
-                .HasOne(pr => pr.User)
-                .WithMany()
-                .HasForeignKey(pr => pr.user_id)
-                .OnDelete(DeleteBehavior.Cascade);
 
             // ── EnquiryFieldValues ─────────────────────────────────────────────
             modelBuilder.Entity<EnquiryFieldValues>()
@@ -137,6 +113,11 @@ namespace NPI.Server.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             // ── ProjectTeams ──────────────────────────────────────────────────
+            modelBuilder.Entity<ProjectTeams>()
+                .HasIndex(pr => new { pr.proj_id, pr.user_id })
+                .IsUnique()
+                .HasDatabaseName("IX_ProjectTeams_ProjUser");
+
             modelBuilder.Entity<ProjectTeams>()
                 .HasOne(pt => pt.Project)
                 .WithMany(p => p.ProjectTeams)
@@ -192,51 +173,6 @@ namespace NPI.Server.Data
                 .WithMany()
                 .HasForeignKey(n => n.proj_id)
                 .OnDelete(DeleteBehavior.SetNull);
-
-            // ── StageCompletionLog ────────────────────────────────────────────
-            modelBuilder.Entity<StageCompletionLog>()
-                .HasOne(s => s.Project)
-                .WithMany()
-                .HasForeignKey(s => s.proj_id)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<StageCompletionLog>()
-                .HasOne(s => s.CompletedByUser)
-                .WithMany()
-                .HasForeignKey(s => s.completed_by)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            modelBuilder.Entity<StageCompletionLog>()
-                .HasIndex(s => new { s.proj_id, s.stage_id })
-                .HasDatabaseName("IX_StageCompletionLog_Project_Stage");
-
-            // ── TaskDocumentRequirements ──────────────────────────────────────
-            modelBuilder.Entity<TaskDocumentRequirements>()
-                .HasOne(r => r.Task)
-                .WithMany()
-                .HasForeignKey(r => r.task_id)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<TaskDocumentRequirements>()
-                .HasOne(r => r.DocumentType)
-                .WithMany()
-                .HasForeignKey(r => r.doc_type_id)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<TaskDocumentRequirements>()
-                .HasOne(r => r.File)
-                .WithMany()
-                .HasForeignKey(r => r.file_id)
-                .OnDelete(DeleteBehavior.NoAction);
-
-            modelBuilder.Entity<TaskDocumentRequirements>()
-                .HasIndex(r => r.task_id)
-                .HasDatabaseName("IX_TaskDocumentRequirements_Task");
-
-            modelBuilder.Entity<TaskDocumentRequirements>()
-                .HasIndex(r => new { r.task_id, r.doc_type_id })
-                .IsUnique()
-                .HasDatabaseName("IX_TaskDocumentRequirements_Unique");
         }
     }
 }

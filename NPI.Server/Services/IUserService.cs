@@ -10,7 +10,6 @@ namespace NPI.Server.Services
         Task<(bool success, string message)> UpdateUserAsync(int userId, UpdateUserDto dto);
         Task<(bool success, string message)> DeleteUserAsync(int userId);
         Task<(bool success, string message)> ChangePasswordAsync(int userId, ChangePasswordDto dto);
-        Task<(bool success, string message)> ResetPasswordAsync(int userId, ResetPasswordDto dto);
         Task<(bool success, string message)> ToggleUserStatusAsync(int userId);
         Task<List<UserListDto>> GetUsersByDepartmentAsync(int deptId);
         Task<List<UserListDto>> GetUsersByRoleAsync(int roleId);

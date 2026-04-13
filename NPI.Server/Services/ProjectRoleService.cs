@@ -20,10 +20,10 @@ namespace NPI.Server.Services
         public async Task<string?> GetProjectRoleAsync(int projectId, int userId)
         {
             // Check ProjectRoles table first (explicit assignment)
-            var projectRole = await _context.ProjectRoles
+            var projectRole = await _context.ProjectTeams
                 .AsNoTracking()
-                .Where(pr => pr.proj_id == projectId && pr.user_id == userId && pr.is_active)
-                .Select(pr => pr.role_name)
+                .Where(pr => pr.proj_id == projectId && pr.user_id == userId)
+                .Select(pr => pr.role)
                 .FirstOrDefaultAsync();
 
             if (projectRole != null)
@@ -65,45 +65,41 @@ namespace NPI.Server.Services
                 return (false,
                     $"Invalid project role '{roleName}'. Valid: {string.Join(", ", RoleHierarchy)}");
 
-            var existing = await _context.ProjectRoles
-                .FirstOrDefaultAsync(pr => pr.proj_id == projectId && pr.user_id == userId);
+            var existing = await _context.ProjectTeams
+                .FirstOrDefaultAsync(pr => pr.proj_id == projectId);
 
             if (existing is null)
             {
-                _context.ProjectRoles.Add(new ProjectRoles
+                _context.ProjectTeams.Add(new ProjectTeams
                 {
                     proj_id = projectId,
                     user_id = userId,
-                    role_name = roleName,
-                    is_active = true,
+                    role = roleName,
                     created_at = DateTime.Now
                 });
             }
             else
             {
-                existing.role_name = roleName;
-                existing.is_active = true;
-                existing.updated_at = DateTime.Now;
+                existing.role = roleName;
             }
 
             await _context.SaveChangesAsync();
             return (true, $"Project role '{roleName}' assigned.");
         }
 
-        public async Task<List<ProjectRoleDto>> GetProjectRolesAsync(int projectId)
+        public async Task<List<ProjectTeamDto>> GetProjectRolesAsync(int projectId)
         {
-            return await _context.ProjectRoles
+            return await _context.ProjectTeams
                 .AsNoTracking()
                 .Include(pr => pr.User)
-                .Where(pr => pr.proj_id == projectId && pr.is_active)
-                .Select(pr => new ProjectRoleDto
+                .Where(pr => pr.proj_id == projectId)
+                .Select(pr => new ProjectTeamDto
                 {
-                    proj_role_id = pr.proj_role_id,
+                    team_id = pr.team_id,
                     proj_id = pr.proj_id,
                     user_id = pr.user_id,
-                    username = pr.User!.username,
-                    full_name = pr.User.full_name,
-                    role_name = pr.role_name,
+                    user_name = pr.User!.username,
+                    role = pr.role,
                     created_at = pr.created_at
                 })
                 .ToListAsync();

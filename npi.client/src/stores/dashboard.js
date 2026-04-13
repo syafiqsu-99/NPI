@@ -24,7 +24,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
       return {
         title: date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
         value: `week_${i}`,
-        width: '36px',
+        sortable: false,
+        align: 'center',
       }
     })
   })
@@ -33,7 +34,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     {
       title: 'PROJECT',
       value: 'proj_name',
-      width: '220px',
+      width: '30%',
       fixed: true,
     },
     ...additionalDateHeaders.value,

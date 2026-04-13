@@ -381,7 +381,7 @@ namespace NPI.Server.Services
             int? userDeptId = user?.dept_id;
 
             // 2. Fetch User's assigned projects from ProjectRoles
-            var assignedProjectIds = await _context.ProjectRoles
+            var assignedProjectIds = await _context.ProjectTeams
                 .Where(pr => pr.user_id == userId)
                 .Select(pr => pr.proj_id)
                 .ToListAsync();

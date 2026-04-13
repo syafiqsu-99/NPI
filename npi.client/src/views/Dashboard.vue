@@ -183,7 +183,7 @@
             <div class="timeline-wrapper flex-grow-1 d-flex flex-column position-relative" ref="timelineWrapper">
 
               <v-data-table v-if="projectTimeline.length"
-                            :headers="timelineHeaders"
+                            :headers="headersTimeline"
                             :items="projectTimeline"
                             item-value="proj_id"
                             class="timeline-table flex-grow-1"
@@ -193,38 +193,26 @@
                             hide-default-footer
                             :items-per-page="-1"
                             @click:row="(_, row) => goToProject(row.item.proj_id)">
-
+                <!-- Project name cell (sticky column) -->
                 <template #item.proj_name="{ item }">
                   <div class="d-flex flex-column py-1">
-                    <span class="text-body-2 font-weight-medium text-truncate">
+                    <span class="text-body-2 font-weight-medium text-truncate tl-proj-name">
                       {{ item.proj_name }}
                     </span>
                     <div class="d-flex align-center mt-1" style="gap:4px">
                       <v-chip :color="statusColor(item.status)" size="x-small" variant="tonal">
                         {{ item.status }}
                       </v-chip>
-                      <v-chip v-if="item.priority" :color="priorityColor(item.priority)" size="x-small" variant="tonal">
-                        {{ item.priority }}
-                      </v-chip>
                     </div>
                   </div>
                 </template>
 
-                <template #item.progress="{ item }">
-                  <div class="d-flex align-center" style="gap:6px; min-width:90px">
-                    <v-progress-linear :model-value="item.progress"
-                                       :color="progressColor(item.progress)"
-                                       height="8"
-                                       rounded
-                                       style="width:52px; flex-shrink:0" />
-                    <span class="text-caption" style="white-space:nowrap">{{ item.progress }}%</span>
-                  </div>
+                <!-- Week cells — empty cells that the bar overlay draws on top of -->
+                <template v-for="col in additionalDateHeaders"
+                          :key="col.value"
+                          #[`item.${col.value}`]="{ }">
+                  <div class="tl-empty-cell" />
                 </template>
-
-                <template v-for="col in timelineWeeks" :key="col.value" #[`item.${col.value}`]="{}">
-                  <div class="tl-empty-cell" :class="{ 'is-today': col.isToday }" />
-                </template>
-
               </v-data-table>
 
               <div v-if="!projectTimeline.length" class="flex-grow-1 d-flex flex-column align-center justify-center text-medium-emphasis">
@@ -622,6 +610,11 @@
     overflow-x: auto;
     overflow-y: auto;
     height: 100%;
+  }
+
+  .timeline-table :deep(table) {
+    width: 100%;
+    table-layout: auto;
   }
 
   .timeline-table :deep(th),

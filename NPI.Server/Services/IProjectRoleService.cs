@@ -1,4 +1,5 @@
 ﻿using NPI.Server.DTOs;
+using NPI.Server.Models;
 
 namespace NPI.Server.Services
 {
@@ -7,6 +8,6 @@ namespace NPI.Server.Services
         Task<string?> GetProjectRoleAsync(int projectId, int userId);
         Task<bool> HasProjectRoleAsync(int projectId, int userId, string minimumRole);
         Task<(bool success, string message)> UpsertProjectRoleAsync(int projectId, int userId, string roleName, int assignedBy);
-        Task<List<ProjectRoleDto>> GetProjectRolesAsync(int projectId);
+        Task<List<ProjectTeamDto>> GetProjectRolesAsync(int projectId);
     }
 }

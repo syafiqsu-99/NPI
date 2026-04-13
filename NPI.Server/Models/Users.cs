@@ -39,9 +39,7 @@ namespace NPI.Server.Models
         public virtual ICollection<ProjectTeams>? ProjectTeams { get; set; }
         public virtual ICollection<Tasks>? AssignedTasks { get; set; }
         public virtual ICollection<Files>? UploadedFiles { get; set; }
-        public virtual ICollection<Approvals>? Approvals { get; set; }
         public virtual ICollection<Notifications>? Notifications { get; set; }
-        public virtual ICollection<Comments>? Comments { get; set; }
         public virtual ICollection<UserSessions>? UserSessions { get; set; }
         public DateTime? updated_at { get; set; }
     }

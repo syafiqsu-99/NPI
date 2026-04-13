@@ -58,7 +58,5 @@ namespace NPI.Server.Models
 
         [ForeignKey("replaced_by")]
         public virtual Files? ReplacedByFile { get; set; }
-
-        public virtual ICollection<Approvals>? Approvals { get; set; }
     }
 }

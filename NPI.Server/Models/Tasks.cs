@@ -64,7 +64,5 @@ namespace NPI.Server.Models
         public virtual ICollection<Tasks>? SubTasks { get; set; }
         public virtual ICollection<TaskRevisions>? TaskRevisions { get; set; }
         public virtual ICollection<Files>? Files { get; set; }
-        public virtual ICollection<Approvals>? Approvals { get; set; }
-        public virtual ICollection<Comments>? Comments { get; set; }
     }
 }

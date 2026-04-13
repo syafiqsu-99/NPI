@@ -20,7 +20,6 @@ namespace NPI.Server.Models
         public string? description { get; set; }
 
         public virtual ICollection<Users>? Users { get; set; }
-        public virtual ICollection<Tasks>? Tasks { get; set; }
         public virtual ICollection<DocumentTypes>? DocumentTypes { get; set; }
         public virtual ICollection<Milestones>? Milestones { get; set; }
         public virtual ICollection<Files>? Files { get; set; }

@@ -22,65 +22,6 @@ namespace NPI.Server.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("NPI.Server.Models.Approvals", b =>
-                {
-                    b.Property<int>("appr_id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("appr_id"));
-
-                    b.Property<int?>("appr_level")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("appr_order")
-                        .HasColumnType("int");
-
-                    b.Property<string>("appr_type")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime?>("approved_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("apprv_by")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("created_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("file_id")
-                        .HasColumnType("int");
-
-                    b.Property<int>("proj_id")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("rejected_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("remark")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("status")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int?>("task_id")
-                        .HasColumnType("int");
-
-                    b.HasKey("appr_id");
-
-                    b.HasIndex("apprv_by");
-
-                    b.HasIndex("file_id");
-
-                    b.HasIndex("proj_id");
-
-                    b.HasIndex("task_id");
-
-                    b.ToTable("Approvals");
-                });
-
             modelBuilder.Entity("NPI.Server.Models.AuditLogs", b =>
                 {
                     b.Property<int>("log_id")
@@ -126,44 +67,6 @@ namespace NPI.Server.Migrations
                     b.HasIndex("user_id");
 
                     b.ToTable("AuditLogs");
-                });
-
-            modelBuilder.Entity("NPI.Server.Models.Comments", b =>
-                {
-                    b.Property<int>("comment_id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("comment_id"));
-
-                    b.Property<string>("comment_text")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("created_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("proj_id")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("task_id")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("updated_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("user_id")
-                        .HasColumnType("int");
-
-                    b.HasKey("comment_id");
-
-                    b.HasIndex("proj_id");
-
-                    b.HasIndex("task_id");
-
-                    b.HasIndex("user_id");
-
-                    b.ToTable("Comments");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Customers", b =>
@@ -435,6 +338,9 @@ namespace NPI.Server.Migrations
 
                     b.Property<int?>("task_id")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("upload_by")
                         .HasColumnType("int");
@@ -746,9 +652,6 @@ namespace NPI.Server.Migrations
                     b.Property<bool>("is_active")
                         .HasColumnType("bit");
 
-                    b.Property<int>("proj_id")
-                        .HasColumnType("int");
-
                     b.Property<string>("role_name")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -757,16 +660,7 @@ namespace NPI.Server.Migrations
                     b.Property<DateTime?>("updated_at")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("user_id")
-                        .HasColumnType("int");
-
                     b.HasKey("proj_role_id");
-
-                    b.HasIndex("user_id");
-
-                    b.HasIndex("proj_id", "user_id")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ProjectRoles_ProjUser");
 
                     b.ToTable("ProjectRoles");
                 });
@@ -837,9 +731,11 @@ namespace NPI.Server.Migrations
 
                     b.HasIndex("assigned_by");
 
-                    b.HasIndex("proj_id");
-
                     b.HasIndex("user_id");
+
+                    b.HasIndex("proj_id", "user_id")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ProjectTeams_ProjUser");
 
                     b.ToTable("ProjectTeams");
                 });
@@ -994,84 +890,6 @@ namespace NPI.Server.Migrations
                     b.HasKey("role_id");
 
                     b.ToTable("Roles");
-                });
-
-            modelBuilder.Entity("NPI.Server.Models.StageCompletionLog", b =>
-                {
-                    b.Property<int>("log_id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("log_id"));
-
-                    b.Property<DateTime>("completed_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("completed_by")
-                        .HasColumnType("int");
-
-                    b.Property<string>("notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("proj_id")
-                        .HasColumnType("int");
-
-                    b.Property<string>("stage_id")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.HasKey("log_id");
-
-                    b.HasIndex("completed_by");
-
-                    b.HasIndex("proj_id", "stage_id")
-                        .HasDatabaseName("IX_StageCompletionLog_Project_Stage");
-
-                    b.ToTable("StageCompletionLogs");
-                });
-
-            modelBuilder.Entity("NPI.Server.Models.TaskDocumentRequirements", b =>
-                {
-                    b.Property<int>("req_id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("req_id"));
-
-                    b.Property<DateTime>("created_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("doc_type_id")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("file_id")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("fulfilled_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("is_fulfilled")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("task_id")
-                        .HasColumnType("int");
-
-                    b.HasKey("req_id");
-
-                    b.HasIndex("doc_type_id");
-
-                    b.HasIndex("file_id");
-
-                    b.HasIndex("task_id")
-                        .HasDatabaseName("IX_TaskDocumentRequirements_Task");
-
-                    b.HasIndex("task_id", "doc_type_id")
-                        .IsUnique()
-                        .HasDatabaseName("IX_TaskDocumentRequirements_Unique");
-
-                    b.ToTable("TaskDocumentRequirements");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.TaskRevisions", b =>
@@ -1317,35 +1135,6 @@ namespace NPI.Server.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("NPI.Server.Models.Approvals", b =>
-                {
-                    b.HasOne("NPI.Server.Models.Users", "ApprovedByUser")
-                        .WithMany("Approvals")
-                        .HasForeignKey("apprv_by");
-
-                    b.HasOne("NPI.Server.Models.Files", "File")
-                        .WithMany("Approvals")
-                        .HasForeignKey("file_id");
-
-                    b.HasOne("NPI.Server.Models.Projects", "Project")
-                        .WithMany("Approvals")
-                        .HasForeignKey("proj_id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("NPI.Server.Models.Tasks", "Task")
-                        .WithMany("Approvals")
-                        .HasForeignKey("task_id");
-
-                    b.Navigation("ApprovedByUser");
-
-                    b.Navigation("File");
-
-                    b.Navigation("Project");
-
-                    b.Navigation("Task");
-                });
-
             modelBuilder.Entity("NPI.Server.Models.AuditLogs", b =>
                 {
                     b.HasOne("NPI.Server.Models.Projects", "Project")
@@ -1357,29 +1146,6 @@ namespace NPI.Server.Migrations
                         .HasForeignKey("user_id");
 
                     b.Navigation("Project");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("NPI.Server.Models.Comments", b =>
-                {
-                    b.HasOne("NPI.Server.Models.Projects", "Project")
-                        .WithMany("Comments")
-                        .HasForeignKey("proj_id");
-
-                    b.HasOne("NPI.Server.Models.Tasks", "Task")
-                        .WithMany("Comments")
-                        .HasForeignKey("task_id");
-
-                    b.HasOne("NPI.Server.Models.Users", "User")
-                        .WithMany("Comments")
-                        .HasForeignKey("user_id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Project");
-
-                    b.Navigation("Task");
 
                     b.Navigation("User");
                 });
@@ -1581,25 +1347,6 @@ namespace NPI.Server.Migrations
                     b.Navigation("RevisedByUser");
                 });
 
-            modelBuilder.Entity("NPI.Server.Models.ProjectRoles", b =>
-                {
-                    b.HasOne("NPI.Server.Models.Projects", "Project")
-                        .WithMany()
-                        .HasForeignKey("proj_id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("NPI.Server.Models.Users", "User")
-                        .WithMany()
-                        .HasForeignKey("user_id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Project");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("NPI.Server.Models.ProjectStatusHistory", b =>
                 {
                     b.HasOne("NPI.Server.Models.Users", "ChangedByUser")
@@ -1682,50 +1429,6 @@ namespace NPI.Server.Migrations
                     b.Navigation("Role");
                 });
 
-            modelBuilder.Entity("NPI.Server.Models.StageCompletionLog", b =>
-                {
-                    b.HasOne("NPI.Server.Models.Users", "CompletedByUser")
-                        .WithMany()
-                        .HasForeignKey("completed_by")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("NPI.Server.Models.Projects", "Project")
-                        .WithMany()
-                        .HasForeignKey("proj_id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CompletedByUser");
-
-                    b.Navigation("Project");
-                });
-
-            modelBuilder.Entity("NPI.Server.Models.TaskDocumentRequirements", b =>
-                {
-                    b.HasOne("NPI.Server.Models.DocumentTypes", "DocumentType")
-                        .WithMany()
-                        .HasForeignKey("doc_type_id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("NPI.Server.Models.Files", "File")
-                        .WithMany()
-                        .HasForeignKey("file_id")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.HasOne("NPI.Server.Models.Tasks", "Task")
-                        .WithMany()
-                        .HasForeignKey("task_id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("DocumentType");
-
-                    b.Navigation("File");
-
-                    b.Navigation("Task");
-                });
-
             modelBuilder.Entity("NPI.Server.Models.TaskRevisions", b =>
                 {
                     b.HasOne("NPI.Server.Models.Departments", "Department")
@@ -1762,7 +1465,7 @@ namespace NPI.Server.Migrations
                         .HasForeignKey("assigned_to");
 
                     b.HasOne("NPI.Server.Models.Departments", "Department")
-                        .WithMany("Tasks")
+                        .WithMany()
                         .HasForeignKey("dept_id");
 
                     b.HasOne("NPI.Server.Models.Tasks", "ParentTask")
@@ -1826,8 +1529,6 @@ namespace NPI.Server.Migrations
 
                     b.Navigation("Milestones");
 
-                    b.Navigation("Tasks");
-
                     b.Navigation("Users");
                 });
 
@@ -1845,11 +1546,6 @@ namespace NPI.Server.Migrations
                     b.Navigation("Files");
                 });
 
-            modelBuilder.Entity("NPI.Server.Models.Files", b =>
-                {
-                    b.Navigation("Approvals");
-                });
-
             modelBuilder.Entity("NPI.Server.Models.NpiFormSection", b =>
                 {
                     b.Navigation("Fields");
@@ -1862,11 +1558,7 @@ namespace NPI.Server.Migrations
 
             modelBuilder.Entity("NPI.Server.Models.Projects", b =>
                 {
-                    b.Navigation("Approvals");
-
                     b.Navigation("AuditLogs");
-
-                    b.Navigation("Comments");
 
                     b.Navigation("Departments");
 
@@ -1894,10 +1586,6 @@ namespace NPI.Server.Migrations
 
             modelBuilder.Entity("NPI.Server.Models.Tasks", b =>
                 {
-                    b.Navigation("Approvals");
-
-                    b.Navigation("Comments");
-
                     b.Navigation("Files");
 
                     b.Navigation("Milestone");
@@ -1909,11 +1597,7 @@ namespace NPI.Server.Migrations
 
             modelBuilder.Entity("NPI.Server.Models.Users", b =>
                 {
-                    b.Navigation("Approvals");
-
                     b.Navigation("AssignedTasks");
-
-                    b.Navigation("Comments");
 
                     b.Navigation("Notifications");
 

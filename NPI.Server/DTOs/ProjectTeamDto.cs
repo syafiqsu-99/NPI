@@ -8,5 +8,6 @@
         public string? role { get; set; }
         public string? user_name { get; set; }
         public string? proj_name { get; set; }
+        public DateTime created_at { get; set; }
     }
 }

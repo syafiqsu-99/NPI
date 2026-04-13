@@ -57,9 +57,7 @@ namespace NPI.Server.Models
         public virtual ICollection<Tasks>? Tasks { get; set; }
         public virtual ICollection<Files>? Files { get; set; }
         public virtual ICollection<Departments>? Departments { get; set; }
-        public virtual ICollection<Approvals>? Approvals { get; set; }
         public virtual ICollection<Notifications>? Notifications { get; set; }
-        public virtual ICollection<Comments>? Comments { get; set; }
         public virtual ICollection<AuditLogs>? AuditLogs { get; set; }
         public virtual ICollection<ProjectStatusHistory>? ProjectStatusHistories { get; set; }
         public bool pilot_mould_required { get; set; } = false;

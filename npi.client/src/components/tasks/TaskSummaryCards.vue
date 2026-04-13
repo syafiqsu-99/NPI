@@ -67,10 +67,6 @@ defineProps({
       completed: 0,
       overdue: 0
     })
-  },
-  refreshTasks: {
-    type: Function,
-    required: true
   }
 })
 </script>

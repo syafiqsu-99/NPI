@@ -9,12 +9,6 @@ namespace NPI.Server.Models
         public int proj_role_id { get; set; }
 
         [Required]
-        public int proj_id { get; set; }
-
-        [Required]
-        public int user_id { get; set; }
-
-        [Required]
         [MaxLength(50)]
         public string role_name { get; set; } = "Member";
 
@@ -24,11 +18,5 @@ namespace NPI.Server.Models
         public bool is_active { get; set; } = true;
         public DateTime created_at { get; set; } = DateTime.Now;
         public DateTime? updated_at { get; set; }
-
-        [ForeignKey("proj_id")]
-        public virtual Projects? Project { get; set; }
-
-        [ForeignKey("user_id")]
-        public virtual Users? User { get; set; }
     }
 }
