@@ -37,6 +37,12 @@
   </ItemGroup>
 
   <ItemGroup>
+	  <DistFiles Include="$(SpaRoot)\dist\**" />
+	  <ResolvedFileToPublish Include="@(DistFiles->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">
+		  <RelativePath>wwwroot\%(RecursiveDir)%(FileName)%(Extension)</RelativePath>
+		  <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		  <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+	  </ResolvedFileToPublish>
     <Folder Include="Migrations\" />
   </ItemGroup>
 

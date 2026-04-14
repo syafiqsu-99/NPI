@@ -46,10 +46,6 @@
       </v-form>
 
       <v-divider class="my-6" />
-
-      <div class="text-center text-caption text-medium-emphasis">
-        Default credentials: <strong>admin / Admin@123</strong>
-      </div>
     </v-card>
   </v-container>
 </template>
