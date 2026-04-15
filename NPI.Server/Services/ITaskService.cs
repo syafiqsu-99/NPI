@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using NPI.Server.DTOs;
+﻿using NPI.Server.DTOs;
 
 namespace NPI.Server.Services
 {

@@ -1,6 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 
 namespace NPI.Server.Models
 {

@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using NPI.Server.DTOs;
 using NPI.Server.Helpers;
 using NPI.Server.Services;
-using System.Security.Claims;
 
 namespace NPI.Server.Controllers
 {

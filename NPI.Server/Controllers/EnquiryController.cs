@@ -113,7 +113,7 @@ namespace NPI.Server.Controllers
         // ── File upload ───────────────────────────────────────────────────────
 
         [HttpPost("{id}/upload")]
-        public async Task<IActionResult> UploadFile( int id, IFormFile file, [FromQuery] string comp_name = "Unknown")
+        public async Task<IActionResult> UploadFile(int id, IFormFile file, [FromQuery] string comp_name = "Unknown")
         {
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid token." });
@@ -137,7 +137,7 @@ namespace NPI.Server.Controllers
                     uploadBy: userId,
                     dept_id: null,
                     enquiry_id: id,
-                    customer_name: comp_name); 
+                    customer_name: comp_name);
 
             return success
                 ? Ok(new { success = true, message, data = new { file = File } })

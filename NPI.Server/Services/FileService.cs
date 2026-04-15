@@ -272,8 +272,7 @@ namespace NPI.Server.Services
 
         // ── Download / Delete ─────────────────────────────────────────────────
 
-        public async Task<(bool success, byte[]? fileData, string? contentType)> DownloadFileAsync(
-            int fileId)
+        public async Task<(bool success, byte[]? fileData, string? contentType)> DownloadFileAsync(int fileId)
         {
             try
             {
@@ -282,12 +281,58 @@ namespace NPI.Server.Services
                     return (false, null, null);
 
                 var bytes = await File.ReadAllBytesAsync(file.file_path);
-                return (true, bytes, file.content_type ?? "application/octet-stream");
+
+                var contentType = file.content_type;
+                if (string.IsNullOrEmpty(contentType) || contentType == "application/octet-stream")
+                {
+                    contentType = GetContentType(file.file_path);
+                }
+
+                return (true, bytes, contentType);
             }
             catch
             {
                 return (false, null, null);
             }
+        }
+
+        public async Task<(bool success, byte[]? fileData, string? contentType)> DownloadPhysicalFileAsync(string path)
+        {
+            var fullPath = Path.GetFullPath(path);
+            var basePath = Path.GetFullPath(_basePath);
+
+            if (!basePath.EndsWith(Path.DirectorySeparatorChar.ToString()))
+                basePath += Path.DirectorySeparatorChar;
+
+            if (!fullPath.StartsWith(basePath) || !File.Exists(fullPath))
+                return (false, null, null);
+
+            var bytes = await File.ReadAllBytesAsync(fullPath);
+            return (true, bytes, GetContentType(fullPath));
+        }
+
+        private string GetContentType(string path)
+        {
+            var ext = Path.GetExtension(path).ToLowerInvariant();
+            return ext switch
+            {
+                ".pdf" => "application/pdf",
+                ".png" => "image/png",
+                ".jpg" => "image/jpeg",
+                ".jpeg" => "image/jpeg",
+                ".gif" => "image/gif",
+                ".svg" => "image/svg+xml",
+                ".webp" => "image/webp",
+                ".txt" => "text/plain",
+                ".csv" => "text/csv",
+                ".doc" => "application/msword",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".xls" => "application/vnd.ms-excel",
+                ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ".ppt" => "application/vnd.ms-powerpoint",
+                ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                _ => "application/octet-stream"
+            };
         }
 
         public async Task<(bool success, string message, string? filePath)> GetFilePathAsync(
@@ -495,22 +540,6 @@ namespace NPI.Server.Services
             catch (Exception) { /* skip inaccessible folders */ }
 
             return node;
-        }
-
-        public async Task<(bool success, byte[]? fileData, string? contentType)> DownloadPhysicalFileAsync(string path)
-        {
-            var fullPath = Path.GetFullPath(path);
-            var basePath = Path.GetFullPath(_basePath);
-
-            if (!basePath.EndsWith(Path.DirectorySeparatorChar.ToString()))
-                basePath += Path.DirectorySeparatorChar;
-
-            // Strict directory constraints handling preventing path traversal payload
-            if (!fullPath.StartsWith(basePath) || !File.Exists(fullPath))
-                return (false, null, null);
-
-            var bytes = await File.ReadAllBytesAsync(fullPath);
-            return (true, bytes, "application/octet-stream");
         }
 
         public async Task<(bool success, string message)> DeletePhysicalFileAsync(string path)

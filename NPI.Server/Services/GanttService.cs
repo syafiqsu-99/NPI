@@ -2,7 +2,6 @@
 using NPI.Server.Data;
 using NPI.Server.DTOs;
 using NPI.Server.Models;
-using System.Threading.Tasks;
 
 namespace NPI.Server.Services
 {

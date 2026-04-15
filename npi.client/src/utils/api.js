@@ -1,12 +1,3 @@
-/**
- * api.js — Central HTTP client for the NPI frontend.
- *
- * FIX for Files.vue preview:
- *   The old fetchApi() ignored responseType for the default JSON path,
- *   so blob/arraybuffer requests fell through to response.json() and threw.
- *   Now we handle every responseType ('blob', 'arraybuffer', 'text') explicitly
- *   before attempting JSON parsing.
- */
 import router from '@/router'
 
 const API_BASE_URL = '/api'
@@ -42,7 +33,11 @@ async function fetchApi(endpoint, options = {}) {
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config)
+    const url = endpoint.startsWith(API_BASE_URL)
+      ? endpoint
+      : `${API_BASE_URL}${endpoint}`
+
+    const response = await fetch(url, config)
 
     // Handle 401 Unauthorized
     if (response.status === 401) {
@@ -138,7 +133,9 @@ export const api = {
     const headers = {}
     if (token) headers['Authorization'] = `Bearer ${token}`
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const url = endpoint.startsWith(API_BASE_URL) ? endpoint : `${API_BASE_URL}${endpoint}`
+
+    const response = await fetch(url, {
       method: 'POST',
       headers,
       body: formData,
@@ -161,7 +158,10 @@ export const api = {
 
   downloadFile: async (endpoint, filename) => {
     const token = localStorage.getItem('token')
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+
+    const url = endpoint.startsWith(API_BASE_URL) ? endpoint : `${API_BASE_URL}${endpoint}`
+
+    const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
       credentials: 'include'
     })
@@ -169,13 +169,13 @@ export const api = {
     if (!response.ok) throw new ApiError('Download failed', response.status, null)
 
     const blob = await response.blob()
-    const url = window.URL.createObjectURL(blob)
+    const objectUrl = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url
+    a.href = objectUrl
     a.download = filename
     document.body.appendChild(a)
     a.click()
-    window.URL.revokeObjectURL(url)
+    window.URL.revokeObjectURL(objectUrl)
     document.body.removeChild(a)
   }
 }

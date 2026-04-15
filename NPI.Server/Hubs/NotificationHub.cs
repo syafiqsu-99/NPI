@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using NPI.Server.Data;
 using Microsoft.EntityFrameworkCore;
+using NPI.Server.Data;
 using System.Security.Claims;
 
 namespace NPI.Server.Hubs

@@ -65,10 +65,6 @@
           </v-chip>
         </template>
 
-        <template #item.created_at="{ item }">
-          <span class="text-caption">{{ formatDate(item.created_at) }}</span>
-        </template>
-
         <template #item.actions="{ item }">
           <v-menu location="bottom end">
             <template #activator="{ props }">
@@ -193,10 +189,9 @@
   const snackbarColor = ref('success')
 
   const headers = [
-    { title: 'Role', value: 'role_name', width: '35%' },
-    { title: 'Users', value: 'user_count', width: '15%' },
-    { title: 'Status', value: 'is_active', width: '15%' },
-    { title: 'Created', value: 'created_at', width: '25%' },
+    { title: 'Role', value: 'role_name', width: '50%' },
+    { title: 'Users', value: 'user_count', width: '20%' },
+    { title: 'Status', value: 'is_active', width: '20%' },
     { title: '', value: 'actions', width: '10%', sortable: false }
   ]
 

@@ -183,19 +183,19 @@
                       <v-progress-circular indeterminate color="primary" />
                     </div>
                     <iframe v-else-if="previewType === 'pdf'"
-                            :src="previewBlobUrl" width="100%" height="100%"
+                            :src="previewUrl" width="100%" height="100%"
                             style="border:none; display:block;" />
                     <div v-else-if="previewType === 'image'"
                          class="d-flex align-center justify-center fill-height pa-4"
                          style="background:#f0f0f0;">
-                      <img :src="previewBlobUrl" :alt="previewItem.name"
+                      <img :src="previewUrl" :alt="previewItem.name"
                            style="max-width:100%; max-height:100%; object-fit:contain;
-                                  border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.15);" />
+                            border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.15);" />
                     </div>
                     <div v-else-if="previewType === 'text'"
                          style="height:100%; overflow:auto; padding:16px;">
                       <pre style="font-size:12px; font-family:monospace; white-space:pre-wrap;
-                                  word-break:break-all; margin:0;">{{ previewTextContent }}</pre>
+                            word-break:break-all; margin:0;">{{ previewTextContent }}</pre>
                     </div>
                   </div>
                 </div>
@@ -357,6 +357,30 @@
       </v-card>
     </v-dialog>
 
+    <!-- ── File/Folder Delete Confirm ────────────────────────────────────── -->
+    <v-dialog v-model="fileDeleteDialog" max-width="460" persistent>
+      <v-card>
+        <v-card-title class="bg-error text-white text-subtitle-1">
+          <v-icon class="mr-2">mdi-alert</v-icon>
+          Delete {{ fileDeleteTarget?.type === 'file' ? 'File' : 'Folder' }}
+        </v-card-title>
+        <v-card-text class="pt-4">
+          Are you sure you want to delete <strong>{{ fileDeleteTarget?.name }}</strong>?
+          <div class="text-error font-weight-medium mt-2">
+            This action cannot be undone.
+          </div>
+        </v-card-text>
+        <v-card-actions class="pa-4">
+          <v-spacer />
+          <v-btn variant="text" @click="fileDeleteDialog = false" :disabled="fileDeleting">Cancel</v-btn>
+          <v-btn color="error" variant="elevated" :loading="fileDeleting"
+                 @click="doDeleteFile">
+            Delete
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- External software snackbar -->
     <v-snackbar v-model="externalPrompt.show"
                 location="bottom center"
@@ -424,9 +448,13 @@
 
   const previewItem = ref(null)
   const previewType = ref('')
-  const previewBlobUrl = ref('')
+  const previewUrl = ref('')
   const previewTextContent = ref('')
   const previewLoading = ref(false)
+
+  const fileDeleteDialog = ref(false)
+  const fileDeleteTarget = ref(null)
+  const fileDeleting = ref(false)
 
   const externalPrompt = ref({
     show: false, item: null, title: '', subtitle: '', icon: 'mdi-application', iconColor: 'primary'
@@ -550,7 +578,6 @@
     }
   }
 
-  // Load customers lazily when the tab activates (only once if already loaded)
   watch(activeTab, async (tab) => {
     if (tab === 'customers' && canManageFiles.value &&
       (!customerStore.customers || customerStore.customers.length === 0)) {
@@ -591,17 +618,18 @@
     return null
   }
 
-  function fileApiPath(item) {
-    return item.file_id
+  function fileApiPath(item, inline = false) {
+    const path = item.file_id
       ? `/api/file/download/${item.file_id}`
       : `/api/file/download-physical?path=${encodeURIComponent(item.path)}`
+    return inline ? `${path}${path.includes('?') ? '&' : '?'}inline=true` : path
   }
 
   function revokeBlobUrl() {
-    if (previewBlobUrl.value) {
-      URL.revokeObjectURL(previewBlobUrl.value)
-      previewBlobUrl.value = ''
+    if (previewUrl.value && previewUrl.value.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl.value)
     }
+    previewUrl.value = ''
   }
 
   async function handlePreview(item) {
@@ -632,11 +660,7 @@
         const res = await api.get(fileApiPath(item), { responseType: 'text' })
         previewTextContent.value = res?.data ?? res
       } else {
-        const res = await api.get(fileApiPath(item), { responseType: 'arraybuffer' })
-        const buffer = res?.data ?? res
-        const mime = item.content_type || mimeForExt(ext)
-        const blob = new Blob([buffer], { type: mime })
-        previewBlobUrl.value = URL.createObjectURL(blob)
+        previewUrl.value = fileApiPath(item, true)
       }
     } catch (err) {
       console.error('Preview failed:', err)
@@ -764,9 +788,18 @@
     }
   }
 
-  async function deleteFile(item) {
-    if (!confirm('Delete this file? This cannot be undone.')) return
+  function deleteFile(item) {
+    fileDeleteTarget.value = item
+    fileDeleteDialog.value = true
+  }
+
+  async function doDeleteFile() {
+    if (!fileDeleteTarget.value) return
+    const item = fileDeleteTarget.value
+
     if (previewItem.value?.id === item.id) closePreview()
+
+    fileDeleting.value = true
     try {
       if (item.file_id) {
         await api.delete(`/file/${item.file_id}`)
@@ -774,8 +807,15 @@
         await api.delete(`/file/delete-physical?path=${encodeURIComponent(item.path)}`)
       }
       await loadStructure()
+      fileDeleteDialog.value = false
     } catch (err) {
       console.error('Delete failed:', err)
+      alert('Failed to delete: ' + (err.message || 'Unknown error'))
+    } finally {
+      fileDeleting.value = false
+      if (!fileDeleteDialog.value) {
+        fileDeleteTarget.value = null
+      }
     }
   }
 

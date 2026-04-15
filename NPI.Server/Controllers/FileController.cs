@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 using NPI.Server.Services;
+using System.Security.Claims;
 
 namespace NPI.Server.Controllers
 {
@@ -111,12 +111,15 @@ namespace NPI.Server.Controllers
 
         [HttpGet("download/{fileId}")]
         [AllowAnonymous]
-        public async Task<IActionResult> DownloadFile(int fileId)
+        public async Task<IActionResult> DownloadFile(int fileId, [FromQuery] bool inline = false)
         {
             var (success, fileBytes, contentType) = await _fileService.DownloadFileAsync(fileId);
 
             if (!success || fileBytes is null)
                 return NotFound(new { success = false, message = "File not found" });
+
+            if (inline)
+                return File(fileBytes, contentType!);
 
             var (_, _, filePath) = await _fileService.GetFilePathAsync(fileId);
             var fileName = filePath is not null ? Path.GetFileName(filePath) : "download";
@@ -126,7 +129,7 @@ namespace NPI.Server.Controllers
 
         [HttpGet("download-physical")]
         [AllowAnonymous]
-        public async Task<IActionResult> DownloadPhysicalFile([FromQuery] string path)
+        public async Task<IActionResult> DownloadPhysicalFile([FromQuery] string path, [FromQuery] bool inline = false)
         {
             if (string.IsNullOrWhiteSpace(path)) return BadRequest("Path is required");
 
@@ -134,6 +137,9 @@ namespace NPI.Server.Controllers
 
             if (!success || fileBytes is null)
                 return NotFound(new { success = false, message = "File not found on disk" });
+
+            if (inline)
+                return File(fileBytes, contentType!);
 
             return File(fileBytes, contentType!, Path.GetFileName(path));
         }

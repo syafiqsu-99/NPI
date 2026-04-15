@@ -1,6 +1,4 @@
-﻿using BCrypt.Net;
-
-namespace NPI.Server.Services
+﻿namespace NPI.Server.Services
 {
     public static class PasswordHelper
     {

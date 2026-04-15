@@ -1,10 +1,9 @@
-﻿using MigraDoc.DocumentObjectModel.Tables;
+﻿using Microsoft.EntityFrameworkCore;
 using MigraDoc.DocumentObjectModel;
+using MigraDoc.DocumentObjectModel.Tables;
 using MigraDoc.Rendering;
-using PdfSharp.Pdf;
 using NPI.Server.Data;
 using NPI.Server.Models;
-using Microsoft.EntityFrameworkCore;
 using PdfSharp.Fonts;
 
 namespace NPI.Server.Services

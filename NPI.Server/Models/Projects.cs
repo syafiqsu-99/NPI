@@ -1,8 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Security.AccessControl;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 
 namespace NPI.Server.Models
 {

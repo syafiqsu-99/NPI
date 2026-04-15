@@ -44,7 +44,6 @@ namespace NPI.Server.Services
                 .Select(u => u.Role!.role_name)
                 .FirstOrDefaultAsync();
 
-            // System Admins and Managers always pass
             if (systemRole is "Admin" or "Manager")
                 return true;
 
@@ -66,7 +65,7 @@ namespace NPI.Server.Services
                     $"Invalid project role '{roleName}'. Valid: {string.Join(", ", RoleHierarchy)}");
 
             var existing = await _context.ProjectTeams
-                .FirstOrDefaultAsync(pr => pr.proj_id == projectId);
+                .FirstOrDefaultAsync(pr => pr.proj_id == projectId && pr.user_id == userId);
 
             if (existing is null)
             {

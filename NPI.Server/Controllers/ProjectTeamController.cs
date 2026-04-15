@@ -22,7 +22,7 @@ namespace NPI.Server.Controllers
             var teams = await _service.GetAllProjectTeamsAsync();
             return Ok(new { success = true, data = teams });
         }
-        
+
         [HttpGet("by-project/{projId}")]
         public async Task<IActionResult> GetTeamsByProject(int projId)
         {

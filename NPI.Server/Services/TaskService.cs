@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
 using NPI.Server.DTOs;
 using NPI.Server.Models;
@@ -14,7 +13,7 @@ namespace NPI.Server.Services
         private readonly NotificationTriggerService _triggerService;
         private readonly string _basePath;
 
-        public TaskService( ApplicationDbContext context, IConfiguration configuration, INotificationService notificationService, NotificationTriggerService triggerService)
+        public TaskService(ApplicationDbContext context, IConfiguration configuration, INotificationService notificationService, NotificationTriggerService triggerService)
         {
             _context = context;
             _configuration = configuration;
@@ -239,7 +238,7 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool success, string message)> UpdateTaskAsync( int taskId, UpdateTaskDto dto, int userId, string userRole)
+        public async Task<(bool success, string message)> UpdateTaskAsync(int taskId, UpdateTaskDto dto, int userId, string userRole)
         {
             try
             {

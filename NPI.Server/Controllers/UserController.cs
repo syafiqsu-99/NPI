@@ -185,6 +185,22 @@ namespace NPI.Server.Controllers
             }
         }
 
+        [HttpPut("{id}/reset-password")]
+        public async Task<IActionResult> ResetPassword(int id, [FromBody] ResetPasswordDto dto)
+        {
+            try
+            {
+                var (success, message) = await _userService.ResetPasswordAsync(id, dto);
+                if (!success)
+                    return BadRequest(new { success = false, message });
+                return Ok(new { success = true, message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
         [HttpGet("by-department/{deptId}")]
         public async Task<IActionResult> GetUsersByDepartment(int deptId)
         {

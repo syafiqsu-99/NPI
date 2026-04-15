@@ -18,6 +18,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpGet]
+        [Authorize]
         public async Task<IActionResult> GetFormConfig()
         {
             var config = await _service.GetFormConfigAsync();

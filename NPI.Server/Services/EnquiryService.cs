@@ -5,15 +5,6 @@ using NPI.Server.Models;
 
 namespace NPI.Server.Services
 {
-    /// <summary>
-    /// Handles all enquiry operations using the dynamic field system.
-    ///
-    /// Data flow for field values:
-    ///   Create/Update → DTO.field_values (Dictionary) → EnquiryFieldValues rows
-    ///   Read          → EnquiryFieldValues rows → DTO.field_values (Dictionary)
-    ///
-    /// CustomerRef is always persisted to its own table and returned separately.
-    /// </summary>
     public class EnquiryService : IEnquiryService
     {
         private readonly ApplicationDbContext _context;

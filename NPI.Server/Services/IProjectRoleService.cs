@@ -1,5 +1,4 @@
 ﻿using NPI.Server.DTOs;
-using NPI.Server.Models;
 
 namespace NPI.Server.Services
 {

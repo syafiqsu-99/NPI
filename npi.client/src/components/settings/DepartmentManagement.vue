@@ -56,10 +56,6 @@
           </v-chip>
         </template>
 
-        <template #item.created_at="{ item }">
-          <span class="text-caption">{{ formatDate(item.created_at) }}</span>
-        </template>
-
         <!-- Actions: no header text, v-menu with dots trigger -->
         <template #item.actions="{ item }">
           <v-menu location="bottom end">
@@ -184,10 +180,9 @@
   const snackbarColor = ref('success')
 
   const headers = [
-    { title: 'Department', value: 'dept_name', width: '40%' },
-    { title: 'Users', value: 'user_count', width: '20%' },
-    { title: 'Created', value: 'created_at', width: '30%' },
-    { title: '', value: 'actions', sortable: false, width: '10%' }
+    { title: 'Department', value: 'dept_name', width: '50%' },
+    { title: 'Users', value: 'user_count', width: '30%' },
+    { title: '', value: 'actions', sortable: false, width: '20%' }
   ]
 
   const deptNameRules = [

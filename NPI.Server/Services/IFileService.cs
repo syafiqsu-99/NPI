@@ -9,7 +9,7 @@ namespace NPI.Server.Services
         Task<(bool success, string message, Files? file)> UploadCustomerFileAsync(IFormFile file, int enquiryId, int uploadBy, string compName);
         Task<(bool success, byte[]? fileData, string? contentType)> DownloadFileAsync(int fileId);
         Task<bool> DeleteFileAsync(int fileId);
-        Task<(bool success, string message, List<int> fileIds)> UploadFilesAsync(List<IFormFile> files, int projId, int taskId,string taskFolder, string description, int userId);
+        Task<(bool success, string message, List<int> fileIds)> UploadFilesAsync(List<IFormFile> files, int projId, int taskId, string taskFolder, string description, int userId);
         Task<List<FileResponseDto>> GetFilesByTaskAsync(int taskId);
         Task<List<FileResponseDto>> GetFilesByProjectAsync(int projId);
         Task<List<FileResponseDto>> GetFilesByEnquiryAsync(int enquiryId);
