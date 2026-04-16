@@ -171,13 +171,24 @@
                                 :rules="field.is_required ? [v => !!v || 'Required'] : []" />
 
                   <!-- Dropdown -->
-                  <v-select v-else-if="field.field_type === 'select'"
-                            v-model="formData.field_values[section.section_key][field.field_key]"
-                            :label="field.field_label + (field.is_required ? ' *' : '')"
-                            :items="field.options ?? []"
-                            density="compact" variant="outlined"
-                            hide-details="auto" class="mb-2"
-                            :rules="field.is_required ? [v => !!v || 'Required'] : []" />
+                  <div v-else-if="field.field_type === 'select'">
+                    <v-select v-model="formData.field_values[section.section_key][field.field_key]"
+                              :label="field.field_label + (field.is_required ? ' *' : '')"
+                              :items="field.options ?? []"
+                              density="compact" variant="outlined"
+                              hide-details="auto" class="mb-2"
+                              :rules="field.is_required ? [v => !!v || 'Required'] : []" />
+
+                    <!-- Custom Field for "Others" selection -->
+                    <v-expand-transition>
+                      <v-text-field v-if="formData.field_values[section.section_key][field.field_key] === 'Others'"
+                                    v-model="customOthers[`${section.section_key}_${field.field_key}`]"
+                                    :label="field.is_required ? 'Please specify *' : 'Please specify'"
+                                    density="compact" variant="outlined"
+                                    hide-details="auto" class="mb-2 mt-1"
+                                    :rules="field.is_required ? [v => !!v || 'Required'] : []" />
+                    </v-expand-transition>
+                  </div>
 
                   <!-- Textarea -->
                   <v-textarea v-else-if="field.field_type === 'textarea'"
@@ -280,15 +291,16 @@
     v => /.+@.+\..+/.test(v) || 'Email must be valid'
   ]
 
+  // Storage for text specified when 'Others' is selected in a dropdown
+  const customOthers = ref({})
+
   // ── Reactive form data — mirrors EnquiryCreateDto exactly ────────────────────
   const formData = ref({
     cust_id: null,
     new_customer: { comp_name: '', cust_addr: '', contact_name: '', contact_email: '', contact_phone: '' },
     npi_category: '',
     status: 'Draft',
-    // Dynamic answers: { section_key → { field_key → value } }
     field_values: {},
-    // Customer reference — always preserved
     CustomerRef: { mould_ownership: '' }
   })
 
@@ -357,9 +369,17 @@
     if (!formData.value.npi_category) return false
     for (const section of activeSections.value) {
       for (const field of (section.fields || [])) {
+        const val = formData.value.field_values[section.section_key]?.[field.field_key]
+
         if (field.is_required) {
-          const val = formData.value.field_values[section.section_key]?.[field.field_key]
+          // Check the primary field
           if (!val || String(val).trim() === '') return false
+
+          // If "Others" is selected on a REQUIRED field, the custom specification must also be filled
+          if (field.field_type === 'select' && val === 'Others') {
+            const customVal = customOthers.value[`${section.section_key}_${field.field_key}`]
+            if (!customVal || String(customVal).trim() === '') return false
+          }
         }
       }
     }
@@ -368,9 +388,34 @@
 
   // Builds the payload that matches EnquiryCreateDto exactly
   function buildPayload() {
+    // Clone to ensure we don't accidentally mutate proxy state on the active UI
+    const payloadFieldValues = JSON.parse(JSON.stringify(formData.value.field_values))
+
+    for (const section of activeSections.value) {
+      for (const field of (section.fields || [])) {
+        if (field.field_type === 'select') {
+          const currentVal = payloadFieldValues[section.section_key]?.[field.field_key]
+
+          // Re-map actual value over 'Others' before submitting to database
+          if (currentVal === 'Others') {
+            const customVal = customOthers.value[`${section.section_key}_${field.field_key}`]
+            if (customVal && customVal.trim() !== '') {
+              payloadFieldValues[section.section_key][field.field_key] = customVal.trim()
+            } else {
+              // If it's an optional field and they left the custom input blank, save as blank instead of "Others"
+              payloadFieldValues[section.section_key][field.field_key] = ''
+            }
+          }
+        }
+      }
+    }
+
     const payload = {
       npi_category: formData.value.npi_category,
-      field_values: formData.value.field_values,
+      field_values: payloadFieldValues,
+      // Pass backups across various casing conventions to prevent missing IIS binding overrides
+      FieldValues: payloadFieldValues,
+      fieldValues: payloadFieldValues,
       CustomerRef: { mould_ownership: formData.value.CustomerRef.mould_ownership }
     }
     if (customerType.value === 'existing') {
@@ -390,8 +435,6 @@
     } else if (customerType.value === 'new') {
       compName = formData.value.new_customer.comp_name
     }
-
-    const safeCompName = encodeURIComponent(compName.replace(/[^a-zA-Z0-9 _-]/g, '').trim())
 
     for (const file of selectedFiles.value) {
       const fd = new FormData()
@@ -504,14 +547,28 @@
         formData.value.npi_category = enq.npi_category
         formData.value.status = enq.status
 
-        // Hydrate field_values from the API response
-        // The backend already merges legacy data, so this just works for all enquiries
         if (enq.field_values) {
           Object.entries(enq.field_values).forEach(([sectionKey, fields]) => {
             if (!formData.value.field_values[sectionKey]) {
               formData.value.field_values[sectionKey] = {}
             }
             Object.assign(formData.value.field_values[sectionKey], fields)
+
+            // Extract "Others" texts inversely for Edit Draft flow
+            const configSection = configStore.sections.find(s => s.section_key === sectionKey)
+            if (configSection) {
+              Object.entries(fields).forEach(([fieldKey, val]) => {
+                const configField = configSection.fields?.find(f => f.field_key === fieldKey)
+                if (configField && configField.field_type === 'select') {
+                  const isStandardOption = configField.options?.includes(val)
+                  // It was a customized typed choice
+                  if (val && !isStandardOption && val !== 'Others') {
+                    customOthers.value[`${sectionKey}_${fieldKey}`] = val
+                    formData.value.field_values[sectionKey][fieldKey] = 'Others'
+                  }
+                }
+              })
+            }
           })
         }
 

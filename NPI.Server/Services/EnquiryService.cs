@@ -46,7 +46,9 @@ namespace NPI.Server.Services
             }
             catch (Exception ex)
             {
-                return (false, $"Error creating enquiry: {ex.Message}", null);
+                // ex.InnerException.Message usually contains the direct SQL Server syntax error
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                return (false, $"Error creating enquiry: {msg}", null);
             }
         }
 
@@ -85,7 +87,8 @@ namespace NPI.Server.Services
             }
             catch (Exception ex)
             {
-                return (false, $"Error updating enquiry: {ex.Message}");
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                return (false, $"Error updating enquiry: {msg}");
             }
         }
 
@@ -180,11 +183,6 @@ namespace NPI.Server.Services
 
         // ── Helpers: field value persistence ─────────────────────────────────
 
-        /// <summary>
-        /// Replaces all field values for the supplied sections.
-        /// Sections not present in the dto are left untouched (partial saves work).
-        /// Empty / whitespace values are not persisted.
-        /// </summary>
         private async Task SaveFieldValuesAsync(
             int enquiryId,
             Dictionary<string, Dictionary<string, string?>>? sections)
@@ -193,12 +191,19 @@ namespace NPI.Server.Services
 
             var sectionKeys = sections.Keys.ToList();
 
-            // Remove existing rows only for sections we are about to rewrite
+            // FIX: Retrieve fields for the enquiry without using `.Contains()` in SQL to prevent 
+            // EF Core 8 translating it into an unsupported OPENJSON(... WITH ...) call on older SQL versions.
             var existing = await _context.EnquiryFieldValues
-                .Where(v => v.enquiry_id == enquiryId && sectionKeys.Contains(v.section_key))
+                .Where(v => v.enquiry_id == enquiryId)
                 .ToListAsync();
 
-            _context.EnquiryFieldValues.RemoveRange(existing);
+            // Filter in-memory instead
+            var toRemove = existing
+                .Where(v => sectionKeys.Contains(v.section_key))
+                .ToList();
+
+            if (toRemove.Count > 0)
+                _context.EnquiryFieldValues.RemoveRange(toRemove);
 
             var newRows = sections
                 .SelectMany(sec => sec.Value
@@ -206,11 +211,13 @@ namespace NPI.Server.Services
                     .Select(kv => new EnquiryFieldValues
                     {
                         enquiry_id = enquiryId,
-                        section_key = sec.Key,
-                        field_key = kv.Key,
+                        section_key = sec.Key ?? string.Empty,
+                        field_key = kv.Key ?? string.Empty,
                         field_value = kv.Value,
                         updated_at = DateTime.Now
                     }))
+                .GroupBy(x => new { x.enquiry_id, x.section_key, x.field_key })
+                .Select(g => g.First())
                 .ToList();
 
             if (newRows.Count > 0)
@@ -219,11 +226,6 @@ namespace NPI.Server.Services
             await _context.SaveChangesAsync();
         }
 
-        /// <summary>
-        /// Upserts the EnquiryCustomerRef row.
-        /// Passing null clears any existing record — use a DTO with null values to
-        /// indicate "no customer reference data" without deleting the row.
-        /// </summary>
         private async Task UpsertCustomerRefAsync(int enquiryId, CustomerRefDto? dto)
         {
             if (dto is null) return;
@@ -245,11 +247,6 @@ namespace NPI.Server.Services
             await _context.SaveChangesAsync();
         }
 
-        /// <summary>
-        /// Returns an existing customer ID or creates a new customer record.
-        /// Falls back to the enquiry's current cust_id when neither is supplied
-        /// (edit flow where the customer is unchanged).
-        /// </summary>
         private async Task<int> ResolveCustomerIdAsync(
             EnquiryCreateDto dto,
             Enquiries? existingEnquiry = null)
@@ -285,7 +282,6 @@ namespace NPI.Server.Services
                 return newCustomer.cust_id;
             }
 
-            // Editing — customer unchanged
             return existingEnquiry?.cust_id ?? 0;
         }
 
@@ -293,11 +289,21 @@ namespace NPI.Server.Services
 
         private static EnquiryResponseDto MapToResponseDto(Enquiries e)
         {
-            var fieldValues = (e.FieldValues ?? Enumerable.Empty<EnquiryFieldValues>())
-                .GroupBy(v => v.section_key)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.ToDictionary(v => v.field_key, v => v.field_value));
+            var fieldValues = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+
+            if (e.FieldValues != null)
+            {
+                foreach (var v in e.FieldValues)
+                {
+                    if (string.IsNullOrEmpty(v.section_key) || string.IsNullOrEmpty(v.field_key))
+                        continue;
+
+                    if (!fieldValues.ContainsKey(v.section_key))
+                        fieldValues[v.section_key] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                    fieldValues[v.section_key][v.field_key] = v.field_value ?? string.Empty;
+                }
+            }
 
             return new EnquiryResponseDto
             {

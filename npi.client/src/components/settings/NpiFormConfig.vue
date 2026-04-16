@@ -3,7 +3,7 @@
 
     <!-- Row 1: Page title -->
     <div class="flex-shrink-0">
-      <h2 class="text-h6 font-weight-bold">NPI Form Configuration</h2>
+      <h2 class="text-h6 font-weight-bold">Enquiry Form</h2>
     </div>
 
     <!-- Row 2: Sub-tabs + loading indicator -->

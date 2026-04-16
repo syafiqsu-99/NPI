@@ -31,7 +31,7 @@
 
         <v-tab value="npiConfig">
           <v-icon start size="18">mdi-form-select</v-icon>
-          NPI Form
+          Enquiry Form
         </v-tab>
 
         <!--<v-tab value="system">
