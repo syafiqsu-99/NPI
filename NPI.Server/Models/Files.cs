@@ -7,7 +7,7 @@ namespace NPI.Server.Models
     {
         [Key]
         public int file_id { get; set; }
-        public int proj_id { get; set; }
+        public int? proj_id { get; set; }
         public int? task_id { get; set; }
         public int? enquiry_id { get; set; }
         public int? doc_type_id { get; set; }

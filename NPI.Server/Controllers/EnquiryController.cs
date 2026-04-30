@@ -67,6 +67,10 @@ namespace NPI.Server.Controllers
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid token." });
 
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "";
+            if (!new[] { "Admin", "Manager", "Sales" }.Contains(userRole))
+                return Forbid();
+
             var (success, message, enquiry) = await _enquiryService.CreateEnquiryAsync(dto, userId);
 
             return success

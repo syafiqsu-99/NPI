@@ -3,7 +3,7 @@
     public class FileResponseDto
     {
         public int file_id { get; set; }
-        public int proj_id { get; set; }
+        public int? proj_id { get; set; }
         public int? task_id { get; set; }
         public int? enquiry_id { get; set; }
         public string? task_name { get; set; }

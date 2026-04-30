@@ -30,6 +30,21 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
   </ItemGroup>
 
+    <ItemGroup>
+	    <Content Include="Fonts\arial.ttf">
+		    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	    </Content>
+	    <Content Include="Fonts\arialbd.ttf">
+		    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	    </Content>
+	    <Content Include="Fonts\ariali.ttf">
+		    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	    </Content>
+	    <Content Include="Fonts\arialbi.ttf">
+		    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	    </Content>
+    </ItemGroup>
+	
   <ItemGroup>
     <ProjectReference Include="..\npi.client\npi.client.esproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>

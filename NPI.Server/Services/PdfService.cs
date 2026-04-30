@@ -17,6 +17,12 @@ namespace NPI.Server.Services
             _context = context;
         }
 
+        static PdfService()
+        {
+            if (GlobalFontSettings.FontResolver == null)
+                GlobalFontSettings.FontResolver = new CustomFontResolver();
+        }
+
         public async Task<byte[]> GenerateEnquiryPdfAsync(int enquiryId)
         {
             // Load enquiry with new dynamic field values + preserved CustomerRef
@@ -41,9 +47,6 @@ namespace NPI.Server.Services
                 .ToDictionary(
                     g => g.Key,
                     g => g.ToDictionary(v => v.field_key, v => v.field_value ?? "N/A"));
-
-            if (GlobalFontSettings.FontResolver == null)
-                GlobalFontSettings.FontResolver = new CustomFontResolver();
 
             var document = new Document();
             document.Info.Title = $"Enquiry {enquiry.enquiry_no}";
@@ -149,7 +152,6 @@ namespace NPI.Server.Services
 
             var table = CreateTable(section);
 
-            // Render fields in their defined display_order
             var orderedFields = (sec.Fields ?? Enumerable.Empty<NpiFormField>())
                 .Where(f => f.is_active)
                 .OrderBy(f => f.display_order)
@@ -161,8 +163,6 @@ namespace NPI.Server.Services
                 AddTableRow(table, $"{field.field_label}:", val ?? "N/A");
             }
 
-            // Render any values whose field was deleted from metadata
-            // (ensures old enquiry answers are always shown)
             foreach (var kv in values)
             {
                 if (orderedFields.Any(f => f.field_key == kv.Key)) continue;
@@ -208,8 +208,17 @@ namespace NPI.Server.Services
 
             var h1 = document.Styles["Heading1"];
             h1.Font.Name = "Arial";
-            h1.Font.Size = 14;
+            h1.Font.Size = 13;
             h1.Font.Bold = true;
+            h1.ParagraphFormat.SpaceBefore = "0.3cm";
+            h1.ParagraphFormat.SpaceAfter = "0.2cm";
+
+            var h2 = document.Styles["Heading2"];
+            h2.Font.Name = "Arial";
+            h2.Font.Size = 11;
+            h2.Font.Bold = true;
+            h2.ParagraphFormat.SpaceBefore = "0.2cm";
+            h2.ParagraphFormat.SpaceAfter = "0.15cm";
         }
 
         public async Task<byte[]> GenerateProjectStatusReportAsync(int projectId)
@@ -224,9 +233,6 @@ namespace NPI.Server.Services
 
             var document = new Document();
             DefineStyles(document);
-
-            if (GlobalFontSettings.FontResolver == null)
-                GlobalFontSettings.FontResolver = new CustomFontResolver();
 
             var section = document.AddSection();
             section.PageSetup.PageFormat = PageFormat.A4;
@@ -473,30 +479,60 @@ namespace NPI.Server.Services
 
     public class CustomFontResolver : IFontResolver
     {
-        public byte[] GetFont(string faceName)
-        {
-            var fontFile = faceName switch
+        private static readonly Dictionary<string, string> FontMap =
+            new(StringComparer.OrdinalIgnoreCase)
             {
-                "Arial#Regular" => "arial.ttf",
-                "Arial#Bold" => "arialbd.ttf",
-                _ => throw new InvalidOperationException($"Unknown font: {faceName}")
+                ["Arial#Regular"] = "arial.ttf",
+                ["Arial#Bold"] = "arialbd.ttf",
+                ["Arial#Italic"] = "ariali.ttf",
+                ["Arial#BoldItalic"] = "arialbi.ttf",
+                ["Courier New#Regular"] = "arial.ttf",
+                ["Courier New#Bold"] = "arialbd.ttf",
+                ["Courier New#Italic"] = "ariali.ttf",
+                ["Courier New#BoldItalic"] = "arialbi.ttf",
+                ["Courier#Regular"] = "arial.ttf",
+                ["Courier#Bold"] = "arialbd.ttf",
             };
 
-            var path = Path.Combine(Directory.GetCurrentDirectory(), "Fonts", fontFile);
-            return File.ReadAllBytes(path);
+        private readonly string _fontsDir;
+
+        public CustomFontResolver()
+        {
+            _fontsDir = Path.Combine(
+                AppContext.BaseDirectory, "Fonts");
         }
 
-        public FontResolverInfo ResolveTypeface(string familyName, bool isBold, bool isItalic)
+        public byte[] GetFont(string faceName)
         {
-            if (familyName.Equals("Arial", StringComparison.OrdinalIgnoreCase))
+            if (FontMap.TryGetValue(faceName, out var fileName))
             {
-                if (isBold)
-                    return new FontResolverInfo("Arial#Bold");
-
-                return new FontResolverInfo("Arial#Regular");
+                var path = Path.Combine(_fontsDir, fileName);
+                if (File.Exists(path))
+                    return File.ReadAllBytes(path);
             }
 
-            return new FontResolverInfo("Arial#Regular");
+            var fallback = Path.Combine(_fontsDir, "arial.ttf");
+            if (File.Exists(fallback))
+                return File.ReadAllBytes(fallback);
+
+            throw new InvalidOperationException(
+                $"Font file not found for '{faceName}' in '{_fontsDir}'. " +
+                "Ensure arial.ttf and arialbd.ttf exist in the Fonts directory.");
+        }
+
+        public FontResolverInfo ResolveTypeface(
+            string familyName, bool isBold, bool isItalic)
+        {
+            var suffix = (isBold, isItalic) switch
+            {
+                (true, true) => "#BoldItalic",
+                (true, false) => "#Bold",
+                (false, true) => "#Italic",
+                _ => "#Regular",
+            };
+
+            var key = $"Arial{suffix}";
+            return new FontResolverInfo(key);
         }
     }
 }

@@ -11,7 +11,10 @@
           <v-icon start>mdi-clipboard-list-outline</v-icon>
           Sales Enquiries
         </div>
-        <v-btn color="white" variant="elevated" class="text-primary font-weight-bold" @click="$router.push('/enquiries/new')">
+        <v-btn v-if="canCreateEnquiry()"
+               color="white" variant="elevated"
+               class="text-primary font-weight-bold"
+               @click="$router.push('/enquiries/new')">
           <v-icon start>mdi-plus</v-icon>
           New Enquiry
         </v-btn>
@@ -106,12 +109,16 @@
               </v-btn>
 
               <!-- Edit (Draft only) -->
-              <v-btn v-if="item.status === 'Draft'" icon size="small" variant="text" color="info" @click="editEnquiry(item.enquiry_id)" title="Edit">
+              <v-btn v-if="canEditEnquiry(item)"
+                     icon size="small" variant="text" color="info"
+                     @click="editEnquiry(item.enquiry_id)" title="Edit">
                 <v-icon size="18">mdi-pencil</v-icon>
               </v-btn>
 
               <!-- Delete: Draft OR Admin -->
-              <v-btn v-if="canDelete(item)" icon size="small" variant="text" color="error" @click="openDeleteDialog(item)" title="Delete Enquiry">
+              <v-btn v-if="canDelete(item)"
+                     icon size="small" variant="text" color="error"
+                     @click="openDeleteDialog(item)" title="Delete Enquiry">
                 <v-icon size="18">mdi-delete</v-icon>
               </v-btn>
             </div>
@@ -236,10 +243,25 @@
     return false
   }
 
+  const isSalesOrAbove = computed(() =>
+    ['Sales', 'Manager', 'Admin'].includes(userRole.value)
+  )
+
+  function canCreateEnquiry() {
+    return isSalesOrAbove.value
+  }
+
+  function canEditEnquiry(enquiry) {
+    if (!isSalesOrAbove.value) return false
+    if (['Admin', 'Manager'].includes(userRole.value)) return true
+    return enquiry.status === 'Draft' &&
+      enquiry.created_by === authStore.user?.user_id
+  }
+
   function canDelete(enquiry) {
-    if (userRole.value === 'Admin') return true
-    if (userRole.value === 'Manager') return true
-    return enquiry.status === 'Draft'
+    if (['Admin', 'Manager'].includes(userRole.value)) return true
+    if (userRole.value === 'Sales') return enquiry.status === 'Draft'
+    return false
   }
 
   function getStatusColor(status) {

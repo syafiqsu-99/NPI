@@ -208,6 +208,7 @@
   import { useAuthStore } from '@/stores/auth'
   import { NPI_STAGES } from '@/stores/stageTemplate'
   import { api } from '@/utils/api'
+  import { openProjectStatusEmail } from '@/utils/mailtoHelper'
 
   import ProjectDetailDialog from '@/components/projects/ProjectDetailDialog.vue'
   import DeleteProjectDialog from '@/components/projects/DeleteProjectDialog.vue'
@@ -261,22 +262,48 @@
   }
 
   async function updateStatus(project, newStatus) {
-    if (project.status === newStatus) return;
+    if (project.status === newStatus) return
+
     try {
-      const result = await api.put(`/project/${project.proj_id}/status`, { status: newStatus });
+      const result = await api.put(`/project/${project.proj_id}/status`, { status: newStatus })
+
       if (result?.success || result?.data?.success) {
-        project.status = newStatus;
-        snackbarMessage.value = 'Project status updated';
-        snackbarColor.value = 'success';
+        project.status = newStatus
+
+        snackbarMessage.value = `Status updated to "${newStatus}"`
+        snackbarColor.value = 'success'
+        snackbar.value = true
+
+        // Trigger mail draft for all meaningful status transitions
+        const notifyOn = ['In Progress', 'On Hold', 'Completed', 'Cancelled']
+        if (notifyOn.includes(newStatus)) {
+
+          // Ensure team_members with emails are loaded
+          let fullProject = project
+          if (!project.team_members?.some(m => m.email)) {
+            try {
+              const detail = await api.get(`/project/${project.proj_id}`)
+              fullProject = detail?.data ?? project
+            } catch {
+              // Non-critical — mail will open without CC if this fails
+            }
+          }
+
+          // Pass the full authStore.currentUser so the utility reads .email directly
+          openProjectStatusEmail(fullProject, newStatus, authStore.currentUser)
+        }
+
       } else {
-        snackbarMessage.value = result?.message || 'Failed to update status';
-        snackbarColor.value = 'error';
+        snackbarMessage.value = result?.message ?? 'Failed to update status'
+        snackbarColor.value = 'error'
+        snackbar.value = true
       }
     } catch (err) {
-      snackbarMessage.value = err?.response?.data?.message || 'Unauthorized or server error';
-      snackbarColor.value = 'error';
+      console.error('updateStatus:', err)
+      snackbarMessage.value = 'An error occurred'
+      snackbarColor.value = 'error'
+      snackbar.value = true
     }
-    snackbar.value = true;
   }
 
   async function updatePriority(project, newPriority) {

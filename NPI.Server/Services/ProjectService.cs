@@ -125,12 +125,13 @@ namespace NPI.Server.Services
             dto.team_members = project.ProjectTeams.Select(tm => new TeamMemberDto
             {
                 user_id = tm.user_id,
-                dept_id = tm.User?.dept_id ?? 0,
-                dept_name = tm.User?.Department?.dept_name,
+                user_name = tm.User != null ? tm.User.username : null,
+                full_name = tm.User != null ? tm.User.full_name : null,
+                dept_id = tm.User != null && tm.User.dept_id.HasValue ? tm.User.dept_id.Value : 0,
+                dept_name = tm.User != null && tm.User.Department != null ? tm.User.Department.dept_name : null,
                 role = tm.role ?? "Team Member",
-                user_name = tm.User?.username,
-                full_name = tm.User?.full_name,
-                assigned_at = tm.created_at
+                assigned_at = tm.created_at,
+                email = tm.User != null ? tm.User.email : null,
             }).ToList();
 
             if (project.ProjectRevisions != null && project.ProjectRevisions.Any())

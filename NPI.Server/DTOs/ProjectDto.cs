@@ -94,6 +94,7 @@ namespace NPI.Server.DTOs
         public string? dept_name { get; set; }
         public string? role { get; set; }
         public DateTime assigned_at { get; set; }
+        public string? email { get; set; }
     }
 
     public class LaunchProjectDto

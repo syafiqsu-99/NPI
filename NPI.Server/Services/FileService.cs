@@ -56,7 +56,7 @@ namespace NPI.Server.Services
 
                     var record = new Files
                     {
-                        proj_id = projId,
+                        proj_id = projId > 0 ? projId : null,
                         task_id = taskId,
                         file_version = 1,
                         upload_by = userId,
@@ -143,7 +143,7 @@ namespace NPI.Server.Services
 
                 var record = new Files
                 {
-                    proj_id = projId,
+                    proj_id = projId > 0 ? projId : null,
                     task_id = taskId,
                     enquiry_id = enquiryId,
                     doc_type_id = docTypeId,
