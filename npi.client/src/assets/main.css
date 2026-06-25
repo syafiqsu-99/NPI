@@ -46,3 +46,49 @@ html, body, #app {
   margin-top: 8px;
   margin-bottom: 16px;
 }
+
+/* ─── Border utilities ──────────────────────────────────────────────────────*/
+
+.border-b {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.border-t {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+
+/* ─── KPI card ──────────────────────────────────────────────────────────────*/
+
+.kpi-card {
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+
+/* ─── Line-height tight ─────────────────────────────────────────────────────*/
+
+.lh-tight {
+  line-height: 1.25;
+}
+
+
+/* ─── Cursor utilities ──────────────────────────────────────────────────────*/
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+
+/* ─── Fill-height helper ────────────────────────────────────────────────────*/
+
+.fill-height {
+  height: 100%;
+}
+
+/* Force v-window containers to respect height in flex layouts.*/
+
+.settings-window :deep(.v-window__container),
+.settings-window :deep(.v-window-item) {
+  height: 100% !important;
+}

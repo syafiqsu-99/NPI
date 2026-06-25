@@ -1,17 +1,13 @@
 <template>
-  <!-- Strict 100vh Root Container -->
   <v-container fluid class="page-container pa-4 pa-md-6 d-flex flex-column">
-
-    <!-- Main Expanding Card -->
     <v-card class="page-card flex-grow-1 d-flex flex-column overflow-hidden" elevation="2" border>
 
-      <!-- Fixed Header Strip -->
       <v-card-title class="bg-primary text-white d-flex align-center justify-space-between pa-4 flex-shrink-0">
         <div class="text-h6 font-weight-bold d-flex align-center">
           <v-icon start>mdi-clipboard-list-outline</v-icon>
           Sales Enquiries
         </div>
-        <v-btn v-if="canCreateEnquiry()"
+        <v-btn v-if="authStore.canCreateEnquiry"
                color="white" variant="elevated"
                class="text-primary font-weight-bold"
                @click="$router.push('/enquiries/new')">
@@ -20,12 +16,9 @@
         </v-btn>
       </v-card-title>
 
-      <!-- Legend/Filter Strip (Fixed) -->
       <v-card-text class="pa-3 flex-shrink-0 bg-grey-lighten-4">
         <div class="d-flex align-center ga-4 flex-wrap">
-          <span class="text-caption text-medium-emphasis font-weight-medium">
-            Project:
-          </span>
+          <span class="text-caption text-medium-emphasis font-weight-medium">Project:</span>
           <div class="d-flex align-center ga-1">
             <v-icon size="16" color="success">mdi-briefcase-check</v-icon>
             <span class="text-caption">Exists</span>
@@ -39,11 +32,10 @@
 
       <v-divider class="flex-shrink-0" />
 
-      <!-- Loading Bar -->
       <v-progress-linear v-if="enquiryStore.loading" indeterminate color="primary" class="flex-shrink-0" />
 
-      <!-- Scrollable Virtual Table Area -->
-      <div class="table-wrapper flex-grow-1 position-relative overflow-hidden d-flex flex-column" v-if="!enquiryStore.loading">
+      <div class="table-wrapper flex-grow-1 position-relative overflow-hidden d-flex flex-column"
+           v-if="!enquiryStore.loading">
         <v-data-table-virtual :items="enquiryStore.enquiries"
                               :headers="headers"
                               item-key="enquiry_id"
@@ -51,10 +43,11 @@
                               height="100%"
                               class="enquiry-table flex-grow-1">
 
-          <!-- ── Project indicator ── -->
           <template #item.project_indicator="{ item }">
             <div class="d-flex justify-center">
-              <v-tooltip :text="item.proj_id ? `Project exists${item.proj_no ? ': ' + item.proj_no : ''}` : 'No project yet'"
+              <v-tooltip :text="item.proj_id
+                  ? `Project exists${item.proj_no ? ': ' + item.proj_no : ''}`
+                  : 'No project yet'"
                          location="top">
                 <template #activator="{ props }">
                   <v-icon v-bind="props"
@@ -77,7 +70,6 @@
             </v-chip>
           </template>
 
-          <!-- Display User Name instead of ID -->
           <template #item.created_by="{ item }">
             {{ item.username || item.created_by }}
           </template>
@@ -88,37 +80,44 @@
 
           <template #item.actions="{ item }">
             <div class="d-flex justify-center ga-1">
-              <!-- View PDF -->
-              <v-btn icon size="small" variant="text" color="grey-darken-2" @click="viewEnquiryPDF(item.enquiry_id)" title="View PDF Preview">
+              <v-btn icon size="small" variant="text" color="grey-darken-2"
+                     title="View PDF Preview"
+                     @click="viewEnquiryPDF(item.enquiry_id)">
                 <v-icon size="18">mdi-eye</v-icon>
               </v-btn>
 
-              <!-- Go to Gantt if project exists -->
-              <v-btn v-if="item.proj_id" icon size="small" variant="text" color="success" @click="$router.push(`/projects/${item.proj_id}/gantt`)" title="View Project Gantt">
+              <v-btn v-if="item.proj_id"
+                     icon size="small" variant="text" color="success"
+                     title="View Project Gantt"
+                     @click="$router.push(`/projects/${item.proj_id}/gantt`)">
                 <v-icon size="18">mdi-chart-gantt</v-icon>
               </v-btn>
 
-              <!-- Start project (Manager/Admin, no project yet, right status) -->
-              <v-btn v-if="canManageProject(item) && !item.proj_id" icon size="small" variant="text" color="primary" @click="viewEnquiryDetail(item.enquiry_id)" title="Start Project">
+              <v-btn v-if="canManageProject(item) && !item.proj_id"
+                     icon size="small" variant="text" color="primary"
+                     title="Start Project"
+                     @click="viewEnquiryDetail(item.enquiry_id)">
                 <v-icon size="18">mdi-rocket-launch</v-icon>
               </v-btn>
 
-              <!-- Manage existing project setup -->
-              <v-btn v-if="canManageProject(item) && item.proj_id" icon size="small" variant="text" color="primary" @click="$router.push(`/projects/${item.proj_id}/setup`)" title="Manage Project Setup">
+              <v-btn v-if="canManageProject(item) && item.proj_id"
+                     icon size="small" variant="text" color="primary"
+                     title="Manage Project Setup"
+                     @click="$router.push(`/projects/${item.proj_id}/setup`)">
                 <v-icon size="18">mdi-cog</v-icon>
               </v-btn>
 
-              <!-- Edit (Draft only) -->
               <v-btn v-if="canEditEnquiry(item)"
                      icon size="small" variant="text" color="info"
-                     @click="editEnquiry(item.enquiry_id)" title="Edit">
+                     title="Edit"
+                     @click="editEnquiry(item.enquiry_id)">
                 <v-icon size="18">mdi-pencil</v-icon>
               </v-btn>
 
-              <!-- Delete: Draft OR Admin -->
-              <v-btn v-if="canDelete(item)"
+              <v-btn v-if="authStore.canDeleteEnquiry(item)"
                      icon size="small" variant="text" color="error"
-                     @click="openDeleteDialog(item)" title="Delete Enquiry">
+                     title="Delete Enquiry"
+                     @click="openDeleteDialog(item)">
                 <v-icon size="18">mdi-delete</v-icon>
               </v-btn>
             </div>
@@ -128,7 +127,7 @@
 
     </v-card>
 
-    <!-- ── PDF Dialog ── -->
+    <!-- PDF Dialog -->
     <v-dialog v-model="showPdfDialog" max-width="800" persistent scrollable>
       <v-card class="dialog-card">
         <v-card-title class="d-flex align-center justify-space-between bg-primary">
@@ -137,7 +136,9 @@
             Enquiry Preview
           </div>
           <div class="d-flex ga-2">
-            <v-btn variant="elevated" color="white" class="text-primary font-weight-bold" @click="downloadCurrentPDF" :loading="downloadingPDF">
+            <v-btn variant="elevated" color="white" class="text-primary font-weight-bold"
+                   :loading="downloadingPDF"
+                   @click="downloadCurrentPDF">
               <v-icon start>mdi-download</v-icon>
               Download
             </v-btn>
@@ -155,7 +156,7 @@
       </v-card>
     </v-dialog>
 
-    <!-- ── Delete Confirmation Dialog ── -->
+    <!-- Delete Confirmation Dialog -->
     <v-dialog v-model="deleteDialog" max-width="500" persistent>
       <v-card class="dialog-card rounded-lg">
         <v-card-text class="pa-6">
@@ -166,14 +167,16 @@
             <div>
               <div class="text-h6 font-weight-bold mb-1">Delete Enquiry?</div>
               <div class="text-body-2 text-medium-emphasis">
-                <strong>{{ deleteTarget?.enquiry_no }}</strong> will be permanently removed. This action cannot be undone.
+                <strong>{{ deleteTarget?.enquiry_no }}</strong> will be permanently removed.
+                This action cannot be undone.
               </div>
             </div>
           </div>
 
-          <!-- Extra warning if the enquiry already has a linked project -->
-          <v-alert v-if="deleteTarget?.proj_id" type="warning" variant="tonal" density="compact" class="mt-4 mb-2">
-            This enquiry has a linked project. Deleting the enquiry will <strong>not</strong> delete the project.
+          <v-alert v-if="deleteTarget?.proj_id" type="warning" variant="tonal"
+                   density="compact" class="mt-4 mb-2">
+            This enquiry has a linked project. Deleting the enquiry will
+            <strong>not</strong> delete the project.
           </v-alert>
 
           <div class="d-flex ga-2 justify-end mt-6">
@@ -197,10 +200,12 @@
 </template>
 
 <script setup>
-  import { ref, computed, onMounted } from 'vue'
+  import { ref, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import { useEnquiryStore } from '@/stores/enquiry'
   import { useAuthStore } from '@/stores/auth'
+  import { ENQUIRY_STATUS_COLORS } from '@/utils/constants'
+  import { formatDate } from '@/utils/formatters'
 
   const router = useRouter()
   const enquiryStore = useEnquiryStore()
@@ -228,58 +233,30 @@
     { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '190px' },
   ]
 
-  const userRole = computed(() => authStore.user?.role)
+  // ── Permission helpers ──────────────────────────────────────────────────────
 
   function canManageProject(enquiry) {
     const validStatuses = ['Submitted', 'Approved', 'Started', 'In Progress']
     if (!validStatuses.includes(enquiry.status)) return false
-
-    if (['Admin', 'Manager'].includes(userRole.value)) return true
-
-    if (enquiry.proj_id) {
-      return authStore.hasProjectRole(enquiry.proj_id, 'Team Lead')
-    }
-
-    return false
-  }
-
-  const isSalesOrAbove = computed(() =>
-    ['Sales', 'Manager', 'Admin'].includes(userRole.value)
-  )
-
-  function canCreateEnquiry() {
-    return isSalesOrAbove.value
+    return authStore.canManageProject(enquiry)
   }
 
   function canEditEnquiry(enquiry) {
-    if (!isSalesOrAbove.value) return false
-    if (['Admin', 'Manager'].includes(userRole.value)) return true
-    return enquiry.status === 'Draft' &&
-      enquiry.created_by === authStore.user?.user_id
+    if (!authStore.canCreateEnquiry) return false
+    if (authStore.isAdmin || authStore.isManager) return true
+    return (
+      enquiry.status === 'Draft' &&
+      Number(enquiry.created_by) === authStore.user?.user_id
+    )
   }
 
-  function canDelete(enquiry) {
-    if (['Admin', 'Manager'].includes(userRole.value)) return true
-    if (userRole.value === 'Sales') return enquiry.status === 'Draft'
-    return false
-  }
+  // ── Status colour ───────────────────────────────────────────────────────────
 
   function getStatusColor(status) {
-    const colors = {
-      'Draft': 'warning', 'Submitted': 'info', 'Approved': 'success',
-      'Rejected': 'error', 'Started': 'primary', 'Pending': 'orange', 'In Review': 'blue',
-      'Completed': 'success'
-    }
-    return colors[status] || 'grey'
+    return ENQUIRY_STATUS_COLORS[status] ?? 'grey'
   }
 
-  function formatDate(date) {
-    if (!date) return 'N/A'
-    return new Date(date).toLocaleDateString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    })
-  }
+  // ── PDF ─────────────────────────────────────────────────────────────────────
 
   async function viewEnquiryPDF(id) {
     currentEnquiryId.value = id
@@ -307,15 +284,17 @@
         snackbarColor.value = 'error'
         snackbar.value = true
       }
-    } catch {
-      snackbarMessage.value = 'Error downloading PDF'
-      snackbarColor.value = 'error'
-      snackbar.value = true
-    } finally { downloadingPDF.value = false }
+    } finally {
+      downloadingPDF.value = false
+    }
   }
+
+  // ── Navigation ──────────────────────────────────────────────────────────────
 
   function viewEnquiryDetail(id) { router.push(`/enquiries/${id}/detail`) }
   function editEnquiry(id) { router.push(`/enquiries/${id}/edit`) }
+
+  // ── Delete ──────────────────────────────────────────────────────────────────
 
   function openDeleteDialog(enquiry) {
     deleteTarget.value = enquiry
@@ -328,11 +307,15 @@
     const result = await enquiryStore.deleteEnquiry(deleteTarget.value.enquiry_id)
     deleting.value = false
     deleteDialog.value = false
-    snackbarMessage.value = result.success ? 'Enquiry deleted successfully' : `Error: ${result.message}`
+    snackbarMessage.value = result.success
+      ? 'Enquiry deleted successfully'
+      : `Error: ${result.message}`
     snackbarColor.value = result.success ? 'success' : 'error'
     snackbar.value = true
     deleteTarget.value = null
   }
+
+  // ── Mount ────────────────────────────────────────────────────────────────────
 
   onMounted(async () => {
     await enquiryStore.fetchEnquiries()
@@ -347,7 +330,6 @@
 </script>
 
 <style scoped>
-  /* Strict 100vh Layout Constraints */
   .page-container {
     height: 100vh !important;
     overflow: hidden !important;
@@ -358,7 +340,6 @@
     border-radius: 8px;
   }
 
-  /* Ensure the wrapper scales and hides overflow so internal scroll works */
   .table-wrapper {
     height: 100%;
   }

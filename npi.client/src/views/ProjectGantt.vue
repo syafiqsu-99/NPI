@@ -37,13 +37,13 @@
                 </v-col>
                 <v-col cols="auto" class="mr-6">
                   <div class="text-caption text-grey-darken-1 lh-tight">Status</div>
-                  <v-chip :color="getStatusColor(project?.status)" size="x-small" variant="tonal" class="mt-1">
+                  <v-chip :color="PROJECT_STATUS_COLORS(project?.status)" size="x-small" variant="tonal" class="mt-1">
                     {{ project?.status }}
                   </v-chip>
                 </v-col>
                 <v-col cols="auto" class="mr-6">
                   <div class="text-caption text-grey-darken-1 lh-tight">Priority</div>
-                  <v-chip :color="getPriorityColor(project?.priority)" size="x-small" variant="tonal" class="mt-1">
+                  <v-chip :color="PRIORITY_COLORS(project?.priority)" size="x-small" variant="tonal" class="mt-1">
                     {{ project?.priority }}
                   </v-chip>
                 </v-col>
@@ -104,14 +104,14 @@
                 <!-- Task column -->
                 <template #item.title="{ item }">
                   <div v-if="item.rowType === 'stage-header'" class="stage-header-cell d-flex align-center pr-2">
-                    <v-chip :color="getStageColor(item.stage_id)" size="small" variant="tonal" class="mr-2 font-weight-bold">
+                    <v-chip :color="STAGE_COLORS(item.stage_id)" size="small" variant="tonal" class="mr-2 font-weight-bold">
                       {{ item.stage_id }}
                     </v-chip>
                     <span class="font-weight-medium" style="color: #37474F;">{{ item.stageName }}</span>
                   </div>
                   <div v-else class="d-flex align-center ga-1 py-1 pr-2">
                     <v-chip v-if="item.task_code"
-                            :color="getStageColor(item.stage_id)"
+                            :color="STAGE_COLORS(item.stage_id)"
                             size="x-small" variant="tonal" class="font-weight-bold flex-shrink-0">
                       {{ item.task_code }}
                     </v-chip>
@@ -138,15 +138,15 @@
                   <div v-if="item.rowType === 'task'" class="d-flex flex-column py-1 pr-2" style="gap:3px; font-size:11px; line-height:1.4">
                     <div class="d-flex align-center" style="gap:3px; flex-wrap:nowrap">
                       <v-chip color="blue" size="x-small" variant="tonal" label style="min-width:18px; padding:0 4px; font-size:9px">P</v-chip>
-                      <span class="text-blue-darken-1">{{ fmtShort(item.planned_start_date) ?? '—' }}</span>
+                      <span class="text-blue-darken-1">{{ formatDateShort(item.planned_start_date) ?? '—' }}</span>
                       <span class="text-grey-darken-1" style="font-size:9px">›</span>
-                      <span class="text-blue-darken-3">{{ fmtShort(item.planned_end_date) ?? '—' }}</span>
+                      <span class="text-blue-darken-3">{{ formatDateShort(item.planned_end_date) ?? '—' }}</span>
                     </div>
                     <div class="d-flex align-center" style="gap:3px; flex-wrap:nowrap">
                       <v-chip color="green" size="x-small" variant="tonal" label style="min-width:18px; padding:0 4px; font-size:9px">A</v-chip>
-                      <span class="text-green-darken-1">{{ fmtShort(item.actual_start_date) ?? '—' }}</span>
+                      <span class="text-green-darken-1">{{ formatDateShort(item.actual_start_date) ?? '—' }}</span>
                       <span class="text-grey-darken-1" style="font-size:9px">›</span>
-                      <span class="text-green-darken-3">{{ fmtShort(item.actual_end_date) ?? (item.actual_start_date ? 'Now' : '—') }}</span>
+                      <span class="text-green-darken-3">{{ formatDateShort(item.actual_end_date) ?? (item.actual_start_date ? 'Now' : '—') }}</span>
                     </div>
                   </div>
                 </template>
@@ -228,6 +228,8 @@
   import { useRoute } from 'vue-router'
   import { NPI_STAGES } from '@/stores/stageTemplate'
   import { api } from '@/utils/api'
+  import { STAGE_COLORS, STAGE_COLORS_HEX, STAGE_SHORT_NAMES, PROJECT_STATUS_COLORS, PRIORITY_COLORS} from '@/utils/constants'
+  import { formatDate, formatDateShort } from '@/utils/formatters'
 
   const route = useRoute()
 
@@ -251,19 +253,6 @@
   const scrollTop = ref(0)
   const scrollLeft = ref(0)
 
-  // ── Stage constants ───────────────────────────────────────────────────────────
-  const STAGE_COLORS_HEX = {
-    '0.0': '#607D8B', '1.0': '#1976D2', '2.0': '#7B1FA2',
-    '3.0': '#00796B', '4.0': '#303F9F', '5.0': '#E64A19'
-  }
-  const STAGE_SHORT = {
-    '0.0': 'Enquiry', '1.0': 'Proj Start', '2.0': 'Pilot Mould',
-    '3.0': 'Machine', '4.0': 'Prod Mould', '5.0': 'Trial JJ'
-  }
-
-  function getStageColor(sid) {
-    return { '0.0': 'blue-grey', '1.0': 'primary', '2.0': 'purple', '3.0': 'teal', '4.0': 'indigo', '5.0': 'deep-orange' }[sid] ?? 'grey'
-  }
   function deriveStageFromCode(code) {
     if (!code) return '1.0'
     const m = code.match(/^(\d+)\.\d+$/)
@@ -302,7 +291,7 @@
       const allDone = st.length > 0 && st.every(t => t.status === 'Completed')
       const anyActive = st.some(t => t.status === 'In Progress')
       return {
-        id, name: NPI_STAGES[id].name, shortName: STAGE_SHORT[id],
+        id, name: NPI_STAGES[id].name, shortName: STAGE_SHORT_NAMES[id],
         status: allDone ? 'completed' : anyActive ? 'active' : 'pending',
         bg: allDone ? 'rgba(76,175,80,0.1)' : anyActive ? `${STAGE_COLORS_HEX[id]}12` : 'transparent',
         border: allDone ? '#4CAF50' : anyActive ? STAGE_COLORS_HEX[id] : '#BDBDBD',
@@ -564,13 +553,6 @@
     if (item.rowType === 'task') return { class: 'gantt-row-task' }
     return {}
   }
-
-  // ── Helpers & API ─────────────────────────────────────────────────────────────
-  function getStatusColor(s) { return { Planning: 'grey', 'Not Started': 'grey', 'In Progress': 'blue', 'On Hold': 'orange', Completed: 'green', Cancelled: 'red' }[s] ?? 'grey' }
-  function getPriorityColor(p) { return { Low: 'grey', Medium: 'blue', High: 'orange', Critical: 'red' }[p] ?? 'grey' }
-
-  function formatDate(d) { return !d ? 'N/A' : new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
-  function fmtShort(d) { return !d ? null : new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) }
 
   function scrollToToday() {
     const wrapper = ganttWrapper.value?.querySelector('.v-table__wrapper')

@@ -1,152 +1,106 @@
 <template>
-  <v-container fluid>
-    <v-row>
-      <v-col cols="12">
-        <v-card elevation="2">
-          <v-card-title class="d-flex align-center justify-space-between bg-primary">
-            <div class="text-h6 font-weight-bold text-white">
-              <v-icon class="mr-2">mdi-file-document-outline</v-icon>
-              Enquiry Details — {{ enquiry?.enquiry_no }}
+  <v-container fluid class="page-container pa-4 pa-md-6 d-flex flex-column">
+
+    <v-card class="page-card flex-grow-1 d-flex flex-column overflow-hidden" elevation="2" border>
+
+      <!-- Header Actions -->
+      <v-card-title class="bg-primary text-white d-flex align-center justify-space-between pa-4 flex-shrink-0">
+        <div class="text-h6 font-weight-bold text-white">
+          <v-icon class="mr-2">mdi-file-document-outline</v-icon>
+          Enquiry Summary — {{ enquiry?.enquiry_no }}
+        </div>
+        <div class="d-flex ga-2">
+          <v-btn variant="outlined" color="white" density="comfortable" @click="downloadPDF" :loading="downloadingPDF">
+            <v-icon start>mdi-download</v-icon> Download PDF
+          </v-btn>
+          <v-btn v-if="enquiry?.proj_id" variant="outlined" color="white" density="comfortable"
+                 @click="$router.push(`/projects/${enquiry.proj_id}/setup`)">
+            <v-icon start>mdi-cog</v-icon> Manage Project
+          </v-btn>
+          <v-btn v-if="canStartProject" color="success" variant="flat" density="comfortable"
+                 @click="openStartProjectDialog">
+            <v-icon start>mdi-rocket-launch</v-icon> Start Project
+          </v-btn>
+          <v-btn variant="text" color="white" density="comfortable" @click="$router.back()">
+            <v-icon start>mdi-arrow-left</v-icon> Back
+          </v-btn>
+        </div>
+      </v-card-title>
+
+      <!-- Loading State -->
+      <v-card-text v-if="loading" class="text-center pa-8">
+        <v-progress-circular indeterminate color="primary" size="64" />
+      </v-card-text>
+
+      <!-- Main Content -->
+      <v-card-text v-else-if="enquiry" class="pa-4">
+
+        <!-- General Summary -->
+        <v-row class="mb-2" dense>
+          <v-col cols="12" md="12" class="text-body-1">
+            <v-icon size="small" color="primary" class="mr-1">mdi-domain</v-icon>
+            <strong>Company:</strong> {{ enquiry.customer_name || 'N/A' }}
+          </v-col>
+          <v-col cols="12" md="12" class="text-body-1">
+            <v-icon size="small" color="primary" class="mr-1">mdi-tag</v-icon>
+            <strong>Category:</strong> {{ enquiry.npi_category }}
+          </v-col>
+          <v-col cols="12" md="12" class="text-body-1">
+            <v-icon size="small" color="primary" class="mr-1">mdi-calendar</v-icon>
+            <strong>Date:</strong> {{ formatDate(enquiry.created_at) }}
+          </v-col>
+        </v-row>
+
+        <v-divider class="my-3" />
+
+        <!-- Dynamic Sections from field_values -->
+        <template v-for="(sectionValues, sectionKey) in enquiry.field_values" :key="sectionKey">
+          <v-row v-if="hasValues(sectionValues)" dense class="mb-4">
+            <v-col cols="12" class="pb-1">
+              <div class="text-subtitle-1 font-weight-bold text-primary">
+                {{ getSectionLabel(sectionKey) }}
+              </div>
+            </v-col>
+            <v-col v-for="(value, fieldKey) in sectionValues" :key="fieldKey" cols="12" sm="6" md="4" class="text-body-2 py-1">
+              <span class="font-weight-medium text-grey-darken-2">{{ getFieldLabel(sectionKey, fieldKey) }}:</span>
+              <span class="ml-1">{{ value || 'N/A' }}</span>
+            </v-col>
+          </v-row>
+        </template>
+
+        <!-- Customer Reference & Attached Files -->
+        <v-row dense class="mt-2">
+          <v-col cols="12" md="6" v-if="enquiry.CustomerRef">
+            <div class="text-subtitle-1 font-weight-bold text-primary mb-1">Customer Reference</div>
+            <div class="text-body-2">
+              <span class="font-weight-medium text-grey-darken-2">Mould Ownership:</span>
+              <span class="ml-1">{{ enquiry.CustomerRef.mould_ownership || 'N/A' }}</span>
             </div>
-            <div class="d-flex ga-2">
-              <v-btn variant="outlined" color="white" @click="downloadPDF" :loading="downloadingPDF">
-                <v-icon start>mdi-download</v-icon>
-                Download PDF
-              </v-btn>
+          </v-col>
 
-              <v-btn v-if="enquiry?.proj_id" variant="outlined" color="white"
-                     @click="$router.push(`/projects/${enquiry.proj_id}/setup`)">
-                <v-icon start>mdi-cog</v-icon>
-                Manage Project
-              </v-btn>
+          <v-col cols="12" md="6" v-if="enquiry.Files?.length">
+            <div class="text-subtitle-1 font-weight-bold text-primary mb-1">Attached Files</div>
+            <v-list density="compact" class="pa-0 bg-transparent">
+              <v-list-item v-for="file in enquiry.Files" :key="file.file_id" class="px-0">
+                <template #prepend>
+                  <v-icon size="small" class="mr-2">mdi-paperclip</v-icon>
+                </template>
+                <v-list-item-title class="text-body-2">{{ file.file_name }}</v-list-item-title>
+                <template #append>
+                  <v-btn icon="mdi-download" size="x-small" variant="text" color="primary" />
+                </template>
+              </v-list-item>
+            </v-list>
+          </v-col>
+        </v-row>
 
-              <v-btn v-if="canStartProject" color="success" variant="flat"
-                     @click="openStartProjectDialog">
-                <v-icon start>mdi-rocket-launch</v-icon>
-                Start Project
-              </v-btn>
+      </v-card-text>
+    </v-card>
 
-              <v-btn variant="text" color="white" @click="$router.back()">
-                <v-icon start>mdi-arrow-left</v-icon>
-                Back
-              </v-btn>
-            </div>
-          </v-card-title>
-
-          <v-card-text v-if="loading" class="text-center pa-8">
-            <v-progress-circular indeterminate color="primary" size="64" />
-          </v-card-text>
-
-          <v-card-text v-else-if="enquiry" class="pa-6">
-
-            <!-- Status + project link badge row -->
-            <v-row class="mb-4">
-              <v-col cols="12" class="d-flex align-center ga-3 flex-wrap">
-                <v-chip :color="getStatusColor(enquiry.status)" size="large">
-                  {{ enquiry.status }}
-                </v-chip>
-                <v-chip v-if="enquiry.proj_id" color="success" size="small" variant="tonal">
-                  <v-icon start size="14">mdi-briefcase-check</v-icon>
-                  Project: {{ enquiry.proj_no || `#${enquiry.proj_id}` }}
-                </v-chip>
-              </v-col>
-            </v-row>
-
-            <!-- Customer information -->
-            <v-row>
-              <v-col cols="12">
-                <h3 class="text-h6 mb-3">
-                  <v-icon class="mr-2">mdi-account-box</v-icon>Customer Information
-                </h3>
-                <v-divider class="mb-4" />
-              </v-col>
-              <v-col cols="12" md="6"><strong>Company:</strong> {{ enquiry.customer_name || 'N/A' }}</v-col>
-              <v-col cols="12" md="6"><strong>Enquiry Date:</strong> {{ formatDate(enquiry.created_at) }}</v-col>
-              <v-col cols="12" md="6"><strong>Submitted By:</strong> {{ enquiry.username }}</v-col>
-            </v-row>
-
-            <!-- NPI Category -->
-            <v-row class="mt-4">
-              <v-col cols="12">
-                <h3 class="text-h6 mb-3">
-                  <v-icon class="mr-2">mdi-tag</v-icon>NPI Category
-                </h3>
-                <v-divider class="mb-4" />
-              </v-col>
-              <v-col cols="12">
-                <v-chip color="primary" size="large">{{ enquiry.npi_category }}</v-chip>
-              </v-col>
-            </v-row>
-
-            <!-- ── Dynamic sections from field_values ─────────────────────
-                 Each section renders using labels from the config store.
-                 Falls back gracefully when field metadata has been deleted.
-            -->
-            <template v-for="(sectionValues, sectionKey) in enquiry.field_values"
-                      :key="sectionKey">
-
-              <v-row v-if="hasValues(sectionValues)" class="mt-4">
-                <v-col cols="12">
-                  <h3 class="text-h6 mb-3">
-                    <v-icon class="mr-2">mdi-information</v-icon>
-                    {{ getSectionLabel(sectionKey) }}
-                  </h3>
-                  <v-divider class="mb-4" />
-                </v-col>
-                <v-col v-for="(value, fieldKey) in sectionValues"
-                       :key="fieldKey"
-                       cols="12" md="6">
-                  <span class="font-weight-medium">{{ getFieldLabel(sectionKey, fieldKey) }}:</span>
-                  {{ value || 'N/A' }}
-                </v-col>
-              </v-row>
-            </template>
-
-            <!-- ── Customer Reference — always preserved ──────────────── -->
-            <v-row v-if="enquiry.CustomerRef" class="mt-4">
-              <v-col cols="12">
-                <h3 class="text-h6 mb-3">
-                  <v-icon class="mr-2">mdi-file-tree</v-icon>Customer Reference
-                </h3>
-                <v-divider class="mb-4" />
-              </v-col>
-              <v-col cols="12" md="6">
-                <strong>Mould Ownership:</strong>
-                {{ enquiry.CustomerRef.mould_ownership || 'N/A' }}
-              </v-col>
-            </v-row>
-
-            <!-- Files -->
-            <v-row v-if="enquiry.Files?.length" class="mt-4">
-              <v-col cols="12">
-                <h3 class="text-h6 mb-3">
-                  <v-icon class="mr-2">mdi-paperclip</v-icon>Attached Files
-                </h3>
-                <v-divider class="mb-4" />
-              </v-col>
-              <v-col cols="12">
-                <v-list>
-                  <v-list-item v-for="file in enquiry.Files" :key="file.file_id">
-                    <v-list-item-title>{{ file.file_name }}</v-list-item-title>
-                    <template #append>
-                      <v-btn icon size="small" variant="text">
-                        <v-icon>mdi-download</v-icon>
-                      </v-btn>
-                    </template>
-                  </v-list-item>
-                </v-list>
-              </v-col>
-            </v-row>
-
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-
-    <!-- Start Project dialog (unchanged from original) -->
-    <v-dialog v-model="showStartProjectDialog" max-width="640" persistent>
+    <!-- Compacted Start Project Dialog -->
+    <v-dialog v-model="showStartProjectDialog" max-width="500" persistent scrollable>
       <v-card rounded="xl">
-        <v-card-title class="bg-primary pa-5">
+        <v-card-title class="bg-primary py-3 px-4">
           <div class="d-flex align-center ga-2 text-white">
             <v-icon>mdi-rocket-launch</v-icon>
             <div>
@@ -155,49 +109,44 @@
             </div>
           </div>
         </v-card-title>
-        <v-card-text class="pa-6">
-          <v-alert type="info" variant="tonal" density="compact" class="mb-5" rounded="lg">
-            Review project details. These can be changed later in Project Setup.
-          </v-alert>
+
+        <v-card-text class="pa-4">
           <v-row dense>
             <v-col cols="12">
               <v-text-field v-model="projectData.project_name" label="Project Name *"
-                            variant="outlined" density="comfortable" />
+                            variant="outlined" density="compact" hide-details="auto" class="mb-3" />
             </v-col>
-            <v-col cols="12" md="6" class="mt-4">
-              <v-select v-model="projectData.priority"
-                        :items="['Low','Medium','High','Critical']"
-                        label="Priority *" variant="outlined" density="comfortable" />
+            <v-col cols="12" sm="6">
+              <v-select v-model="projectData.priority" :items="['Low','Medium','High','Critical']"
+                        label="Priority *" variant="outlined" density="compact" hide-details="auto" class="mb-3" />
             </v-col>
-            <v-col cols="12" md="6" class="mt-4">
-              <v-text-field v-model="projectData.expected_completion"
-                            label="Expected Completion" type="date"
-                            variant="outlined" density="comfortable" />
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="projectData.expected_completion" label="Expected Completion" type="date"
+                            variant="outlined" density="compact" hide-details="auto" class="mb-3" />
             </v-col>
-            <v-col cols="12" class="mt-4">
+            <v-col cols="12">
               <v-textarea v-model="projectData.description" label="Project Description"
-                          variant="outlined" density="comfortable" rows="3" />
+                          variant="outlined" density="compact" hide-details="auto" rows="2" />
             </v-col>
           </v-row>
         </v-card-text>
-        <v-card-actions class="pa-5 pt-0">
+
+        <v-card-actions class="pa-4 pt-0">
           <v-spacer />
-          <v-btn variant="text" @click="showStartProjectDialog = false">Cancel</v-btn>
-          <v-btn color="success" variant="flat" rounded="lg"
-                 :loading="startingProject"
-                 :disabled="!projectData.project_name?.trim()"
-                 @click="startProject">
-            <v-icon start>mdi-check</v-icon>
+          <v-btn variant="text" density="comfortable" @click="showStartProjectDialog = false">Cancel</v-btn>
+          <v-btn color="success" variant="flat" rounded="lg" density="comfortable"
+                 :loading="startingProject" :disabled="!projectData.project_name?.trim()" @click="startProject">
             Create Project
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
+    <!-- Global Snackbar -->
     <v-snackbar v-model="snackbar" :color="snackbarColor" location="bottom right" rounded="lg">
       {{ snackbarMessage }}
       <template #actions>
-        <v-btn variant="text" @click="snackbar = false">Close</v-btn>
+        <v-btn variant="text" density="compact" @click="snackbar = false">Close</v-btn>
       </template>
     </v-snackbar>
   </v-container>
@@ -232,51 +181,34 @@
     project_name: '', priority: 'Medium', expected_completion: '', description: ''
   })
 
-  // ── Computed ──────────────────────────────────────────────────────────────────
-
+  // Start project conditional
   const canStartProject = computed(() => {
-    if (!enquiry.value) return false
-    if (enquiry.value.proj_id) return false
+    if (!enquiry.value || enquiry.value.proj_id) return false
     const s = enquiry.value.status
     const role = authStore.user?.role
-    return (s === 'Submitted' || s === 'Approved') &&
-      (role === 'Manager' || role === 'Admin')
+    return (s === 'Submitted' || s === 'Approved') && (role === 'Manager' || role === 'Admin')
   })
 
-  // ── Section / field label helpers ─────────────────────────────────────────────
-
+  // Formatting & Mapping Helpers
   function getSectionLabel(sectionKey) {
-    return configStore.sections.find(s => s.section_key === sectionKey)?.section_label
-      ?? sectionKey
+    return configStore.sections.find(s => s.section_key === sectionKey)?.section_label ?? sectionKey
   }
 
   function getFieldLabel(sectionKey, fieldKey) {
     const section = configStore.sections.find(s => s.section_key === sectionKey)
-    return section?.fields?.find(f => f.field_key === fieldKey)?.field_label
-      ?? fieldKey.replace(/_/g, ' ')
+    return section?.fields?.find(f => f.field_key === fieldKey)?.field_label ?? fieldKey.replace(/_/g, ' ')
   }
 
   function hasValues(sectionValues) {
     return Object.values(sectionValues).some(v => v !== null && v !== '')
   }
 
-  // ── Other helpers ─────────────────────────────────────────────────────────────
-
-  function getStatusColor(status) {
-    return {
-      Draft: 'warning', Submitted: 'info', Approved: 'success',
-      Rejected: 'error', Started: 'primary', 'In Progress': 'blue', Completed: 'green'
-    }[status] ?? 'grey'
-  }
-
   function formatDate(date) {
     if (!date) return 'N/A'
-    return new Date(date).toLocaleDateString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    })
+    return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
+  // API Call Actions
   async function downloadPDF() {
     downloadingPDF.value = true
     try { await enquiryStore.downloadEnquiryPDF(route.params.id) }
@@ -285,16 +217,11 @@
 
   function openStartProjectDialog() {
     const e = enquiry.value
-    const company = e?.field_values?.generalInfo?.company_name
-      ?? e?.customer_name
-      ?? ''
-    const category = e?.npi_category ?? ''
-    const reqDate = e?.field_values?.generalInfo?.estimated_required_date
-      ?? e?.field_values?.sealInfo?.estimated_required_date
-      ?? ''
+    const company = e?.field_values?.generalInfo?.company_name ?? e?.customer_name ?? ''
+    const reqDate = e?.field_values?.generalInfo?.estimated_required_date ?? ''
 
     projectData.value = {
-      project_name: [company, category].filter(Boolean).join(' - '),
+      project_name: [company, e?.npi_category].filter(Boolean).join(' - '),
       priority: 'Medium',
       description: '',
       expected_completion: reqDate
@@ -332,13 +259,24 @@
     snackbarMessage.value = msg; snackbarColor.value = color; snackbar.value = true
   }
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────────
-
+  // Initialization
   onMounted(async () => {
     loading.value = true
-    await configStore.fetchConfig()     // ensure labels are available for display
+    await configStore.fetchConfig()
     const result = await enquiryStore.fetchEnquiryById(route.params.id)
     if (result?.success) enquiry.value = result.data
     loading.value = false
   })
 </script>
+
+<style scoped>
+  .page-container {
+    height: 100vh !important;
+    overflow: hidden !important;
+    background-color: #f5f6f8;
+  }
+
+  .page-card {
+    border-radius: 8px;
+  }
+</style>

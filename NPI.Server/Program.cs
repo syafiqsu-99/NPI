@@ -5,6 +5,7 @@ using NPI.Server.Data;
 using NPI.Server.Hubs;
 using NPI.Server.Services;
 using System.Security.Claims;
+using System.Security.Principal;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);

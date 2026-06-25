@@ -108,7 +108,9 @@ namespace NPI.Server.Controllers
                 {
                     return Unauthorized(new { success = false, message = "Invalid user identity claim." });
                 }
-                var (success, message) = await _projectService.UpdateProjectAsync(id, dto, userId);
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
+
+                var (success, message) = await _projectService.UpdateProjectAsync(id, dto, userId, userRole);
 
                 if (!success)
                 {

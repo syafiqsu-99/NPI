@@ -7,7 +7,7 @@ namespace NPI.Server.Services
         Task<List<ProjectResponseDto>> GetAllProjectsAsync();
         Task<ProjectResponseDto?> GetProjectByIdAsync(int projectId);
         Task<(bool success, string message, int projId)> CreateProjectAsync(CreateProjectDto dto, int userId);
-        Task<(bool success, string message)> UpdateProjectAsync(int projectId, UpdateProjectDto dto, int userId);
+        Task<(bool success, string message)> UpdateProjectAsync(int projectId, UpdateProjectDto dto, int userId, string userRole);
         Task<(bool success, string message)> DeleteProjectAsync(int projectId);
         Task<(bool success, string message, int proj_id)> CreateProjectFromEnquiryAsync(int enquiryId, int userId, CreateProjectFromEnquiryDto? dto = null);
         Task<List<TaskResponseDto>> GetProjectTasksAsync(int projectId);

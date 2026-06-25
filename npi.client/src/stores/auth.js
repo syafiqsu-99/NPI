@@ -1,50 +1,55 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from '@/utils/api'
+import { SYSTEM_ROLES, PROJECT_ROLES, PROJECT_ROLE_HIERARCHY, DEPT_NAMES } from '@/utils/constants.js'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref(null)
-  const token = ref(localStorage.getItem('token') || null)
+  const user    = ref(null)
+  const token   = ref(localStorage.getItem('token') || null)
   const loading = ref(false)
-  const error = ref(null)
+  const error   = ref(null)
 
-  // ── System-level role (controls page/navigation access) ───────────────────
+  // ── System-level role ────────────────────────────────────────────────────
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
-  const currentUser = computed(() => user.value)
-  const userRole = computed(() => user.value?.role ?? 'Member')
-  const userDepartment = computed(() => user.value?.department)
-  const userDeptId = computed(() => user.value?.dept_id)
+  const currentUser     = computed(() => user.value)
+  const userRole        = computed(() => user.value?.role ?? SYSTEM_ROLES.MEMBER)
+  const userDepartment  = computed(() => user.value?.department)
+  const userDeptId      = computed(() => user.value?.dept_id)
+ 
+  const isAdmin   = computed(() => userRole.value === SYSTEM_ROLES.ADMIN)
+  const isManager = computed(() => userRole.value === SYSTEM_ROLES.MANAGER)
+  const isMember  = computed(() => userRole.value === SYSTEM_ROLES.MEMBER)
 
-  const isAdmin = computed(() => userRole.value === 'Admin')
-  const isManager = computed(() => userRole.value === 'Manager')
-  const isMember = computed(() => userRole.value === 'Member')
+  const isSalesUser = computed(() =>
+    user.value?.department === DEPT_NAMES.SALES
+  )
+
+  // ── Project-level role cache ─────────────────────────────────────────────
 
   const projectRoleCache = ref({})
 
-  const PROJECT_ROLE_HIERARCHY = ['Team Lead', 'Member', 'Viewer']
-
   function getProjectRole(projId) {
-    if (isAdmin.value || isManager.value) return 'Team Lead'
+    if (isAdmin.value || isManager.value) return PROJECT_ROLES.TEAM_LEAD
     return projectRoleCache.value[projId] ?? null
   }
 
   async function fetchProjectRole(projId) {
     if (!projId || !user.value) return null
     if (isAdmin.value || isManager.value) {
-      projectRoleCache.value[projId] = 'Team Lead'
-      return 'Team Lead'
+      projectRoleCache.value[projId] = PROJECT_ROLES.TEAM_LEAD
+      return PROJECT_ROLES.TEAM_LEAD
     }
     if (projectRoleCache.value[projId]) return projectRoleCache.value[projId]
 
     try {
       const result = await api.get(`/projectrole/${projId}/my-role`)
-      const role = result?.data?.role_name ?? 'Viewer'
+      const role = result?.data?.role_name ?? PROJECT_ROLES.VIEWER
       projectRoleCache.value[projId] = role
       return role
     } catch {
-      projectRoleCache.value[projId] = 'Viewer'
-      return 'Viewer'
+      projectRoleCache.value[projId] = PROJECT_ROLES.VIEWER
+      return PROJECT_ROLES.VIEWER
     }
   }
 
@@ -57,12 +62,33 @@ export const useAuthStore = defineStore('auth', () => {
     return userIdx >= 0 && minIdx >= 0 && userIdx <= minIdx
   }
 
-  // Convenience wrappers
-  const canEditProject = (projId) => hasProjectRole(projId, 'Team Lead')
-  const canEditTask = (projId) => hasProjectRole(projId, 'Member')
-  const canViewProject = (projId) => hasProjectRole(projId, 'Viewer')
+  // ── Shared permission helpers ────────────────────────────────────────────
+  const canStartProject = computed(() => isAdmin.value || isManager.value)
 
-  // ── Auth actions ──────────────────────────────────────────────────────────
+  const canCreateEnquiry = computed(
+    () => isAdmin.value || isManager.value || isSalesUser.value
+  )
+
+  function canDeleteEnquiry(enquiry) {
+    if (isAdmin.value || isManager.value) return true
+    return (
+      isSalesUser.value &&
+      enquiry.status === 'Draft' &&
+      Number(enquiry.created_by) === user.value?.user_id
+    )
+  }
+
+  function canManageProject(project) {
+    if (isAdmin.value || isManager.value) return true
+    return hasProjectRole(project.proj_id, PROJECT_ROLES.TEAM_LEAD)
+  }
+
+  // Convenience wrappers kept for backward compatibility with existing call sites.
+  const canEditProject  = (projId) => hasProjectRole(projId, PROJECT_ROLES.TEAM_LEAD)
+  const canEditTask     = (projId) => hasProjectRole(projId, PROJECT_ROLES.MEMBER)
+  const canViewProject  = (projId) => hasProjectRole(projId, PROJECT_ROLES.VIEWER)
+
+  // ── Auth actions ─────────────────────────────────────────────────────────
 
   async function login(username, password) {
     loading.value = true
@@ -82,9 +108,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
-    try {
-      await api.post('/auth/logout', {})
-    } catch { /* ignore */ }
+    try { await api.post('/auth/logout', {}) } catch { /* ignore */ }
     user.value = null
     token.value = null
     projectRoleCache.value = {}
@@ -124,24 +148,19 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    // State
     user, token, loading, error,
 
-    // System role computed
     isAuthenticated, currentUser, userRole,
     userDepartment, userDeptId,
-    isAdmin, isManager, isMember,
+    isAdmin, isManager, isMember, isSalesUser,
 
-    // Project role
     projectRoleCache,
-    getProjectRole,
-    fetchProjectRole,
-    hasProjectRole,
-    canEditProject,
-    canEditTask,
-    canViewProject,
+    getProjectRole, fetchProjectRole, hasProjectRole,
 
-    // Actions
+    canStartProject, canCreateEnquiry,
+    canDeleteEnquiry, canManageProject,
+    canEditProject, canEditTask, canViewProject,
+
     login, logout, checkAuth,
   }
 })

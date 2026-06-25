@@ -64,16 +64,16 @@ namespace NPI.Server.Services
                 .ToListAsync();
 
             if (!projects.Any())
-            {
                 return new List<ProjectResponseDto>();
-            }
 
             var projectIds = projects.Select(p => p.proj_id).ToList();
 
-            var allTasks = await _context.Tasks
-                .Where(t => projectIds.Contains(t.proj_id) && t.stage_id != null)
-                .Select(t => new { t.proj_id, t.stage_id, t.status })
-                .ToListAsync();
+            var allTasks = await (
+                from t in _context.Tasks
+                join p in _context.Projects on t.proj_id equals p.proj_id
+                where t.stage_id != null
+                select new { t.proj_id, t.stage_id, t.status }
+            ).ToListAsync();
 
             var tasksByProject = allTasks
                 .GroupBy(t => t.proj_id)
@@ -231,15 +231,10 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool success, string message)> UpdateProjectAsync(int projectId, UpdateProjectDto dto, int userId)
+        public async Task<(bool success, string message)> UpdateProjectAsync(int projectId, UpdateProjectDto dto, int userId, string userRole)
         {
             try
             {
-                var user = await _context.Users.FindAsync(userId);
-                if (user == null) return (false, "User not found.");
-
-                string userRole = user.Role?.role_name ?? "Member";
-
                 var (authorized, authMessage) = await ValidateProjectWriteAccessAsync(projectId, userId, userRole);
                 if (!authorized) return (false, authMessage);
 

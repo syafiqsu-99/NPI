@@ -179,11 +179,10 @@ namespace NPI.Server.Services
             if (!hasGlobalAccess)
             {
                 // Requirement 2: Member Role must fetch ONLY tasks belonging to projects assigned to them
-                var projectIds = await _context.ProjectTeams
+                var projectIds = _context.ProjectTeams
                     .Where(pt => pt.user_id == userId)
                     .Select(pt => pt.proj_id)
-                    .Distinct()
-                    .ToListAsync();
+                    .Distinct();
 
                 query = query.Where(t => projectIds.Contains(t.proj_id));
             }

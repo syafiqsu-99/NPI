@@ -205,12 +205,10 @@
         </v-window-item>
 
         <!-- ── CUSTOMERS ───────────────────────────────────────────────────── -->
-        <!-- FIX: Removed `d-flex flex-column` from v-window-item -->
         <v-window-item v-if="canManageFiles"
                        value="customers"
                        class="fill-height"
                        style="min-height:0; overflow:hidden;">
-          <!-- FIX: Added fill-height wrapper div so it layouts correctly inside -->
           <div class="fill-height d-flex flex-column" style="min-height:0; overflow:hidden;">
             <v-card-text class="flex-grow-1 pa-0 d-flex flex-column" style="min-height:0; overflow:hidden;">
 
@@ -421,6 +419,7 @@
   import { api } from '@/utils/api'
   import { useAuthStore } from '@/stores/auth'
   import { useCustomerStore } from '@/stores/customer'
+  import { formatSize, formatDate } from '@/utils/formatters'
 
   const authStore = useAuthStore()
   const customerStore = useCustomerStore()
@@ -431,7 +430,6 @@
   // ── Tab state ─────────────────────────────────────────────────────────────────
   const activeTab = ref('files')
 
-  // Guard: if the user somehow lands on 'customers' without permission, reset.
   watch(activeTab, (tab) => {
     if (tab === 'customers' && !canManageFiles.value) {
       activeTab.value = 'files'
@@ -817,18 +815,6 @@
         fileDeleteTarget.value = null
       }
     }
-  }
-
-  function formatSize(bytes) {
-    if (!bytes) return '0 B'
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`
-  }
-
-  function formatDate(d) {
-    if (!d) return 'N/A'
-    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
   function countFiles(node) {

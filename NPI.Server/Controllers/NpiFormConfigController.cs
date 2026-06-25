@@ -7,7 +7,7 @@ namespace NPI.Server.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize]
     public class NpiFormConfigController : ControllerBase
     {
         private readonly INpiFormConfigService _service;
@@ -18,7 +18,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpGet]
-        [Authorize]
         public async Task<IActionResult> GetFormConfig()
         {
             var config = await _service.GetFormConfigAsync();
