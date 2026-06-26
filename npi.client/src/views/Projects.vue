@@ -64,13 +64,13 @@
 
                       <!-- Priority Dropdown -->
                       <template #item.priority="{ item }">
-                        <v-menu :disabled="!canEditProject(item)">
+                        <v-menu :disabled="!authStore.canManageProject(item)">
                           <template #activator="{ props }">
                             <v-chip v-bind="props"
                                     :color="getPriorityColor(item.priority)"
                                     size="small" variant="tonal"
-                                    :class="canEditProject(item) ? 'cursor-pointer' : ''"
-                                    :title="canEditProject(item) ? 'Click to change priority' : ''">
+                                    :class="authStore.canManageProject(item) ? 'cursor-pointer' : ''"
+                                    :title="authStore.canManageProject(item) ? 'Click to change priority' : ''">
                               {{ item.priority }}
                             </v-chip>
                           </template>
@@ -84,18 +84,18 @@
 
                       <!-- Status Dropdown -->
                       <template #item.status="{ item }">
-                        <v-menu :disabled="!canEditProject(item)">
+                        <v-menu :disabled="!authStore.canManageProject(item)">
                           <template #activator="{ props }">
                             <v-chip v-bind="props"
                                     :color="getStatusColor(item.status)"
                                     size="small" variant="tonal"
-                                    :class="canEditProject(item) ? 'cursor-pointer' : ''"
-                                    :title="canEditProject(item) ? 'Click to change status' : ''">
+                                    :class="authStore.canManageProject(item) ? 'cursor-pointer' : ''"
+                                    :title="authStore.canManageProject(item) ? 'Click to change status' : ''">
                               {{ item.status }}
                             </v-chip>
                           </template>
                           <v-list density="compact">
-                            <v-list-item v-for="s in STATUS_OPTIONS" :key="s" @click="updateStatus(item, s)">
+                            <v-list-item v-for="s in PROJECT_STATUSES" :key="s" @click="updateStatus(item, s)">
                               <v-list-item-title>{{ s }}</v-list-item-title>
                             </v-list-item>
                           </v-list>
@@ -131,7 +131,7 @@
 
                       <template #item.actions="{ item }">
                         <!-- Setup/Manage -->
-                        <v-btn v-if="canManageProject(item)"
+                        <v-btn v-if="authStore.canManageProject(item)"
                                icon size="small" variant="text" color="primary"
                                @click="manageProject(item.proj_id)"
                                title="Project Setup">
@@ -154,7 +154,7 @@
                         </v-btn>
 
                         <!-- Delete (Admin only) -->
-                        <v-btn v-if="canDeleteProject(item)"
+                        <v-btn v-if="authStore.canDeleteProject"
                                icon size="small" variant="text" color="error"
                                @click="openDeleteProjectDialog(item)"
                                title="Delete Project">
@@ -209,46 +209,43 @@
   import { NPI_STAGES } from '@/stores/stageTemplate'
   import { api } from '@/utils/api'
   import { openProjectStatusEmail } from '@/utils/mailtoHelper'
+  import { PROJECT_STATUSES, PROJECT_STATUS_COLORS, PRIORITY_OPTIONS, PRIORITY_COLORS, STAGE_COLORS, STAGE_COLORS_HEX, STAGE_SHORT_NAMES } from '@/utils/constants'
+  import { formatDate } from '@/utils/formatters'
 
   import ProjectDetailDialog from '@/components/projects/ProjectDetailDialog.vue'
   import DeleteProjectDialog from '@/components/projects/DeleteProjectDialog.vue'
 
-  const router = useRouter()
+  const router       = useRouter()
   const projectStore = useProjectStore()
-  const authStore = useAuthStore()
-
-  const statusFilter = ref('all')
-  const search = ref('')
+  const authStore    = useAuthStore()
+ 
+  const statusFilter     = ref('all')
+  const search           = ref('')
   const showDetailDialog = ref(false)
-  const selectedProject = ref(null)
-
+  const selectedProject  = ref(null)
+ 
   const projectTeamMembers = ref([])
-  const projectRevisions = ref([])
-
+  const projectRevisions   = ref([])
+ 
   const deleteProjectDialog = ref(false)
   const deleteProjectTarget = ref(null)
-  const deletingProject = ref(false)
-
-  const snackbar = ref(false)
+  const deletingProject     = ref(false)
+ 
+  const snackbar        = ref(false)
   const snackbarMessage = ref('')
-  const snackbarColor = ref('success')
+  const snackbarColor   = ref('success')
 
-  const STATUS_OPTIONS = ['Planning', 'Not Started', 'In Progress', 'On Hold', 'Completed', 'Cancelled']
-  const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical']
-
-  const headers = [
-    { title: 'Project No', key: 'proj_no', sortable: true },
-    { title: 'Project Name', key: 'proj_name', sortable: true },
-    { title: 'Customer', key: 'customer_name', sortable: true },
-    { title: 'NPI Stages', key: 'stages', sortable: false, width: '220px' },
-    { title: 'Priority', key: 'priority', sortable: true },
-    { title: 'Status', key: 'status', sortable: true },
-    { title: 'Start Date', key: 'project_start_date', sortable: true },
-    { title: 'Target Date', key: 'target_completion_date', sortable: true },
-    { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '150px' }
+   const headers = [
+    { title: 'Project No',    key: 'proj_no',                   sortable: true },
+    { title: 'Project Name',  key: 'proj_name',                 sortable: true },
+    { title: 'Customer',      key: 'customer_name',             sortable: true },
+    { title: 'NPI Stages',    key: 'stages',                    sortable: false, width: '220px' },
+    { title: 'Priority',      key: 'priority',                  sortable: true },
+    { title: 'Status',        key: 'status',                    sortable: true },
+    { title: 'Start Date',    key: 'project_start_date',        sortable: true },
+    { title: 'Target Date',   key: 'target_completion_date',    sortable: true },
+    { title: 'Actions',       key: 'actions',                   sortable: false, align: 'center', width: '150px' },
   ]
-
-  const userRole = computed(() => authStore.user?.role || authStore.userRole)
 
   const filteredProjects = computed(() => {
     let list = projectStore.projects || []
@@ -256,103 +253,67 @@
     return list
   })
 
-  function canEditProject(project) {
-    if (['Admin', 'Manager'].includes(userRole.value)) return true
-    return authStore.hasProjectRole(project.proj_id, 'Team Lead')
-  }
+  // ── Status & priority updates ─────────────────────────────────────────────────
 
   async function updateStatus(project, newStatus) {
     if (project.status === newStatus) return
-
     try {
       const result = await api.put(`/project/${project.proj_id}/status`, { status: newStatus })
-
       if (result?.success || result?.data?.success) {
-        project.status = newStatus
-
+        project.status        = newStatus
         snackbarMessage.value = `Status updated to "${newStatus}"`
-        snackbarColor.value = 'success'
-        snackbar.value = true
-
-        // Trigger mail draft for all meaningful status transitions
+        snackbarColor.value   = 'success'
+        snackbar.value        = true
+ 
         const notifyOn = ['In Progress', 'On Hold', 'Completed', 'Cancelled']
         if (notifyOn.includes(newStatus)) {
-
-          // Ensure team_members with emails are loaded
           let fullProject = project
           if (!project.team_members?.some(m => m.email)) {
             try {
               const detail = await api.get(`/project/${project.proj_id}`)
               fullProject = detail?.data ?? project
-            } catch {
-              // Non-critical — mail will open without CC if this fails
-            }
+            } catch { /* non-critical */ }
           }
-
-          // Pass the full authStore.currentUser so the utility reads .email directly
           openProjectStatusEmail(fullProject, newStatus, authStore.currentUser)
         }
-
       } else {
         snackbarMessage.value = result?.message ?? 'Failed to update status'
-        snackbarColor.value = 'error'
-        snackbar.value = true
+        snackbarColor.value   = 'error'
+        snackbar.value        = true
       }
     } catch (err) {
-      console.error('updateStatus:', err)
       snackbarMessage.value = 'An error occurred'
-      snackbarColor.value = 'error'
-      snackbar.value = true
+      snackbarColor.value   = 'error'
+      snackbar.value        = true
     }
   }
 
   async function updatePriority(project, newPriority) {
-    if (project.priority === newPriority) return;
+    if (project.priority === newPriority) return
     try {
       const payload = {
-        proj_name: project.proj_name,
-        description: project.description,
-        dept_id: project.dept_id,
-        priority: newPriority,
-        status: project.status,
-        project_start_date: project.project_start_date,
-        target_completion_date: project.target_completion_date
-      };
-      const result = await api.put(`/project/${project.proj_id}`, payload);
+        proj_name:               project.proj_name,
+        description:             project.description,
+        dept_id:                 project.dept_id,
+        priority:                newPriority,
+        status:                  project.status,
+        project_start_date:      project.project_start_date,
+        target_completion_date:  project.target_completion_date,
+      }
+      const result = await api.put(`/project/${project.proj_id}`, payload)
       if (result?.success || result?.data?.success) {
-        project.priority = newPriority;
-        snackbarMessage.value = 'Project priority updated';
-        snackbarColor.value = 'success';
+        project.priority      = newPriority
+        snackbarMessage.value = 'Project priority updated'
+        snackbarColor.value   = 'success'
       } else {
-        snackbarMessage.value = result?.message || 'Failed to update priority';
-        snackbarColor.value = 'error';
+        snackbarMessage.value = result?.message || 'Failed to update priority'
+        snackbarColor.value   = 'error'
       }
     } catch (err) {
-      snackbarMessage.value = err?.response?.data?.message || 'Unauthorized or server error';
-      snackbarColor.value = 'error';
+      snackbarMessage.value = err?.response?.data?.message || 'Unauthorized or server error'
+      snackbarColor.value   = 'error'
     }
-    snackbar.value = true;
-  }
-
-  const STAGE_SHORT = {
-    '0.0': 'Enquiry', '1.0': 'Proj Start', '2.0': 'Pilot Mould',
-    '3.0': 'Machine', '4.0': 'Prod Mould', '5.0': 'Trial JJ'
-  }
-
-  const STAGE_COLORS_MAP = {
-    '0.0': '#607D8B', '1.0': '#1976D2', '2.0': '#7B1FA2',
-    '3.0': '#00796B', '4.0': '#303F9F', '5.0': '#E64A19'
-  }
-
-  function formatDate(date) {
-    if (!date) return 'N/A'
-    if (typeof date === 'string') {
-      const parts = date.split('-')
-      if (parts.length === 3)
-        return new Date(parts[0], parts[1] - 1, parts[2])
-          .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    }
-    return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    snackbar.value = true
   }
 
   function getProjectStages(project) {
@@ -367,9 +328,13 @@
       let status = 'pending'
       if (progress?.completed) status = 'completed'
       else if (progress?.in_progress) status = 'active'
-      else if (!NPI_STAGES[id].required &&
-        !project.pilot_mould_required && !project.machine_purchase_required) status = 'skipped'
-      return { id, name: NPI_STAGES[id].name, shortName: STAGE_SHORT[id] || id, status, color: STAGE_COLORS_MAP[id] || '#9E9E9E' }
+      return {
+        id,
+        name:      NPI_STAGES[id].name,
+        shortName: STAGE_SHORT_NAMES[id] || id,
+        status,
+        color:     STAGE_COLORS_HEX[id] || '#9E9E9E',
+      }
     })
   }
 
@@ -379,27 +344,12 @@
     if (stage.status === 'skipped') return '#BDBDBD'
     return '#E0E0E0'
   }
-
-  function canManageProject(project) {
-    if (['Admin', 'Manager'].includes(userRole.value)) return true
-    if (!['Planning', 'In Progress'].includes(project.status)) return false
-    return authStore.hasProjectRole(project.proj_id, 'Team Lead')
-  }
-
-  function canDeleteProject() {
-    return ['Admin', 'Manager'].includes(userRole.value)
-  }
-
-  function getStatusColor(status) {
-    return { 'Planning': 'info', 'In Progress': 'primary', 'On Hold': 'warning', 'Completed': 'success', 'Cancelled': 'error' }[status] || 'grey'
-  }
-
-  function getPriorityColor(priority) {
-    return { 'Low': 'success', 'Medium': 'info', 'High': 'warning', 'Critical': 'error' }[priority] || 'grey'
-  }
-
+ 
+  function getStatusColor(status)  { return PROJECT_STATUS_COLORS[status] || 'grey' }
+  function getPriorityColor(p)     { return PRIORITY_COLORS[p] || 'grey' }
+ 
   function manageProject(projId) { router.push(`/projects/${projId}/setup`) }
-  function viewGantt(projId) { router.push(`/projects/${projId}/gantt`) }
+  function viewGantt(projId)     { router.push(`/projects/${projId}/gantt`) }
 
   async function loadProjectDetails(projectId) {
     try {
@@ -407,14 +357,13 @@
       if (result?.success && result.data) {
         const project = result.data
         projectTeamMembers.value = project.team_members || []
-        projectRevisions.value = (project.revisions || [])
+        projectRevisions.value   = (project.revisions || [])
           .sort((a, b) => new Date(b.revision_date) - new Date(a.revision_date))
       }
-    } catch (err) {
-      console.error('Error loading project details:', err)
+    } catch {
       snackbarMessage.value = 'Failed to load project details'
-      snackbarColor.value = 'error'
-      snackbar.value = true
+      snackbarColor.value   = 'error'
+      snackbar.value        = true
     }
   }
 
@@ -433,20 +382,20 @@
     if (!deleteProjectTarget.value) return
     deletingProject.value = true
     const result = await projectStore.deleteProject(deleteProjectTarget.value.proj_id)
-    deletingProject.value = false
+    deletingProject.value     = false
     deleteProjectDialog.value = false
-    snackbarMessage.value = result.success ? 'Project deleted successfully' : `Error: ${result.message}`
-    snackbarColor.value = result.success ? 'success' : 'error'
-    snackbar.value = true
+    snackbarMessage.value     = result.success ? 'Project deleted successfully' : `Error: ${result.message}`
+    snackbarColor.value       = result.success ? 'success' : 'error'
+    snackbar.value            = true
     deleteProjectTarget.value = null
   }
-
+ 
   onMounted(async () => {
     const result = await projectStore.fetchProjects()
     if (!result.success) {
       snackbarMessage.value = result.message || 'Failed to load projects'
-      snackbarColor.value = 'error'
-      snackbar.value = true
+      snackbarColor.value   = 'error'
+      snackbar.value        = true
       return
     }
     await Promise.all(

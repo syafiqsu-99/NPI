@@ -224,13 +224,13 @@
   const downloadingPDF = ref(false)
 
   const headers = [
-    { title: '', key: 'project_indicator', sortable: false, align: 'center', width: '52px' },
-    { title: 'Enquiry No', key: 'enquiry_no', sortable: true },
+    { title: '',             key: 'project_indicator', sortable: false, align: 'center', width: '52px' },
+    { title: 'Enquiry No',  key: 'enquiry_no',   sortable: true },
     { title: 'NPI Category', key: 'npi_category', sortable: true },
-    { title: 'Status', key: 'status', sortable: true },
-    { title: 'Created By', key: 'created_by', sortable: true },
-    { title: 'Created Date', key: 'created_at', sortable: true },
-    { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '190px' },
+    { title: 'Status',      key: 'status',        sortable: true },
+    { title: 'Created By',  key: 'created_by',    sortable: true },
+    { title: 'Created Date', key: 'created_at',   sortable: true },
+    { title: 'Actions',     key: 'actions',       sortable: false, align: 'center', width: '190px' },
   ]
 
   // ── Permission helpers ──────────────────────────────────────────────────────
@@ -242,12 +242,13 @@
   }
 
   function canEditEnquiry(enquiry) {
+    if (enquiry.status !== 'Draft') return false
+
     if (!authStore.canCreateEnquiry) return false
+
     if (authStore.isAdmin || authStore.isManager) return true
-    return (
-      enquiry.status === 'Draft' &&
-      Number(enquiry.created_by) === authStore.user?.user_id
-    )
+
+    return Number(enquiry.created_by) === authStore.user?.user_id
   }
 
   // ── Status colour ───────────────────────────────────────────────────────────
@@ -292,7 +293,7 @@
   // ── Navigation ──────────────────────────────────────────────────────────────
 
   function viewEnquiryDetail(id) { router.push(`/enquiries/${id}/detail`) }
-  function editEnquiry(id) { router.push(`/enquiries/${id}/edit`) }
+  function editEnquiry(id)       { router.push(`/enquiries/${id}/edit`) }
 
   // ── Delete ──────────────────────────────────────────────────────────────────
 

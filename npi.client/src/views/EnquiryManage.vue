@@ -159,23 +159,25 @@
   import { useProjectStore } from '@/stores/project'
   import { useAuthStore } from '@/stores/auth'
   import { useNpiFormConfigStore } from '@/stores/npiFormConfig'
+  import { ENQUIRY_STATUS_COLORS } from '@/utils/constants'
+  import { formatDate } from '@/utils/formatters'
 
-  const route = useRoute()
-  const router = useRouter()
+  const route        = useRoute()
+  const router       = useRouter()
   const enquiryStore = useEnquiryStore()
   const projectStore = useProjectStore()
-  const authStore = useAuthStore()
-  const configStore = useNpiFormConfigStore()
-
-  const loading = ref(false)
+  const authStore    = useAuthStore()
+  const configStore  = useNpiFormConfigStore()
+ 
+  const loading        = ref(false)
   const downloadingPDF = ref(false)
-  const enquiry = ref(null)
-
+  const enquiry        = ref(null)
+ 
   const showStartProjectDialog = ref(false)
-  const startingProject = ref(false)
-  const snackbar = ref(false)
-  const snackbarMessage = ref('')
-  const snackbarColor = ref('success')
+  const startingProject        = ref(false)
+  const snackbar               = ref(false)
+  const snackbarMessage        = ref('')
+  const snackbarColor          = ref('success')
 
   const projectData = ref({
     project_name: '', priority: 'Medium', expected_completion: '', description: ''
@@ -185,8 +187,7 @@
   const canStartProject = computed(() => {
     if (!enquiry.value || enquiry.value.proj_id) return false
     const s = enquiry.value.status
-    const role = authStore.user?.role
-    return (s === 'Submitted' || s === 'Approved') && (role === 'Manager' || role === 'Admin')
+    return (s === 'Submitted' || s === 'Approved') && authStore.canStartProject
   })
 
   // Formatting & Mapping Helpers
@@ -201,11 +202,6 @@
 
   function hasValues(sectionValues) {
     return Object.values(sectionValues).some(v => v !== null && v !== '')
-  }
-
-  function formatDate(date) {
-    if (!date) return 'N/A'
-    return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
   // API Call Actions

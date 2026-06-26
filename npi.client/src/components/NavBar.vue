@@ -14,15 +14,11 @@
       <v-list-item to="/projects" title="Projects" prepend-icon="mdi-folder-multiple" />
       <v-list-item to="/tasks" title="Tasks" prepend-icon="mdi-check-circle" />
       <v-list-item to="/files" title="Files" prepend-icon="mdi-file-document" />
-
       <v-list-item v-if="authStore.isAdmin || authStore.isManager"
-                   to="/settings"
-                   title="Settings"
-                   prepend-icon="mdi-cog" />
+                   to="/settings" title="Settings" prepend-icon="mdi-cog" />
     </v-list>
 
     <template #append>
-      <!-- Notifications bell -->
       <v-menu v-model="notifMenu" :close-on-content-click="false" location="end">
         <template #activator="{ props }">
           <v-list-item v-bind="props" title="Notifications">
@@ -44,16 +40,16 @@
           <v-divider />
           <v-list density="compact" style="max-height: 420px; overflow-y: auto;">
             <v-list-item v-if="notifications.length === 0">
-              <v-list-item-title class="text-caption text-grey">
-                No new notifications
-              </v-list-item-title>
+              <v-list-item-title class="text-caption text-grey">No new notifications</v-list-item-title>
             </v-list-item>
             <v-list-item v-for="n in notifications"
                          :key="n.notif_id"
                          :class="{ 'bg-blue-lighten-5': !n.is_read }"
                          @click="openNotif(n)">
               <template #prepend>
-                <v-icon :color="typeColor(n.type)" size="small">{{ typeIcon(n.type) }}</v-icon>
+                <v-icon :color="NOTIFICATION_COLORS[n.type] ?? 'grey'" size="small">
+                  {{ NOTIFICATION_ICONS[n.type] ?? 'mdi-bell' }}
+                </v-icon>
               </template>
               <v-list-item-title class="text-body-2">{{ n.title }}</v-list-item-title>
               <v-list-item-subtitle class="text-caption">
@@ -81,6 +77,8 @@
   import { useRouter } from 'vue-router'
   import { useAuthStore } from '@/stores/auth'
   import { api } from '@/utils/api'
+  import { NOTIFICATION_COLORS, NOTIFICATION_ICONS } from '@/utils/constants'
+  import { formatTimeAgo } from '@/utils/formatters'
   import * as signalR from '@microsoft/signalr'
 
   const router = useRouter()
@@ -92,10 +90,7 @@
 
   let pollInterval = null
   let hubConnection = null
-  let retryCount = 0
-  const MAX_RETRIES = 5
 
-  // ── Load notifications from API ───────────────────────────────────────────────
   async function loadNotifications() {
     if (!authStore.isAuthenticated) return
     try {
@@ -105,7 +100,6 @@
     } catch { /* ignore polling errors */ }
   }
 
-  // ── Mark all read ─────────────────────────────────────────────────────────────
   async function markAll() {
     try {
       await api.post('/notification/mark-all-read', {})
@@ -114,7 +108,6 @@
     } catch { /* ignore */ }
   }
 
-  // ── Open single notification ──────────────────────────────────────────────────
   async function openNotif(notification) {
     if (!notification.is_read) {
       try {
@@ -124,9 +117,7 @@
       } catch { /* ignore */ }
     }
     notifMenu.value = false
-    if (notification.proj_id) {
-      router.push(`/projects/${notification.proj_id}/gantt`)
-    }
+    if (notification.proj_id) router.push(`/projects/${notification.proj_id}/gantt`)
   }
 
   async function connectSignalR() {
@@ -140,20 +131,16 @@
           signalR.HttpTransportType.LongPolling,
       })
       .withAutomaticReconnect({
-        nextRetryDelayInMilliseconds: (retryContext) => {
-          const delay = Math.min(2 ** retryContext.previousRetryCount * 1000, 30000)
-          return delay
-        }
+        nextRetryDelayInMilliseconds: (ctx) =>
+          Math.min(2 ** ctx.previousRetryCount * 1000, 30000),
       })
       .configureLogging(
         import.meta.env.DEV ? signalR.LogLevel.Information : signalR.LogLevel.Warning
       )
       .build()
 
-
     hubConnection.on('NewNotification', payload => {
       unreadCount.value += 1
-
       notifications.value.unshift({
         notif_id: payload.notif_id ?? Date.now(),
         type: payload.type ?? 'info',
@@ -162,31 +149,22 @@
         is_read: false,
         proj_id: payload.proj_id ?? null,
         task_id: payload.task_id ?? null,
-        created_at: payload.created_at ?? new Date().toISOString()
+        created_at: payload.created_at ?? new Date().toISOString(),
       })
-
       if (notifications.value.length > 50) {
         notifications.value = notifications.value.slice(0, 50)
       }
     })
 
-    hubConnection.onreconnected(() => {
-      loadNotifications()
-    })
+    hubConnection.onreconnected(() => loadNotifications())
 
     hubConnection.onclose(() => {
-      if (!pollInterval) {
-        pollInterval = setInterval(loadNotifications, 30_000)
-      }
+      if (!pollInterval) pollInterval = setInterval(loadNotifications, 30_000)
     })
 
     try {
       await hubConnection.start()
-      retryCount = 0
-      if (pollInterval) {
-        clearInterval(pollInterval)
-        pollInterval = null
-      }
+      if (pollInterval) { clearInterval(pollInterval); pollInterval = null }
     } catch (err) {
       console.warn('[SignalR] Initial connection failed — relying on polling:', err?.message ?? err)
     }
@@ -200,56 +178,6 @@
 
   defineExpose({ joinProjectGroup })
 
-  // ── Helpers ───────────────────────────────────────────────────────────────────
-  function typeColor(type) {
-    const map = {
-      handover: 'blue',
-      stage_complete: 'success',
-      overdue: 'error',
-      planning_stuck: 'warning',
-      project_launch: 'primary',
-      fai_complete: 'success',
-      date_revised: 'warning',
-      file_milestone: 'info',
-      task_assigned: 'primary',
-      approval_stalled: 'error',
-      project_active: 'primary',
-      project_on_hold: 'warning',
-      project_complete: 'success',
-      project_cancelled: 'error'
-    }
-    return map[type] ?? 'grey'
-  }
-
-  function typeIcon(type) {
-    const map = {
-      handover: 'mdi-hand-pointing-right',
-      stage_complete: 'mdi-check-all',
-      overdue: 'mdi-alert-circle',
-      planning_stuck: 'mdi-clock-alert',
-      project_launch: 'mdi-rocket-launch',
-      fai_complete: 'mdi-flask-check',
-      date_revised: 'mdi-calendar-edit',
-      file_milestone: 'mdi-file-multiple',
-      task_assigned: 'mdi-clipboard-account',
-      approval_stalled: 'mdi-timer-alert',
-      project_active: 'mdi-play-circle',
-      project_on_hold: 'mdi-pause-circle',
-      project_complete: 'mdi-check-circle',
-      project_cancelled: 'mdi-close-circle'
-    }
-    return map[type] ?? 'mdi-bell'
-  }
-
-  function formatTimeAgo(dateStr) {
-    if (!dateStr) return ''
-    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
-    if (diff < 60) return 'just now'
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-    return `${Math.floor(diff / 86400)}d ago`
-  }
-
   async function handleLogout() {
     if (hubConnection) {
       await hubConnection.stop().catch(() => { })
@@ -259,13 +187,10 @@
     router.push('/login')
   }
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────────
   onMounted(async () => {
     if (authStore.token) await authStore.checkAuth()
-
     await loadNotifications()
     await connectSignalR()
-
     pollInterval = setInterval(loadNotifications, 5 * 60 * 1000)
   })
 

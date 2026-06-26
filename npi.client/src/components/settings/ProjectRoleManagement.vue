@@ -112,7 +112,7 @@
                   <v-btn icon="mdi-dots-vertical" size="small" variant="text" v-bind="props" />
                 </template>
                 <v-list density="compact" min-width="160">
-                  <v-list-item v-for="role in PROJECT_ROLES" :key="role"
+                  <v-list-item v-for="role in PROJECT_ROLE_OPTIONS" :key="role"
                                :disabled="item.role === role"
                                @click="changeRole(item, role)">
                     <template #prepend>
@@ -177,7 +177,7 @@
                           density="comfortable"
                           class="mb-3" />
           <v-select v-model="assignForm.role_name"
-                    :items="PROJECT_ROLES"
+                    :items="PROJECT_ROLE_OPTIONS"
                     label="Project Role *"
                     variant="outlined"
                     density="comfortable" />
@@ -229,8 +229,7 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { api } from '@/utils/api'
-
-  const PROJECT_ROLES = ['Team Lead', 'Member', 'Viewer']
+  import { PROJECT_ROLE_OPTIONS } from '@/utils/constants'
 
   // ── State ─────────────────────────────────────────────────────────────────────
   const projects = ref([])

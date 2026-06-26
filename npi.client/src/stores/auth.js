@@ -65,6 +65,8 @@ export const useAuthStore = defineStore('auth', () => {
   // ── Shared permission helpers ────────────────────────────────────────────
   const canStartProject = computed(() => isAdmin.value || isManager.value)
 
+  const canDeleteProject = computed(() => isAdmin.value || isManager.value)
+
   const canCreateEnquiry = computed(
     () => isAdmin.value || isManager.value || isSalesUser.value
   )
@@ -160,6 +162,7 @@ export const useAuthStore = defineStore('auth', () => {
     canStartProject, canCreateEnquiry,
     canDeleteEnquiry, canManageProject,
     canEditProject, canEditTask, canViewProject,
+    canDeleteProject,
 
     login, logout, checkAuth,
   }

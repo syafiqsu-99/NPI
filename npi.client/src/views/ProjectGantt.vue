@@ -37,13 +37,13 @@
                 </v-col>
                 <v-col cols="auto" class="mr-6">
                   <div class="text-caption text-grey-darken-1 lh-tight">Status</div>
-                  <v-chip :color="PROJECT_STATUS_COLORS(project?.status)" size="x-small" variant="tonal" class="mt-1">
+                  <v-chip :color="PROJECT_STATUS_COLORS[project?.status] || 'grey'" size="x-small" variant="tonal" class="mt-1">
                     {{ project?.status }}
                   </v-chip>
                 </v-col>
                 <v-col cols="auto" class="mr-6">
                   <div class="text-caption text-grey-darken-1 lh-tight">Priority</div>
-                  <v-chip :color="PRIORITY_COLORS(project?.priority)" size="x-small" variant="tonal" class="mt-1">
+                  <v-chip :color="PRIORITY_COLORS[project?.priority] || 'grey'" size="x-small" variant="tonal" class="mt-1">
                     {{ project?.priority }}
                   </v-chip>
                 </v-col>
@@ -104,15 +104,13 @@
                 <!-- Task column -->
                 <template #item.title="{ item }">
                   <div v-if="item.rowType === 'stage-header'" class="stage-header-cell d-flex align-center pr-2">
-                    <v-chip :color="STAGE_COLORS(item.stage_id)" size="small" variant="tonal" class="mr-2 font-weight-bold">
+                    <v-chip :color="STAGE_COLORS[item.stage_id] || 'primary'" size="small" variant="tonal" class="mr-2 font-weight-bold">
                       {{ item.stage_id }}
                     </v-chip>
                     <span class="font-weight-medium" style="color: #37474F;">{{ item.stageName }}</span>
                   </div>
                   <div v-else class="d-flex align-center ga-1 py-1 pr-2">
-                    <v-chip v-if="item.task_code"
-                            :color="STAGE_COLORS(item.stage_id)"
-                            size="x-small" variant="tonal" class="font-weight-bold flex-shrink-0">
+                    <v-chip v-if="item.task_code" :color="STAGE_COLORS[item.stage_id] || 'primary'" size="x-small" variant="tonal" class="font-weight-bold flex-shrink-0">
                       {{ item.task_code }}
                     </v-chip>
                     <span class="text-body-2 font-weight-medium text-truncate" style="max-width:160px" :title="item.title">{{ item.title }}</span>

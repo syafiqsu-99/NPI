@@ -245,7 +245,6 @@
     return true
   }
 
-  // Compile payload matching backend requirements
   function buildPayload() {
     const payloadFieldValues = JSON.parse(JSON.stringify(formData.value.field_values))
     let compName = 'TBD'
@@ -254,13 +253,11 @@
       for (const field of (section.fields || [])) {
         const currentVal = payloadFieldValues[section.section_key]?.[field.field_key]
 
-        // Map custom 'Others' inputs
         if (field.field_type === 'select' && currentVal === 'Others') {
           const customVal = customOthers.value[`${section.section_key}_${field.field_key}`]
           payloadFieldValues[section.section_key][field.field_key] = (customVal && customVal.trim() !== '') ? customVal.trim() : ''
         }
 
-        // Extract company name if field_key exists
         if ((field.field_key === 'company_name' || field.field_key === 'customer_name') && currentVal) {
           compName = String(currentVal).trim()
         }
@@ -273,7 +270,6 @@
       CustomerRef: { mould_ownership: formData.value.CustomerRef.mould_ownership }
     }
 
-    // Pass valid customer reference for backend mapping
     if (formData.value.cust_id) {
       payload.cust_id = formData.value.cust_id
     } else {
@@ -297,7 +293,6 @@
       fd.append('file', file)
       fd.append('enquiry_id', enquiryId)
       fd.append('proj_id', 0)
-      fd.append('customer_name', 'N/A')
 
       try {
         await api.uploadFile(`/file/upload-single`, fd)

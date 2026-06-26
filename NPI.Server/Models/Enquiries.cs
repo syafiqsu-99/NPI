@@ -3,12 +3,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace NPI.Server.Models
 {
-    /// <summary>
-    /// Core enquiry entity. Dynamic field answers now live in EnquiryFieldValues.
-    /// EnquiryCustomerRef is preserved as a separate table per business requirements.
-    /// Legacy EnquiryGeneralInfo and EnquirySealInfo navigation properties are removed
-    /// after the data migration SQL script has been run.
-    /// </summary>
     public class Enquiries
     {
         [Key]
@@ -34,8 +28,6 @@ namespace NPI.Server.Models
         public int? updated_by { get; set; }
         public DateTime? submitted_at { get; set; }
 
-        // ── Navigation ────────────────────────────────────────────────────────
-
         [ForeignKey("proj_id")]
         public virtual Projects? Project { get; set; }
 
@@ -45,13 +37,8 @@ namespace NPI.Server.Models
         [ForeignKey("cust_id")]
         public virtual Customers? Customer { get; set; }
 
-        /// <summary>Dynamic form answers — the new system.</summary>
         public virtual ICollection<EnquiryFieldValues>? FieldValues { get; set; }
 
-        /// <summary>
-        /// Customer reference info (mould ownership, etc.).
-        /// Preserved as a distinct table per business requirement.
-        /// </summary>
         public virtual EnquiryCustomerRef? CustomerRef { get; set; }
 
         public virtual ICollection<Files>? Files { get; set; }

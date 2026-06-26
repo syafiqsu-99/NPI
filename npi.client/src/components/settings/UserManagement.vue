@@ -24,7 +24,7 @@
                       label="Department" variant="outlined"
                       density="compact" clearable hide-details />
           </v-col>
-          <v-col v-if="isAdmin" cols="6" sm="2">
+          <v-col v-if="authStore.isAdmin" cols="6" sm="2">
             <v-select v-model="filterRole"
                       :items="roles"
                       item-title="role_name" item-value="role_id"
@@ -78,7 +78,7 @@
         </template>
 
         <template #item.role_name="{ item }">
-          <v-chip v-if="isAdmin" size="small" variant="tonal"
+          <v-chip v-if="authStore.isAdmin" size="small" variant="tonal"
                   :color="getRoleColor(item.role_name)">
             <v-icon start size="small">{{ getRoleIcon(item.role_name) }}</v-icon>
             {{ item.role_name || 'None' }}
@@ -122,7 +122,7 @@
                 <v-list-item-title>{{ item.is_active ? 'Deactivate' : 'Activate' }}</v-list-item-title>
               </v-list-item>
               <v-divider />
-              <v-list-item v-if="isAdmin"
+              <v-list-item v-if="authStore.isAdmin"
                            :disabled="item.user_id === currentUserId"
                            @click="openDeleteDialog(item)">
                 <template #prepend>
@@ -179,7 +179,7 @@
                           label="Department" prepend-inner-icon="mdi-domain"
                           variant="outlined" density="comfortable" clearable />
               </v-col>
-              <v-col v-if="isAdmin" cols="12" md="6">
+              <v-col v-if="authStore.isAdmin" cols="12" md="6">
                 <v-select v-model="userFormData.role_id"
                           :items="rolesForAssignment"
                           item-title="role_name" item-value="role_id"
@@ -272,116 +272,106 @@
   import { ref, computed, onMounted } from 'vue'
   import { useAuthStore } from '@/stores/auth'
   import { useSettingsStore } from '@/stores/setting.js'
+  import { SYSTEM_ROLES, SYSTEM_ROLE_COLORS, SYSTEM_ROLE_ICONS } from '@/utils/constants'
+  import { formatDate, getInitials } from '@/utils/formatters'
 
-  const props = defineProps({ isAdmin: Boolean })
+  defineProps({ isAdmin: Boolean })
 
   const authStore = useAuthStore()
   const settingsStore = useSettingsStore()
 
-  const loading = ref(false)
-  const saving = ref(false)
-  const userDialog = ref(false)
+  const loading             = ref(false)
+  const saving              = ref(false)
+  const userDialog          = ref(false)
   const resetPasswordDialog = ref(false)
-  const deleteDialog = ref(false)
-  const editMode = ref(false)
-  const formValid = ref(false)
-  const showPassword = ref(false)
-  const showNewPassword = ref(false)
-  const search = ref('')
-  const filterDept = ref(null)
-  const filterRole = ref(null)
-  const filterStatus = ref(null)
-  const newPassword = ref('')
-  const confirmPassword = ref('')
-  const selectedUser = ref(null)
-  const snackbar = ref(false)
-  const snackbarMessage = ref('')
-  const snackbarColor = ref('success')
+  const deleteDialog        = ref(false)
+  const editMode            = ref(false)
+  const formValid           = ref(false)
+  const showPassword        = ref(false)
+  const showNewPassword     = ref(false)
+  const search              = ref('')
+  const filterDept          = ref(null)
+  const filterRole          = ref(null)
+  const filterStatus        = ref(null)
+  const newPassword         = ref('')
+  const confirmPassword     = ref('')
+  const selectedUser        = ref(null)
+  const snackbar            = ref(false)
+  const snackbarMessage     = ref('')
+  const snackbarColor       = ref('success')
 
   const userFormData = ref({
     username: '', password: '', full_name: '', email: '',
-    dept_id: null, role_id: null, is_active: true
+    dept_id: null, role_id: null, is_active: true,
   })
-
-  const isAdmin = computed(() => authStore.user?.role === 'Admin')
+ 
   const currentUserId = computed(() => authStore.currentUser?.user_id)
-  const departments = computed(() => settingsStore.departments)
-  const roles = computed(() => settingsStore.roles)
+  const departments   = computed(() => settingsStore.departments)
+  const roles         = computed(() => settingsStore.roles)
 
   const rolesForAssignment = computed(() =>
-    isAdmin.value ? roles.value : roles.value.filter(r => r.role_name !== 'Admin')
+    authStore.isAdmin
+      ? roles.value
+      : roles.value.filter(r => r.role_name !== SYSTEM_ROLES.ADMIN)
   )
 
   const visibleHeaders = computed(() => {
     const h = [
-      { title: 'User', value: 'username', width: '28%' },
-      { title: 'Email', value: 'email', width: '20%' },
-      { title: 'Department', value: 'dept_name', width: '14%' },
-      { title: 'Status', value: 'is_active', width: '10%' },
-      { title: 'Created', value: 'created_at', width: '12%' },
-      { title: '', value: 'actions', width: '6%', sortable: false }
+      { title: 'User',       value: 'username',   width: '28%' },
+      { title: 'Email',      value: 'email',      width: '20%' },
+      { title: 'Department', value: 'dept_name',  width: '14%' },
+      { title: 'Status',     value: 'is_active',  width: '10%' },
+      { title: 'Created',    value: 'created_at', width: '12%' },
+      { title: '',           value: 'actions',    width: '6%',  sortable: false },
     ]
-    if (isAdmin.value)
+    if (authStore.isAdmin) {
       h.splice(3, 0, { title: 'Role', value: 'role_name', width: '12%' })
+    }
     return h
   })
 
   // Simplified filter: single computed pass over the user list
   const filteredUsers = computed(() => {
-    const users = settingsStore.users
-    const dept = filterDept.value
-    const role = filterRole.value
+    const dept   = filterDept.value
+    const role   = filterRole.value
     const status = filterStatus.value
-    const q = search.value?.toLowerCase() ?? ''
-
-    return users.filter(u => {
-      if (dept && u.dept_id !== dept) return false
-      if (role && isAdmin.value && u.role_id !== role) return false
-      if (status === 'Active' && !u.is_active) return false
-      if (status === 'Inactive' && u.is_active) return false
+    const q      = search.value?.toLowerCase() ?? ''
+ 
+    return settingsStore.users.filter(u => {
+      if (dept   && u.dept_id !== dept)                         return false
+      if (role   && authStore.isAdmin && u.role_id !== role)    return false
+      if (status === 'Active'   && !u.is_active)                return false
+      if (status === 'Inactive' &&  u.is_active)                return false
       if (q && !u.username?.toLowerCase().includes(q) &&
-        !u.full_name?.toLowerCase().includes(q) &&
-        !u.email?.toLowerCase().includes(q)) return false
+               !u.full_name?.toLowerCase().includes(q) &&
+               !u.email?.toLowerCase().includes(q))             return false
       return true
     })
   })
 
   const rules = {
-    required: v => !!v || 'Required',
-    username: v => (v && v.length >= 3) || 'At least 3 characters',
-    email: v => !v || /.+@.+\..+/.test(v) || 'Invalid email',
-    password: v => !v || v.length >= 6 || 'At least 6 characters',
-    passwordMatch: v => v === newPassword.value || 'Passwords must match'
+    required:      v => !!v || 'Required',
+    username:      v => (v && v.length >= 3) || 'At least 3 characters',
+    email:         v => !v || /.+@.+\..+/.test(v) || 'Invalid email',
+    password:      v => !v || v.length >= 6 || 'At least 6 characters',
+    passwordMatch: v => v === newPassword.value || 'Passwords must match',
   }
 
-  function getInitials(name) {
-    if (!name) return '?'
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
-  }
-  function getRoleColor(r) {
-    return { Admin: 'error', Manager: 'primary', 'Team Lead': 'success', Member: 'info' }[r] || 'grey'
-  }
-  function getRoleIcon(r) {
-    return {
-      Admin: 'mdi-shield-crown', Manager: 'mdi-account-tie',
-      'Team Lead': 'mdi-account-star', Member: 'mdi-account'
-    }[r] || 'mdi-account'
-  }
-  function formatDate(d) {
-    return d
-      ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-      : 'N/A'
-  }
+  function getRoleColor(r) { return SYSTEM_ROLE_COLORS[r] || 'grey' }
+  function getRoleIcon(r) { return SYSTEM_ROLE_ICONS[r] || 'mdi-account' }
+
   function showSnack(msg, color = 'success') {
-    snackbarMessage.value = msg; snackbarColor.value = color; snackbar.value = true
+    snackbarMessage.value = msg
+    snackbarColor.value = color
+    snackbar.value = true
   }
 
   function openCreateDialog() {
     editMode.value = false
-    const defaultRole = roles.value.find(r => r.role_name === 'Member')
+    const defaultRole = roles.value.find(r => r.role_name === SYSTEM_ROLES.MEMBER)
     userFormData.value = {
       username: '', password: '', full_name: '', email: '',
-      dept_id: null, role_id: defaultRole?.role_id ?? null, is_active: true
+      dept_id: null, role_id: defaultRole?.role_id ?? null, is_active: true,
     }
     userDialog.value = true
   }
@@ -390,8 +380,12 @@
     editMode.value = true
     selectedUser.value = user
     userFormData.value = {
-      username: user.username, full_name: user.full_name, email: user.email,
-      dept_id: user.dept_id, role_id: user.role_id, is_active: user.is_active
+      username: user.username,
+      full_name: user.full_name,
+      email: user.email,
+      dept_id: user.dept_id,
+      role_id: user.role_id,
+      is_active: user.is_active,
     }
     userDialog.value = true
   }
@@ -448,14 +442,16 @@
 
   async function toggleUserStatus(user) {
     if (user.user_id === currentUserId.value) {
-      showSnack('Cannot deactivate your own account', 'warning'); return
+      showSnack('Cannot deactivate your own account', 'warning')
+      return
     }
     const result = await settingsStore.toggleUserStatus(user.user_id)
     showSnack(result?.message || 'Done', result?.success ? 'success' : 'error')
   }
 
   function openDeleteDialog(user) {
-    selectedUser.value = user; deleteDialog.value = true
+    selectedUser.value = user
+    deleteDialog.value = true
   }
 
   async function deleteUser() {
@@ -477,7 +473,7 @@
       await Promise.all([
         settingsStore.fetchUsers(),
         settingsStore.fetchRoles(),
-        settingsStore.fetchDepartments()
+        settingsStore.fetchDepartments(),
       ])
     } finally {
       loading.value = false
