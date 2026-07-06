@@ -984,28 +984,22 @@ namespace NPI.Server.Services
             return projects.Select(MapToResponseDto).ToList();
         }
 
-        private async Task<(bool authorized, string message)> ValidateProjectWriteAccessAsync(int projectId, int userId, string userRole)
+        private async Task<(bool authorized, string message)> ValidateProjectWriteAccessAsync( int projectId, int userId, string userRole)
         {
-            // 1. Admins and Managers have global access to all projects
             if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(userRole, "Manager", StringComparison.OrdinalIgnoreCase))
             {
                 return (true, string.Empty);
             }
 
-            // 2. Team Leads can only modify projects they are explicitly assigned to
-            if (string.Equals(userRole, "Team Lead", StringComparison.OrdinalIgnoreCase))
-            {
-                var isAssigned = await _context.ProjectTeams
-                    .AnyAsync(pt => pt.proj_id == projectId && pt.user_id == userId);
+            var projectRole = await _context.ProjectTeams
+                .Where(pt => pt.proj_id == projectId && pt.user_id == userId)
+                .Select(pt => pt.role)
+                .FirstOrDefaultAsync();
 
-                if (isAssigned)
-                    return (true, string.Empty);
+            if (string.Equals(projectRole, "Team Lead", StringComparison.OrdinalIgnoreCase))
+                return (true, string.Empty);
 
-                return (false, "Unauthorized: Team Leads can only modify projects they are assigned to.");
-            }
-
-            // 3. Members and Viewers are strictly blocked
             return (false, "Unauthorized: Only Admins, Managers, or assigned Team Leads can modify project details.");
         }
     }

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
 using NPI.Server.DTOs;
+using NPI.Server.Helpers;
 using NPI.Server.Services;
 using System.Security.Claims;
 
@@ -67,8 +68,7 @@ namespace NPI.Server.Controllers
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid token." });
 
-            var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "";
-            if (!new[] { "Admin", "Manager", "Sales" }.Contains(userRole))
+            if (!RbacHelper.CanCreateEnquiry(User))
                 return Forbid();
 
             var (success, message, enquiry) = await _enquiryService.CreateEnquiryAsync(dto, userId);
@@ -107,6 +107,13 @@ namespace NPI.Server.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteEnquiry(int id)
         {
+            var enquiry = await _context.Enquiries.FindAsync(id);
+            if (enquiry == null)
+                return NotFound(new { success = false, message = "Enquiry not found." });
+
+            if (!RbacHelper.CanDeleteEnquiry(User, enquiry.status, enquiry.created_by))
+                return Forbid();
+
             var (success, message) = await _enquiryService.DeleteEnquiryAsync(id);
 
             return success

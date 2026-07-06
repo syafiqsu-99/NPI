@@ -90,6 +90,7 @@ namespace NPI.Server.Services
                 new Claim(ClaimTypes.Email, user.email),
                 new Claim(ClaimTypes.Role, user.Role?.role_name ?? "User"),
                 new Claim("DepartmentId", user.dept_id?.ToString() ?? "0"),
+                new Claim("DepartmentName", user.Department?.dept_name ?? ""),
                 new Claim("FullName", user.full_name ?? "")
             };
 

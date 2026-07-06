@@ -57,7 +57,7 @@ export const useEnquiryStore = defineStore('enquiry', () => {
     error.value = null
     try {
       const response = await api.post('/enquiry', enquiryData)
-      await fetchMyEnquiries()
+      await fetchEnquiries()
       return { success: true, data: response.data || response }
     } catch (err) {
       error.value = err.message
@@ -72,7 +72,7 @@ export const useEnquiryStore = defineStore('enquiry', () => {
     error.value = null
     try {
       const response = await api.put(`/enquiry/${id}`, enquiryData)
-      await fetchMyEnquiries()
+      await fetchEnquiries()
       return { success: true, data: response.data || response }
     } catch (err) {
       error.value = err.message
@@ -87,7 +87,7 @@ export const useEnquiryStore = defineStore('enquiry', () => {
     error.value = null
     try {
       const response = await api.post(`/enquiry/${id}/submit`, {})
-      await fetchMyEnquiries()
+      await fetchEnquiries()
       return { success: true, data: response.data || response }
     } catch (err) {
       error.value = err.message
@@ -102,7 +102,7 @@ export const useEnquiryStore = defineStore('enquiry', () => {
     error.value = null
     try {
       await api.delete(`/enquiry/${id}`)
-      await fetchMyEnquiries()
+      await fetchEnquiries()
       return { success: true }
     } catch (err) {
       error.value = err.message

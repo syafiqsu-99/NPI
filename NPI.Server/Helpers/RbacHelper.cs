@@ -27,5 +27,24 @@ namespace NPI.Server.Helpers
             var userId = GetUserId(user);
             return await projectRoleService.HasProjectRoleAsync(projectId, userId, minimumProjectRole);
         }
+
+        public static string GetDepartmentName(ClaimsPrincipal user)
+        => user.FindFirst("DepartmentName")?.Value ?? string.Empty;
+
+        public static bool IsSalesUser(ClaimsPrincipal user)
+            => string.Equals(GetDepartmentName(user), "Sales", StringComparison.OrdinalIgnoreCase);
+
+        public static bool CanCreateEnquiry(ClaimsPrincipal user)
+        {
+            var role = GetSystemRole(user);
+            return role is "Admin" or "Manager" || IsSalesUser(user);
+        }
+
+        public static bool CanDeleteEnquiry(ClaimsPrincipal user, string status, int createdBy)
+        {
+            var role = GetSystemRole(user);
+            if (role is "Admin" or "Manager") return true;
+            return IsSalesUser(user) && status == "Draft" && createdBy == GetUserId(user);
+        }
     }
 }
