@@ -64,13 +64,13 @@
 
                       <!-- Priority Dropdown -->
                       <template #item.priority="{ item }">
-                        <v-menu :disabled="!authStore.canManageProject(item)">
+                        <v-menu :disabled="authStore.isAdmin || authStore.isManager">
                           <template #activator="{ props }">
                             <v-chip v-bind="props"
                                     :color="getPriorityColor(item.priority)"
                                     size="small" variant="tonal"
-                                    :class="authStore.canManageProject(item) ? 'cursor-pointer' : ''"
-                                    :title="authStore.canManageProject(item) ? 'Click to change priority' : ''">
+                                    :class="(authStore.isAdmin || authStore.isManager) ? 'cursor-pointer' : ''"
+                                    :title="(authStore.isAdmin || authStore.isManager) ? 'Click to change priority' : ''">
                               {{ item.priority }}
                             </v-chip>
                           </template>

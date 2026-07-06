@@ -14,13 +14,13 @@ namespace NPI.Server.Services
         Task<List<FileResponseDto>> GetFilesByProjectAsync(int projId);
         Task<List<FileResponseDto>> GetFilesByEnquiryAsync(int enquiryId);
         Task<(bool success, string message, string? filePath)> GetFilePathAsync(int fileId);
-        Task<(bool success, string message)> DeleteFileWithMessageAsync(int fileId);
+        Task<(bool success, string message)> DeleteFileWithMessageAsync(int fileId, int deletedBy);
         Task<int> GetTaskDocumentCountAsync(int taskId);
         Task<string> EnsureCustomerFolderAsync(string companyName);
         Task<string> EnsureProjectCustomerFolderAsync(int projId);
         Task<List<FileResponseDto>> GetAllCustomerFilesAsync();
         Task<List<DirectoryNodeDto>> GetPhysicalFolderStructureAsync(int userId);
         Task<(bool success, byte[]? fileData, string? contentType)> DownloadPhysicalFileAsync(string path);
-        Task<(bool success, string message)> DeletePhysicalFileAsync(string path);
+        Task<(bool success, string message)> DeletePhysicalFileAsync(string path, int deletedBy);
     }
 }

@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NPI.Server.DTOs;
+using NPI.Server.Helpers;
+using NPI.Server.Models;
 using NPI.Server.Services;
 using System.Security.Claims;
 
@@ -102,6 +104,8 @@ namespace NPI.Server.Controllers
         {
             try
             {
+                var userDeptId = RbacHelper.GetDepartmentId(User);
+
                 var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
                 {
@@ -109,7 +113,7 @@ namespace NPI.Server.Controllers
                 }
                 var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
 
-                var (success, message) = await _taskService.UpdateTaskAsync(taskId, dto, userId, userRole);
+                var (success, message) = await _taskService.UpdateTaskAsync(taskId, dto, userId, userRole, userDeptId);
 
                 if (!success)
                 {
@@ -129,14 +133,21 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var (success, message) = await _taskService.DeleteTaskAsync(taskId);
+                var userDeptId = RbacHelper.GetDepartmentId(User);
 
-                if (!success)
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
+
+                var result = await _taskService.DeleteTaskAsync(taskId, userId, userRole, userDeptId);
+
+                if (result.success)
                 {
-                    return BadRequest(new { success = false, message });
+                    return Ok(new { success = true, message = result.message });
                 }
 
-                return Ok(new { success = true, message });
+                return BadRequest(new { success = false, message = result.message });
             }
             catch (Exception ex)
             {
@@ -149,6 +160,8 @@ namespace NPI.Server.Controllers
         {
             try
             {
+                var userDeptId = RbacHelper.GetDepartmentId(User);
+
                 var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
                 {
@@ -156,7 +169,7 @@ namespace NPI.Server.Controllers
                 }
                 var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
 
-                var result = await _taskService.UpdateTaskStatusAsync(taskId, dto.status, userId, userRole);
+                var result = await _taskService.UpdateTaskStatusAsync(taskId, dto.status, userId, userRole, userDeptId);
 
                 if (result.success)
                 {
@@ -176,7 +189,14 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var result = await _taskService.UpdateTaskProgressAsync(taskId, dto.per_complete);
+                var userDeptId = RbacHelper.GetDepartmentId(User);
+
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
+
+                var result = await _taskService.UpdateTaskProgressAsync(taskId, dto.per_complete, userId, userRole, userDeptId);
 
                 if (result.success)
                 {
@@ -196,8 +216,14 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var result = await _taskService.UpdatePlannedDatesAsync(
-                    taskId, dto.new_start_date, dto.new_end_date, dto.note);
+                var userDeptId = RbacHelper.GetDepartmentId(User);
+
+                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
+                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
+
+                var result = await _taskService.UpdatePlannedDatesAsync(taskId, dto.new_start_date, dto.new_end_date, dto.note, userId, userRole, userDeptId);
 
                 if (result.success)
                 {

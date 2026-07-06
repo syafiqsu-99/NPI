@@ -152,13 +152,6 @@ export const PRIORITY_COLORS = Object.freeze({
 export const ENQUIRY_STATUS_COLORS = Object.freeze({
   Draft: 'warning',
   Submitted: 'info',
-  Approved: 'success',
-  Rejected: 'error',
-  Started: 'primary',
-  'In Progress': 'blue',
-  Completed: 'green',
-  Pending: 'orange',
-  'In Review': 'blue',
 })
 
 
@@ -197,6 +190,8 @@ export const STAGE_SHORT_NAMES = Object.freeze({
 // ─────────────────────────────────────────────────────────────────────────────
 // FILE TYPES
 // ─────────────────────────────────────────────────────────────────────────────
+
+export const PREVIEWABLE_EXTENSIONS = Object.freeze(['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'])
 
 /** Map file extension → MDI icon name */
 export const FILE_ICONS = Object.freeze({

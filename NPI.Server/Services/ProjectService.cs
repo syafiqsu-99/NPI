@@ -183,54 +183,6 @@ namespace NPI.Server.Services
             return dto;
         }
 
-        public async Task<(bool success, string message, int projId)> CreateProjectAsync(CreateProjectDto dto, int userId)
-        {
-            try
-            {
-                var year = DateTime.Now.Year;
-                var lastProject = await _context.Projects
-                    .Where(p => p.proj_no.StartsWith($"PRJ{year}"))
-                    .OrderByDescending(p => p.proj_id)
-                    .FirstOrDefaultAsync();
-
-                string projectNo = $"PRJ{year}001";
-                if (lastProject != null)
-                {
-                    var lastNumStr = lastProject.proj_no.Substring(7);
-                    if (int.TryParse(lastNumStr, out int lastNum))
-                        projectNo = $"PRJ{year}{(lastNum + 1):D3}";
-                }
-
-                var project = new Projects
-                {
-                    proj_no = projectNo,
-                    proj_name = dto.proj_name,
-                    description = dto.description,
-                    dept_id = dto.dept_id,
-                    priority = dto.priority ?? "Medium",
-                    status = dto.status ?? "Planning",
-                    project_start_date = dto.project_start_date ?? DateOnly.FromDateTime(DateTime.Now),
-                    target_completion_date = dto.target_completion_date,
-                    created_by = userId,
-                    created_at = DateTime.Now
-                };
-
-                _context.Projects.Add(project);
-                await _context.SaveChangesAsync();
-
-                var projectPath = GetProjectPath(project.proj_name);
-                Directory.CreateDirectory(projectPath);
-                project.storage_path = projectPath;
-                await _context.SaveChangesAsync();
-
-                return (true, "Project created successfully", project.proj_id);
-            }
-            catch (Exception ex)
-            {
-                return (false, $"Error creating project: {ex.Message}", 0);
-            }
-        }
-
         public async Task<(bool success, string message)> UpdateProjectAsync(int projectId, UpdateProjectDto dto, int userId, string userRole)
         {
             try
@@ -442,11 +394,11 @@ namespace NPI.Server.Services
                 if (enquiry == null)
                     return (false, "Enquiry not found", 0);
 
-                if (enquiry.status != "Submitted" && enquiry.status != "Approved")
-                    return (false, "Only submitted or approved enquiries can be converted to projects", 0);
+                if (enquiry.status != "Submitted")
+                    return (false, "Projects can only be created from a Submitted enquiry.", 0);
 
-                if (enquiry.proj_id != null)
-                    return (false, "A project already exists for this enquiry", 0);
+                if (enquiry.proj_id.HasValue)
+                    return (false, $"This enquiry is already linked to project #{enquiry.proj_id}.", 0);
 
                 string projName;
                 if (!string.IsNullOrWhiteSpace(dto?.project_name))
@@ -992,15 +944,15 @@ namespace NPI.Server.Services
                 return (true, string.Empty);
             }
 
-            var projectRole = await _context.ProjectTeams
-                .Where(pt => pt.proj_id == projectId && pt.user_id == userId)
-                .Select(pt => pt.role)
-                .FirstOrDefaultAsync();
+            var isProjectTeamLead = await _context.ProjectTeams
+                .AnyAsync(pt => pt.proj_id == projectId
+                             && pt.user_id == userId
+                             && pt.role == "Team Lead");
 
-            if (string.Equals(projectRole, "Team Lead", StringComparison.OrdinalIgnoreCase))
+            if (isProjectTeamLead)
                 return (true, string.Empty);
 
-            return (false, "Unauthorized: Only Admins, Managers, or assigned Team Leads can modify project details.");
+            return (false, "Unauthorized: Only Admins, Managers, or the project's Team Lead can update project status.");
         }
     }
 }

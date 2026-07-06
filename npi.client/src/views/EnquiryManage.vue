@@ -187,7 +187,7 @@
   const canStartProject = computed(() => {
     if (!enquiry.value || enquiry.value.proj_id) return false
     const s = enquiry.value.status
-    return (s === 'Submitted' || s === 'Approved') && authStore.canStartProject
+    return s === 'Submitted' && authStore.canStartProject
   })
 
   // Formatting & Mapping Helpers

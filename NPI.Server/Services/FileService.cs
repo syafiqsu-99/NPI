@@ -220,7 +220,7 @@ namespace NPI.Server.Services
         public async Task<List<FileResponseDto>> GetFilesByTaskAsync(int taskId)
         {
             var files = await _context.Files
-                .Where(f => f.task_id == taskId && f.is_latest)
+                .Where(f => f.task_id == taskId && f.is_latest && f.status == "Active")
                 .Include(f => f.UploadByUser)
                 .OrderByDescending(f => f.created_at)
                 .ToListAsync();
@@ -231,7 +231,7 @@ namespace NPI.Server.Services
         public async Task<List<FileResponseDto>> GetFilesByProjectAsync(int projId)
         {
             var files = await _context.Files
-                .Where(f => f.proj_id == projId && f.is_latest)
+                .Where(f => f.proj_id == projId && f.is_latest && f.status == "Active")
                 .Include(f => f.UploadByUser)
                 .Include(f => f.Task)
                 .Include(f => f.Department)
@@ -244,7 +244,7 @@ namespace NPI.Server.Services
         public async Task<List<FileResponseDto>> GetFilesByEnquiryAsync(int enquiryId)
         {
             var files = await _context.Files
-                .Where(f => f.enquiry_id == enquiryId && f.is_latest)
+                .Where(f => f.enquiry_id == enquiryId && f.is_latest && f.status == "Active")
                 .Include(f => f.UploadByUser)
                 .OrderByDescending(f => f.created_at)
                 .ToListAsync();
@@ -255,7 +255,7 @@ namespace NPI.Server.Services
         public async Task<List<FileResponseDto>> GetAllCustomerFilesAsync()
         {
             var files = await _context.Files
-                .Where(f => f.enquiry_id != null && f.is_latest)
+                .Where(f => f.enquiry_id != null && f.is_latest && f.status == "Active")
                 .Include(f => f.UploadByUser)
                 .Include(f => f.Enquiry)
                     .ThenInclude(e => e!.Customer)
@@ -364,7 +364,7 @@ namespace NPI.Server.Services
             catch { return false; }
         }
 
-        public async Task<(bool success, string message)> DeleteFileWithMessageAsync(int fileId)
+        public async Task<(bool success, string message)> DeleteFileWithMessageAsync(int fileId, int deletedBy)
         {
             try
             {
@@ -374,6 +374,15 @@ namespace NPI.Server.Services
                 file.updated_at = DateTime.Now;
                 if (!string.IsNullOrEmpty(file.file_path) && File.Exists(file.file_path))
                     File.Delete(file.file_path);
+
+                file.status = "Deleted";
+                file.is_latest = false;
+                file.deleted_by = deletedBy;
+                file.deleted_at = DateTime.Now;
+                await _context.SaveChangesAsync();
+
+                if (System.IO.File.Exists(file.file_path))
+                    System.IO.File.Delete(file.file_path);
 
                 _context.Files.Remove(file);
                 await _context.SaveChangesAsync();
@@ -388,7 +397,7 @@ namespace NPI.Server.Services
         public async Task<int> GetTaskDocumentCountAsync(int taskId)
         {
             return await _context.Files
-                .CountAsync(f => f.task_id == taskId && f.is_latest);
+                .CountAsync(f => f.task_id == taskId && f.is_latest && f.status == "Active");
         }
 
         public async Task<string> EnsureCustomerFolderAsync(string companyName)
@@ -542,7 +551,7 @@ namespace NPI.Server.Services
             return node;
         }
 
-        public async Task<(bool success, string message)> DeletePhysicalFileAsync(string path)
+        public async Task<(bool success, string message)> DeletePhysicalFileAsync(string path, int deletedBy)
         {
             try
             {
@@ -557,6 +566,16 @@ namespace NPI.Server.Services
                     return (false, "Invalid Path Security");
 
                 if (!File.Exists(fullPath)) return (false, "File not found");
+
+                var record = await _context.Files.FirstOrDefaultAsync(f => f.file_path == path && f.status == "Active");
+                if (record != null)
+                {
+                    record.status = "Deleted";
+                    record.is_latest = false;
+                    record.deleted_by = deletedBy;
+                    record.deleted_at = DateTime.Now;
+                    await _context.SaveChangesAsync();
+                }
 
                 File.Delete(fullPath);
                 return (true, "Deleted from disk");

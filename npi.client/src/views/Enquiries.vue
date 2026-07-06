@@ -93,14 +93,14 @@
                 <v-icon size="18">mdi-chart-gantt</v-icon>
               </v-btn>
 
-              <v-btn v-if="canManageProject(item) && !item.proj_id"
+              <v-btn v-if="(authStore.isAdmin || authStore.isManager) && item.status === 'Submitted' && !item.proj_id"
                      icon size="small" variant="text" color="primary"
                      title="Start Project"
                      @click="viewEnquiryDetail(item.enquiry_id)">
                 <v-icon size="18">mdi-rocket-launch</v-icon>
               </v-btn>
 
-              <v-btn v-if="canManageProject(item) && item.proj_id"
+              <v-btn v-if="(authStore.isAdmin || authStore.isManager) && item.proj_id"
                      icon size="small" variant="text" color="primary"
                      title="Manage Project Setup"
                      @click="$router.push(`/projects/${item.proj_id}/setup`)">
@@ -234,12 +234,6 @@
   ]
 
   // ── Permission helpers ──────────────────────────────────────────────────────
-
-  function canManageProject(enquiry) {
-    const validStatuses = ['Submitted', 'Approved', 'Started', 'In Progress']
-    if (!validStatuses.includes(enquiry.status)) return false
-    return authStore.canManageProject(enquiry)
-  }
 
   function canEditEnquiry(enquiry) {
     if (enquiry.status !== 'Draft') return false

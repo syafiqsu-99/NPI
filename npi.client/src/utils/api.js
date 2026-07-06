@@ -177,6 +177,17 @@ export const api = {
     a.click()
     window.URL.revokeObjectURL(objectUrl)
     document.body.removeChild(a)
+  },
+
+  previewFile: async (endpoint) => {
+    const token = localStorage.getItem('token')
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include'
+    })
+    if (!response.ok) throw new ApiError('Preview failed', response.status, null)
+    const blob = await response.blob()
+    return window.URL.createObjectURL(blob)
   }
 }
 

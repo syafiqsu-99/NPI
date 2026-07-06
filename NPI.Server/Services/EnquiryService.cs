@@ -54,8 +54,7 @@ namespace NPI.Server.Services
 
         // ── Update ────────────────────────────────────────────────────────────
 
-        public async Task<(bool Success, string Message)>
-            UpdateEnquiryAsync(int enquiryId, EnquiryCreateDto dto, int userId)
+        public async Task<(bool Success, string Message)>UpdateEnquiryAsync(int enquiryId, EnquiryCreateDto dto, int userId, string userRole)
         {
             try
             {
@@ -63,7 +62,8 @@ namespace NPI.Server.Services
                 if (enquiry == null)
                     return (false, "Enquiry not found.");
 
-                if (enquiry.created_by != userId)
+                var isPrivileged = userRole is "Admin" or "Manager";
+                if (!isPrivileged && enquiry.created_by != userId)
                     return (false, "You are not authorised to edit this enquiry.");
 
                 if (enquiry.status != "Draft")

@@ -37,6 +37,8 @@ namespace NPI.Server.Models
         public bool is_latest { get; set; } = true;
         public int? replaced_by { get; set; }
         public DateTime created_at { get; set; } = DateTime.Now;
+        public int? deleted_by { get; set; }
+        public DateTime? deleted_at { get; set; }
 
         [ForeignKey("proj_id")]
         public virtual Projects? Project { get; set; }

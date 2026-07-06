@@ -68,37 +68,8 @@ namespace NPI.Server.Controllers
             }
         }
 
-        [HttpPost]
-        public async Task<IActionResult> CreateProject([FromBody] CreateProjectDto dto)
-        {
-            try
-            {
-                var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
-                {
-                    return Unauthorized(new { success = false, message = "Invalid user identity claim." });
-                }
-                var (success, message, projId) = await _projectService.CreateProjectAsync(dto, userId);
-
-                if (!success)
-                {
-                    return BadRequest(new { success = false, message });
-                }
-
-                return Ok(new
-                {
-                    success = true,
-                    message,
-                    data = new { proj_id = projId }
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { success = false, message = ex.Message });
-            }
-        }
-
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> UpdateProject(int id, [FromBody] UpdateProjectDto dto)
         {
             try
@@ -126,6 +97,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> DeleteProject(int id)
         {
             try
@@ -146,6 +118,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost("from-enquiry/{enquiryId}")]
+        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> CreateProjectFromEnquiry(int enquiryId, [FromBody] CreateProjectFromEnquiryDto? dto = null)
         {
             try
@@ -198,6 +171,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost("{id}/launch")]
+        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> LaunchProject(int id, [FromBody] LaunchProjectDto dto)
         {
             try
@@ -226,6 +200,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPut("{id}/status")]
+        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> UpdateProjectStatus(int id, [FromBody] UpdateProjectStatusDto dto)
         {
             try

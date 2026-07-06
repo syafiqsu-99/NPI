@@ -84,7 +84,7 @@ namespace NPI.Server.Controllers
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid token." });
 
-            var (success, message) = await _enquiryService.UpdateEnquiryAsync(id, dto, userId);
+            var (success, message) = await _enquiryService.UpdateEnquiryAsync(id, dto, userId, RbacHelper.GetSystemRole(User));
 
             return success
                 ? Ok(new { success = true, message })
@@ -96,6 +96,9 @@ namespace NPI.Server.Controllers
         {
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid token." });
+
+            if (!RbacHelper.CanCreateEnquiry(User))
+                return Forbid();
 
             var (success, message) = await _enquiryService.SubmitEnquiryAsync(id, userId);
 
@@ -135,6 +138,13 @@ namespace NPI.Server.Controllers
 
             if (enquiry == null)
                 return NotFound(new { success = false, message = "Enquiry not found" });
+
+            var isPrivileged = RbacHelper.GetSystemRole(User) is "Admin" or "Manager";
+            if (!isPrivileged && enquiry.created_by != userId)
+                return Forbid();
+
+            if (enquiry.status != "Draft")
+                return BadRequest(new { success = false, message = "Files can only be attached while the enquiry is a Draft." });
 
             if (string.IsNullOrWhiteSpace(comp_name) && enquiry.Customer != null)
                 comp_name = enquiry.Customer.comp_name;

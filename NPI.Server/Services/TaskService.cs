@@ -25,7 +25,7 @@ namespace NPI.Server.Services
         /// <summary>
         /// Validates if the requesting user has write access to a task.
         /// </summary>
-        private async Task<(bool authorized, string message)> ValidateTaskWriteAccessAsync(int taskId, int userId, string userRole, bool isProjectTask = false)
+        public async Task<(bool authorized, string message)> ValidateTaskWriteAccessAsync(int taskId, int userId, string userRole, int userDeptId)
         {
             var task = await _context.Tasks
                 .Include(t => t.Project)
@@ -41,10 +41,6 @@ namespace NPI.Server.Services
             {
                 return (true, string.Empty);
             }
-
-            var currentUser = await _context.Users.FirstOrDefaultAsync(u => u.user_id == userId);
-            if (currentUser == null)
-                return (false, "User not found");
 
             // 2. Requirement: Verify user assignments for the Member role via ProjectTeams (ProjectRoles table)
             var projectTeamRole = await _context.ProjectTeams
@@ -68,13 +64,15 @@ namespace NPI.Server.Services
                 return (true, string.Empty);
             }
 
-            // 5. Allow users who share the same Department as the Task
-            if (task.dept_id.HasValue && currentUser.dept_id == task.dept_id)
-            {
+            // Team Lead: full write access to any task in the project
+            if (string.Equals(projectTeamRole.role, "Team Lead", StringComparison.OrdinalIgnoreCase))
                 return (true, string.Empty);
-            }
 
-            return (false, "Unauthorized: Task department does not match your department.");
+            // Member: only tasks belonging to their own department
+            if (task.dept_id != userDeptId)
+                return (false, "Unauthorized: You can only modify tasks assigned to your department.");
+
+            return (true, string.Empty);
         }
 
         private static string SanitizeFolderName(string name)
@@ -237,16 +235,14 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool success, string message)> UpdateTaskAsync(int taskId, UpdateTaskDto dto, int userId, string userRole)
+        public async Task<(bool success, string message)> UpdateTaskAsync(int taskId, UpdateTaskDto dto, int userId, string userRole, int userDeptId)
         {
+            var (authorized, authMessage) = await ValidateTaskWriteAccessAsync(taskId, userId, userRole, userDeptId);
+            if (!authorized)
+                return (false, authMessage);
+
             try
             {
-                var (authorized, authMessage) = await ValidateTaskWriteAccessAsync(taskId, userId, userRole);
-                if (!authorized)
-                {
-                    return (false, authMessage);
-                }
-
                 var task = await _context.Tasks
                     .Include(t => t.Project)
                     .Include(t => t.Department)
@@ -280,8 +276,25 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool success, string message)> DeleteTaskAsync(int taskId)
+        public async Task<(bool success, string message)> DeleteTaskAsync(int taskId, int userId, string userRole, int userDeptId)
         {
+            if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase) && !string.Equals(userRole, "Manager", StringComparison.OrdinalIgnoreCase))
+            {
+                var projId = await _context.Tasks
+                    .Where(t => t.task_id == taskId)
+                    .Select(t => (int?)t.proj_id)
+                    .FirstOrDefaultAsync();
+
+                if (projId is null)
+                    return (false, "Task not found");
+
+                var isTeamLead = await _context.ProjectTeams.AnyAsync(pt =>
+                    pt.proj_id == projId && pt.user_id == userId && pt.role == "Team Lead");
+
+                if (!isTeamLead)
+                    return (false, "Unauthorized: Only Admins, Managers, or the project Team Lead can delete tasks.");
+            }
+
             try
             {
                 var task = await _context.Tasks
@@ -320,9 +333,12 @@ namespace NPI.Server.Services
 
         // ── Status / progress / dates ─────────────────────────────────────────
 
-        public async Task<(bool success, string message)> UpdatePlannedDatesAsync(
-            int taskId, DateOnly newStart, DateOnly newEnd, string note)
+        public async Task<(bool success, string message)> UpdatePlannedDatesAsync(int taskId, DateOnly? new_start_date, DateOnly? new_end_date, string? note, int userId, string userRole, int userDeptId)
         {
+            var (authorized, authMessage) = await ValidateTaskWriteAccessAsync(taskId, userId, userRole, userDeptId);
+            if (!authorized)
+                return (false, authMessage);
+
             var task = await _context.Tasks.FindAsync(taskId);
 
             if (task == null)
@@ -331,18 +347,18 @@ namespace NPI.Server.Services
             var revision = new TaskRevisions
             {
                 task_id = taskId,
-                old_start_date = task.planned_start_date ?? newStart,
-                old_end_date = task.planned_end_date ?? newEnd,
-                new_start_date = newStart,
-                new_end_date = newEnd,
+                old_start_date = task.planned_start_date ?? new_start_date,
+                old_end_date = task.planned_end_date ?? new_end_date,
+                new_start_date = new_start_date,
+                new_end_date = new_end_date,
                 note = note,
                 revised_on = DateTime.Now
             };
 
             _context.TaskRevisions.Add(revision);
 
-            task.planned_start_date = newStart;
-            task.planned_end_date = newEnd;
+            task.planned_start_date = new_start_date;
+            task.planned_end_date = new_end_date;
             task.updated_at = DateTime.Now;
 
             await _context.SaveChangesAsync();
@@ -351,7 +367,7 @@ namespace NPI.Server.Services
             await _triggerService.OnTaskDatesRevisedAsync(
                 taskId, task.proj_id,
                 task.planned_start_date, task.planned_end_date,
-                newStart, newEnd);
+                new_start_date, new_end_date);
 
             return (true, "Planned dates updated with revision history");
         }
@@ -360,12 +376,11 @@ namespace NPI.Server.Services
         /// Task-level status update. Does NOT trigger project-level status changes.
         /// Tasks remain independent from project lifecycle management.
         /// </summary>
-        public async Task<(bool success, string message)> UpdateTaskStatusAsync(
-    int taskId, string status, int userId, string userRole)
+        public async Task<(bool success, string message)> UpdateTaskStatusAsync(int taskId, string status, int userId, string userRole, int userDeptId)
         {
             try
             {
-                var (authorized, authMessage) = await ValidateTaskWriteAccessAsync(taskId, userId, userRole);
+                var (authorized, authMessage) = await ValidateTaskWriteAccessAsync(taskId, userId, userRole, userDeptId);
                 if (!authorized)
                     return (false, authMessage);
 
@@ -442,8 +457,12 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool success, string message)> UpdateTaskProgressAsync(int taskId, float progress)
+        public async Task<(bool success, string message)> UpdateTaskProgressAsync(int taskId, float progress, int userId, string userRole, int userDeptId)
         {
+            var (authorized, authMessage) = await ValidateTaskWriteAccessAsync(taskId, userId, userRole, userDeptId);
+            if (!authorized)
+                return (false, authMessage);
+
             try
             {
                 var task = await _context.Tasks.FindAsync(taskId);

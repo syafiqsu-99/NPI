@@ -6,7 +6,7 @@ namespace NPI.Server.Services
     {
         Task<(bool Success, string Message, EnquiryResponseDto? Enquiry)> CreateEnquiryAsync(EnquiryCreateDto dto, int userId);
 
-        Task<(bool Success, string Message)> UpdateEnquiryAsync(int enquiryId, EnquiryCreateDto dto, int userId);
+        Task<(bool Success, string Message)> UpdateEnquiryAsync(int enquiryId, EnquiryCreateDto dto, int userId, string userRole);
 
         Task<EnquiryResponseDto?> GetEnquiryByIdAsync(int enquiryId);
 

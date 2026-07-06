@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NPI.Server.Helpers;
 using NPI.Server.Services;
 using System.Security.Claims;
 
@@ -11,10 +12,12 @@ namespace NPI.Server.Controllers
     public class FileController : ControllerBase
     {
         private readonly IFileService _fileService;
+        private readonly ITaskService _taskService;
 
-        public FileController(IFileService fileService)
+        public FileController(IFileService fileService, ITaskService taskService)
         {
             _fileService = fileService;
+            _taskService = taskService;
         }
 
         [HttpPost("upload")]
@@ -32,6 +35,12 @@ namespace NPI.Server.Controllers
 
             if (files == null || files.Count == 0)
                 return BadRequest(new { success = false, message = "No files provided" });
+
+            var (authorized, authMessage) = await _taskService.ValidateTaskWriteAccessAsync(
+                task_id, userId, RbacHelper.GetSystemRole(User), RbacHelper.GetDepartmentId(User));
+
+            if (!authorized)
+                return Forbid();
 
             var (success, message, fileIds) = await _fileService.UploadFilesAsync(
                 files, proj_id, task_id, task_folder ?? $"Task_{task_id}",
@@ -110,7 +119,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpGet("download/{fileId}")]
-        [AllowAnonymous]
         public async Task<IActionResult> DownloadFile(int fileId, [FromQuery] bool inline = false)
         {
             var (success, fileBytes, contentType) = await _fileService.DownloadFileAsync(fileId);
@@ -128,7 +136,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpGet("download-physical")]
-        [AllowAnonymous]
         public async Task<IActionResult> DownloadPhysicalFile([FromQuery] string path, [FromQuery] bool inline = false)
         {
             if (string.IsNullOrWhiteSpace(path)) return BadRequest("Path is required");
@@ -145,24 +152,24 @@ namespace NPI.Server.Controllers
         }
 
         [HttpDelete("{fileId}")]
-        public async Task<IActionResult> DeleteFile(int fileId)
+        public async Task<IActionResult> DeleteFile(int fileId, int deletedBy)
         {
-            if (!IsManagerOrAdmin()) return Forbid(); // Using claims rather than DB lookups
+            if (!IsManagerOrAdmin()) return Forbid();
 
-            var (success, message) = await _fileService.DeleteFileWithMessageAsync(fileId);
+            var (success, message) = await _fileService.DeleteFileWithMessageAsync(fileId, deletedBy);
             return success
                 ? Ok(new { success = true, message })
                 : BadRequest(new { success = false, message });
         }
 
         [HttpDelete("delete-physical")]
-        public async Task<IActionResult> DeletePhysicalFile([FromQuery] string path)
+        public async Task<IActionResult> DeletePhysicalFile([FromQuery] string path, int deletedBy)
         {
             if (!IsManagerOrAdmin()) return Forbid(); // Using claims rather than DB lookups
 
             if (string.IsNullOrWhiteSpace(path)) return BadRequest("Path is required");
 
-            var (success, message) = await _fileService.DeletePhysicalFileAsync(path);
+            var (success, message) = await _fileService.DeletePhysicalFileAsync(path, deletedBy);
             return success
                 ? Ok(new { success = true, message })
                 : BadRequest(new { success = false, message });

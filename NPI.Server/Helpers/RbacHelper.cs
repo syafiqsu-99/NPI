@@ -14,6 +14,9 @@ namespace NPI.Server.Helpers
         public static string GetSystemRole(ClaimsPrincipal user)
             => user.FindFirst(ClaimTypes.Role)?.Value ?? "Member";
 
+        public static int GetDepartmentId(ClaimsPrincipal user)
+            => int.TryParse(user.FindFirst("DepartmentId")?.Value, out var id) ? id : 0;
+
         public static async Task<bool> HasProjectAccess(
             ClaimsPrincipal user,
             int projectId,
