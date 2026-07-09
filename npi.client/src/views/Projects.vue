@@ -69,8 +69,8 @@
                             <v-chip v-bind="props"
                                     :color="getPriorityColor(item.priority)"
                                     size="small" variant="tonal"
-                                    :class="(authStore.isAdmin || authStore.isManager) ? 'cursor-pointer' : ''"
-                                    :title="(authStore.isAdmin || authStore.isManager) ? 'Click to change priority' : ''">
+                                    :class="authStore.isAdminOrManager ? 'cursor-pointer' : ''"
+                                    :title="authStore.isAdminOrManager ? 'Click to change priority' : ''">
                               {{ item.priority }}
                             </v-chip>
                           </template>

@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
 using NPI.Server.DTOs;
+using NPI.Server.Helpers;
 using NPI.Server.Models;
 
 namespace NPI.Server.Services
@@ -30,7 +31,7 @@ namespace NPI.Server.Services
                     enquiry_no = await GenerateEnquiryNoAsync(),
                     cust_id = customerId,
                     npi_category = dto.npi_category,
-                    status = "Draft",
+                    status = EnquiryStatus.Draft,
                     created_by = userId,
                     created_at = DateTime.Now
                 };
@@ -62,11 +63,11 @@ namespace NPI.Server.Services
                 if (enquiry == null)
                     return (false, "Enquiry not found.");
 
-                var isPrivileged = userRole is "Admin" or "Manager";
+                var isPrivileged = RbacHelper.IsAdminOrManager(userRole);
                 if (!isPrivileged && enquiry.created_by != userId)
                     return (false, "You are not authorised to edit this enquiry.");
 
-                if (enquiry.status != "Draft")
+                if (enquiry.status != EnquiryStatus.Draft)
                     return (false, "Only Draft enquiries can be updated.");
 
                 var customerId = await ResolveCustomerIdAsync(dto, enquiry);
@@ -145,9 +146,9 @@ namespace NPI.Server.Services
                 var enquiry = await _context.Enquiries.FindAsync(enquiryId);
                 if (enquiry == null) return (false, "Enquiry not found.");
                 if (enquiry.created_by != userId) return (false, "Unauthorised.");
-                if (enquiry.status != "Draft") return (false, "Only Draft enquiries can be submitted.");
+                if (enquiry.status != EnquiryStatus.Draft) return (false, "Only Draft enquiries can be submitted.");
 
-                enquiry.status = "Submitted";
+                enquiry.status = EnquiryStatus.Submitted;
                 enquiry.submitted_at = DateTime.Now;
                 await _context.SaveChangesAsync();
 

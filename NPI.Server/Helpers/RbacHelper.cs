@@ -5,6 +5,13 @@ namespace NPI.Server.Helpers
 {
     public static class RbacHelper
     {
+        public static bool IsAdminOrManager(ClaimsPrincipal user)
+            => GetSystemRole(user) is SystemRoles.Admin or SystemRoles.Manager;
+
+        public static bool IsAdminOrManager(string userRole)
+            => string.Equals(userRole, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(userRole, SystemRoles.Manager, StringComparison.OrdinalIgnoreCase);
+
         public static int GetUserId(ClaimsPrincipal user)
         {
             var claim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -47,7 +54,7 @@ namespace NPI.Server.Helpers
         {
             var role = GetSystemRole(user);
             if (role is "Admin" or "Manager") return true;
-            return IsSalesUser(user) && status == "Draft" && createdBy == GetUserId(user);
+            return IsSalesUser(user) && status == EnquiryStatus.Draft && createdBy == GetUserId(user);
         }
     }
 }

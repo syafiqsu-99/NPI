@@ -110,9 +110,7 @@ namespace NPI.Server.Services
             statusText.Bold = true;
             statusText.Color = enquiry.status switch
             {
-                "Approved" => Colors.Green,
                 "Submitted" => Colors.Blue,
-                "Rejected" => Colors.Red,
                 _ => Colors.Black
             };
 

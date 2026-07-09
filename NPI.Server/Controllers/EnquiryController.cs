@@ -143,7 +143,7 @@ namespace NPI.Server.Controllers
             if (!isPrivileged && enquiry.created_by != userId)
                 return Forbid();
 
-            if (enquiry.status != "Draft")
+            if (enquiry.status != EnquiryStatus.Draft)
                 return BadRequest(new { success = false, message = "Files can only be attached while the enquiry is a Draft." });
 
             if (string.IsNullOrWhiteSpace(comp_name) && enquiry.Customer != null)

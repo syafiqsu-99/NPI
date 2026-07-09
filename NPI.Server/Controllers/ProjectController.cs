@@ -200,7 +200,6 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPut("{id}/status")]
-        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> UpdateProjectStatus(int id, [FromBody] UpdateProjectStatusDto dto)
         {
             try

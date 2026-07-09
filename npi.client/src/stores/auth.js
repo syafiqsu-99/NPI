@@ -15,8 +15,8 @@ export const useAuthStore = defineStore('auth', () => {
   const currentUser     = computed(() => user.value)
   const userRole        = computed(() => user.value?.role ?? SYSTEM_ROLES.MEMBER)
   const userDepartment  = computed(() => user.value?.department)
-  const userDeptId      = computed(() => user.value?.dept_id)
- 
+  const userDeptId = computed(() => user.value?.dept_id)
+
   const isAdmin   = computed(() => userRole.value === SYSTEM_ROLES.ADMIN)
   const isManager = computed(() => userRole.value === SYSTEM_ROLES.MANAGER)
   const isMember  = computed(() => userRole.value === SYSTEM_ROLES.MEMBER)
@@ -63,8 +63,6 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // ── Shared permission helpers ────────────────────────────────────────────
-  const canStartProject = computed(() => isAdmin.value || isManager.value)
-
   const canDeleteProject = computed(() => isAdmin.value || isManager.value)
 
   const canCreateEnquiry = computed(
@@ -80,9 +78,14 @@ export const useAuthStore = defineStore('auth', () => {
     )
   }
 
-  function canManageProject(project) {
-    if (isAdmin.value || isManager.value) return true
-    return hasProjectRole(project.proj_id, PROJECT_ROLES.TEAM_LEAD)
+  function canStartProject(item) {
+    return authStore.isAdminOrManager && item.status === 'Submitted' && !item.proj_id
+  }
+  function canManageProject(item) {
+    return authStore.isAdminOrManager && item.status === 'Submitted' && !item.proj_id
+  }
+  function canManageSetup(item) {
+    return authStore.isAdminOrManager && !!item.proj_id
   }
 
   // Convenience wrappers kept for backward compatibility with existing call sites.

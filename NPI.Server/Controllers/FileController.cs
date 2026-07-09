@@ -69,6 +69,22 @@ namespace NPI.Server.Controllers
             if (file == null || file.Length == 0)
                 return BadRequest(new { success = false, message = "No file provided" });
 
+            if (task_id.HasValue)
+            {
+                var (authorized, _) = await _taskService.ValidateTaskWriteAccessAsync(
+                    task_id.Value, userId, RbacHelper.GetSystemRole(User), RbacHelper.GetDepartmentId(User));
+                if (!authorized)
+                    return Forbid();
+            }
+            else if (enquiry_id.HasValue)
+            {
+                return BadRequest(new { success = false, message = "Use /api/enquiry/{id}/upload for enquiry attachments." });
+            }
+            else if (!RbacHelper.IsAdminOrManager(User))
+            {
+                return Forbid();
+            }
+
             var (success, message, result) = await _fileService.UploadFileAsync(
                 file, proj_id, task_id, doc_type_id,
                 userId, dept_id, enquiry_id, customer_name);
@@ -122,7 +138,6 @@ namespace NPI.Server.Controllers
         public async Task<IActionResult> DownloadFile(int fileId, [FromQuery] bool inline = false)
         {
             var (success, fileBytes, contentType) = await _fileService.DownloadFileAsync(fileId);
-
             if (!success || fileBytes is null)
                 return NotFound(new { success = false, message = "File not found" });
 
@@ -130,9 +145,7 @@ namespace NPI.Server.Controllers
                 return File(fileBytes, contentType!);
 
             var (_, _, filePath) = await _fileService.GetFilePathAsync(fileId);
-            var fileName = filePath is not null ? Path.GetFileName(filePath) : "download";
-
-            return File(fileBytes, contentType!, fileName);
+            return File(fileBytes, contentType!, filePath is not null ? Path.GetFileName(filePath) : "download");
         }
 
         [HttpGet("download-physical")]
@@ -152,24 +165,28 @@ namespace NPI.Server.Controllers
         }
 
         [HttpDelete("{fileId}")]
-        public async Task<IActionResult> DeleteFile(int fileId, int deletedBy)
+        [Authorize(Roles = "Admin,Manager")]
+        public async Task<IActionResult> DeleteFile(int fileId)
         {
-            if (!IsManagerOrAdmin()) return Forbid();
+            var (success, message) = await _fileService.DeleteFileWithMessageAsync(
+                fileId, RbacHelper.GetUserId(User));
 
-            var (success, message) = await _fileService.DeleteFileWithMessageAsync(fileId, deletedBy);
             return success
                 ? Ok(new { success = true, message })
                 : BadRequest(new { success = false, message });
         }
 
+
         [HttpDelete("delete-physical")]
-        public async Task<IActionResult> DeletePhysicalFile([FromQuery] string path, int deletedBy)
+        [Authorize(Roles = "Admin,Manager")]
+        public async Task<IActionResult> DeletePhysicalFile([FromQuery] string path)
         {
-            if (!IsManagerOrAdmin()) return Forbid(); // Using claims rather than DB lookups
+            if (string.IsNullOrWhiteSpace(path))
+                return BadRequest(new { success = false, message = "Path is required" });
 
-            if (string.IsNullOrWhiteSpace(path)) return BadRequest("Path is required");
+            var (success, message) = await _fileService.DeletePhysicalFileAsync(
+                path, RbacHelper.GetUserId(User));
 
-            var (success, message) = await _fileService.DeletePhysicalFileAsync(path, deletedBy);
             return success
                 ? Ok(new { success = true, message })
                 : BadRequest(new { success = false, message });

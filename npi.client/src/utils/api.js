@@ -186,8 +186,7 @@ export const api = {
       credentials: 'include'
     })
     if (!response.ok) throw new ApiError('Preview failed', response.status, null)
-    const blob = await response.blob()
-    return window.URL.createObjectURL(blob)
+    return window.URL.createObjectURL(await response.blob())
   }
 }
 

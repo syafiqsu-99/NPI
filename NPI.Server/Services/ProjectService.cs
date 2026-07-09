@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
 using NPI.Server.DTOs;
+using NPI.Server.Helpers;
 using NPI.Server.Models;
 
 namespace NPI.Server.Services
@@ -241,7 +242,7 @@ namespace NPI.Server.Services
                 {
                     enquiry.proj_id = null;
                     enquiry.updated_at = DateTime.Now;
-                    enquiry.status = "Submitted";
+                    enquiry.status = EnquiryStatus.Submitted;
                 }
 
                 await _context.SaveChangesAsync();
@@ -348,26 +349,6 @@ namespace NPI.Server.Services
                 if (status == "Completed" && project.actual_completion_date == null)
                     project.actual_completion_date = DateOnly.FromDateTime(DateTime.Now);
 
-                // 6. SYNC ENQUIRY STATUS
-                var linkedEnquiry = await _context.Enquiries.FirstOrDefaultAsync(e => e.proj_id == projectId);
-                if (linkedEnquiry != null)
-                {
-                    // Map Project status to the corresponding Enquiry status
-                    linkedEnquiry.status = status switch
-                    {
-                        "Planning" => "Started",
-                        "Not Started" => "Started",
-                        "In Progress" => "In Progress",
-                        "On Hold" => "In Review",
-                        "Completed" => "Completed",
-                        "Cancelled" => "Rejected",
-                        _ => status
-                    };
-
-                    linkedEnquiry.updated_at = DateTime.Now;
-                    linkedEnquiry.updated_by = userId;
-                }
-
                 // 7. Save everything to the database
                 await _context.SaveChangesAsync();
 
@@ -394,7 +375,7 @@ namespace NPI.Server.Services
                 if (enquiry == null)
                     return (false, "Enquiry not found", 0);
 
-                if (enquiry.status != "Submitted")
+                if (enquiry.status != EnquiryStatus.Submitted)
                     return (false, "Projects can only be created from a Submitted enquiry.", 0);
 
                 if (enquiry.proj_id.HasValue)
@@ -938,8 +919,7 @@ namespace NPI.Server.Services
 
         private async Task<(bool authorized, string message)> ValidateProjectWriteAccessAsync( int projectId, int userId, string userRole)
         {
-            if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(userRole, "Manager", StringComparison.OrdinalIgnoreCase))
+            if (RbacHelper.IsAdminOrManager(userRole))
             {
                 return (true, string.Empty);
             }
@@ -947,7 +927,7 @@ namespace NPI.Server.Services
             var isProjectTeamLead = await _context.ProjectTeams
                 .AnyAsync(pt => pt.proj_id == projectId
                              && pt.user_id == userId
-                             && pt.role == "Team Lead");
+                             && pt.role == ProjectRoleNames.TeamLead);
 
             if (isProjectTeamLead)
                 return (true, string.Empty);

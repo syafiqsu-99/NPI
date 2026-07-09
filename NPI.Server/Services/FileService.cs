@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
 using NPI.Server.DTOs;
+using NPI.Server.Helpers;
 using NPI.Server.Models;
 
 namespace NPI.Server.Services
@@ -12,11 +13,7 @@ namespace NPI.Server.Services
         private readonly NotificationTriggerService _triggerService;
         private readonly string _basePath;
 
-        public FileService(
-            ApplicationDbContext context,
-            ITaskService taskService,
-            IConfiguration configuration,
-            NotificationTriggerService triggerService)
+        public FileService(ApplicationDbContext context, ITaskService taskService, IConfiguration configuration, NotificationTriggerService triggerService)
         {
             _context = context;
             _taskService = taskService;
@@ -65,7 +62,7 @@ namespace NPI.Server.Services
                         file_path = destPath,
                         file_size = file.Length,
                         content_type = file.ContentType,
-                        status = "Active",
+                        status = FileStatus.Active,
                         is_latest = true,
                         created_at = DateTime.Now
                     };
@@ -154,7 +151,7 @@ namespace NPI.Server.Services
                     file_path = filePath,
                     file_size = file.Length,
                     content_type = file.ContentType,
-                    status = "Active",
+                    status = FileStatus.Active,
                     is_latest = true,
                     created_at = DateTime.Now
                 };
@@ -200,7 +197,7 @@ namespace NPI.Server.Services
                     file_size = file.Length,
                     upload_by = uploadBy,
                     content_type = file.ContentType,
-                    status = "Active",
+                    status = FileStatus.Active,
                     is_latest = true,
                     created_at = DateTime.Now
                 };
@@ -220,7 +217,7 @@ namespace NPI.Server.Services
         public async Task<List<FileResponseDto>> GetFilesByTaskAsync(int taskId)
         {
             var files = await _context.Files
-                .Where(f => f.task_id == taskId && f.is_latest && f.status == "Active")
+                .Where(f => f.task_id == taskId && f.is_latest && f.status != FileStatus.Deleted)
                 .Include(f => f.UploadByUser)
                 .OrderByDescending(f => f.created_at)
                 .ToListAsync();
@@ -231,7 +228,7 @@ namespace NPI.Server.Services
         public async Task<List<FileResponseDto>> GetFilesByProjectAsync(int projId)
         {
             var files = await _context.Files
-                .Where(f => f.proj_id == projId && f.is_latest && f.status == "Active")
+                .Where(f => f.proj_id == projId && f.is_latest && f.status != FileStatus.Deleted)
                 .Include(f => f.UploadByUser)
                 .Include(f => f.Task)
                 .Include(f => f.Department)
@@ -244,7 +241,7 @@ namespace NPI.Server.Services
         public async Task<List<FileResponseDto>> GetFilesByEnquiryAsync(int enquiryId)
         {
             var files = await _context.Files
-                .Where(f => f.enquiry_id == enquiryId && f.is_latest && f.status == "Active")
+                .Where(f => f.enquiry_id == enquiryId && f.is_latest && f.status != FileStatus.Deleted)
                 .Include(f => f.UploadByUser)
                 .OrderByDescending(f => f.created_at)
                 .ToListAsync();
@@ -255,7 +252,7 @@ namespace NPI.Server.Services
         public async Task<List<FileResponseDto>> GetAllCustomerFilesAsync()
         {
             var files = await _context.Files
-                .Where(f => f.enquiry_id != null && f.is_latest && f.status == "Active")
+                .Where(f => f.enquiry_id != null && f.is_latest && f.status != FileStatus.Deleted)
                 .Include(f => f.UploadByUser)
                 .Include(f => f.Enquiry)
                     .ThenInclude(e => e!.Customer)
@@ -277,7 +274,7 @@ namespace NPI.Server.Services
             try
             {
                 var file = await _context.Files.FindAsync(fileId);
-                if (file is null || string.IsNullOrEmpty(file.file_path) || !File.Exists(file.file_path))
+                if (file is null || file.status == FileStatus.Deleted)
                     return (false, null, null);
 
                 var bytes = await File.ReadAllBytesAsync(file.file_path);
@@ -339,7 +336,8 @@ namespace NPI.Server.Services
             int fileId)
         {
             var file = await _context.Files.FindAsync(fileId);
-            if (file is null) return (false, "File not found", null);
+            if (file is null || file.status == FileStatus.Deleted)
+                return (false, "File not found", null);
             if (string.IsNullOrEmpty(file.file_path) || !File.Exists(file.file_path))
                 return (false, "Physical file not found on disk", null);
 
@@ -369,23 +367,19 @@ namespace NPI.Server.Services
             try
             {
                 var file = await _context.Files.FindAsync(fileId);
-                if (file is null) return (false, "File not found");
+                if (file is null || file.status == FileStatus.Deleted)
+                    return (false, "File not found");
 
-                file.updated_at = DateTime.Now;
-                if (!string.IsNullOrEmpty(file.file_path) && File.Exists(file.file_path))
-                    File.Delete(file.file_path);
-
-                file.status = "Deleted";
+                file.status = FileStatus.Deleted;
                 file.is_latest = false;
                 file.deleted_by = deletedBy;
                 file.deleted_at = DateTime.Now;
+                file.updated_at = DateTime.Now;
                 await _context.SaveChangesAsync();
 
-                if (System.IO.File.Exists(file.file_path))
-                    System.IO.File.Delete(file.file_path);
+                if (!string.IsNullOrEmpty(file.file_path) && File.Exists(file.file_path))
+                    File.Delete(file.file_path);
 
-                _context.Files.Remove(file);
-                await _context.SaveChangesAsync();
                 return (true, "File deleted successfully");
             }
             catch (Exception ex)
@@ -397,7 +391,7 @@ namespace NPI.Server.Services
         public async Task<int> GetTaskDocumentCountAsync(int taskId)
         {
             return await _context.Files
-                .CountAsync(f => f.task_id == taskId && f.is_latest && f.status == "Active");
+                .CountAsync(f => f.task_id == taskId && f.is_latest && f.status != FileStatus.Deleted);
         }
 
         public async Task<string> EnsureCustomerFolderAsync(string companyName)
@@ -440,7 +434,7 @@ namespace NPI.Server.Services
             var allProjects = await _context.Projects.ToListAsync();
 
             var allFiles = await _context.Files
-                .Where(f => f.status == "Active" && f.is_latest)
+                .Where(f => f.status != FileStatus.Deleted && f.is_latest)
                 .ToListAsync();
 
             var fileMap = allFiles
@@ -567,7 +561,7 @@ namespace NPI.Server.Services
 
                 if (!File.Exists(fullPath)) return (false, "File not found");
 
-                var record = await _context.Files.FirstOrDefaultAsync(f => f.file_path == path && f.status == "Active");
+                var record = await _context.Files.FirstOrDefaultAsync(f => f.file_path == path && f.status != FileStatus.Deleted);
                 if (record != null)
                 {
                     record.status = "Deleted";

@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
 using NPI.Server.DTOs;
+using NPI.Server.Helpers;
 using NPI.Server.Models;
 
 namespace NPI.Server.Services
@@ -36,8 +37,7 @@ namespace NPI.Server.Services
                 return (false, "Task not found");
 
             // 1. Requirement: System Admins & Managers bypass all rules (Full access to uploads/status)
-            if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(userRole, "Manager", StringComparison.OrdinalIgnoreCase))
+            if (RbacHelper.IsAdminOrManager(userRole))
             {
                 return (true, string.Empty);
             }
@@ -56,12 +56,6 @@ namespace NPI.Server.Services
             if (string.Equals(projectTeamRole.role, "Viewer", StringComparison.OrdinalIgnoreCase))
             {
                 return (false, "Unauthorized: You have 'Viewer' access on this project and cannot modify tasks.");
-            }
-
-            // 4. Allow Project-level Leadership to edit anything in the project
-            if (projectTeamRole.role == "Team Lead" || projectTeamRole.role == "Admin" || projectTeamRole.role == "Manager")
-            {
-                return (true, string.Empty);
             }
 
             // Team Lead: full write access to any task in the project
@@ -171,8 +165,7 @@ namespace NPI.Server.Services
                 .Include(t => t.TaskRevisions);
 
             // Requirement 1: Admin & Manager Roles must fetch ALL tasks
-            bool hasGlobalAccess = string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
-                                   string.Equals(userRole, "Manager", StringComparison.OrdinalIgnoreCase);
+            bool hasGlobalAccess = RbacHelper.IsAdminOrManager(userRole); ;
 
             if (!hasGlobalAccess)
             {
@@ -276,25 +269,9 @@ namespace NPI.Server.Services
             }
         }
 
-        public async Task<(bool success, string message)> DeleteTaskAsync(int taskId, int userId, string userRole, int userDeptId)
+        public async Task<(bool success, string message)> DeleteTaskAsync(
+            int taskId, int userId, string userRole, int userDeptId)
         {
-            if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase) && !string.Equals(userRole, "Manager", StringComparison.OrdinalIgnoreCase))
-            {
-                var projId = await _context.Tasks
-                    .Where(t => t.task_id == taskId)
-                    .Select(t => (int?)t.proj_id)
-                    .FirstOrDefaultAsync();
-
-                if (projId is null)
-                    return (false, "Task not found");
-
-                var isTeamLead = await _context.ProjectTeams.AnyAsync(pt =>
-                    pt.proj_id == projId && pt.user_id == userId && pt.role == "Team Lead");
-
-                if (!isTeamLead)
-                    return (false, "Unauthorized: Only Admins, Managers, or the project Team Lead can delete tasks.");
-            }
-
             try
             {
                 var task = await _context.Tasks
@@ -306,23 +283,23 @@ namespace NPI.Server.Services
                 if (task == null)
                     return (false, "Task not found");
 
-                // Check if task has subtasks
-                if (task.SubTasks != null && task.SubTasks.Any())
+                if (!RbacHelper.IsAdminOrManager(userRole))
                 {
-                    return (false, "Cannot delete task with subtasks. Delete subtasks first.");
+                    var isTeamLead = await _context.ProjectTeams.AnyAsync(pt =>
+                        pt.proj_id == task.proj_id &&
+                        pt.user_id == userId &&
+                        pt.role == ProjectRoleNames.TeamLead);
+
+                    if (!isTeamLead)
+                        return (false, "Unauthorized: Only Admins, Managers, or the project's Team Lead can delete tasks.");
                 }
 
-                // Resolve folder BEFORE removing from DB
-                var folderPath = task.Project != null
-                    ? GetTaskFolderPath(task.Project.proj_name, task.Department?.dept_name)
-                    : null;
+                if (task.SubTasks != null && task.SubTasks.Any())
+                    return (false, "Cannot delete task with subtasks. Delete subtasks first.");
 
                 _context.Tasks.Remove(task);
                 await _context.SaveChangesAsync();
 
-                // Folders are now shared by department — do NOT auto-delete them,
-                // as other tasks in the same dept may have files there.
-                // Just report success.
                 return (true, "Task deleted successfully");
             }
             catch (Exception ex)
