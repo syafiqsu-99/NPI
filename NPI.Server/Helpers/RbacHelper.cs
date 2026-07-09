@@ -31,11 +31,12 @@ namespace NPI.Server.Helpers
             IProjectRoleService projectRoleService)
         {
             var systemRole = GetSystemRole(user);
-            if (systemRole is "Admin" or "Manager")
+            if (systemRole is SystemRoles.Admin or SystemRoles.Manager)
                 return true;
 
             var userId = GetUserId(user);
-            return await projectRoleService.HasProjectRoleAsync(projectId, userId, minimumProjectRole);
+            return await projectRoleService.HasProjectRoleAsync(
+                projectId, userId, systemRole, minimumProjectRole);
         }
 
         public static string GetDepartmentName(ClaimsPrincipal user)

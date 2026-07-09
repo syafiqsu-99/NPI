@@ -322,17 +322,14 @@
   async function loadRoles(projId) {
     loadingRoles.value = true
     try {
-      const result = await api.get(`/projectteam/by-project/${projId}`)
+      const result = await api.get(`/projectrole/by-project/${projId}`)
       const teamData = result?.data ?? []
 
-      // Enrich each team entry with dept_name from the allUsers cache
       projectRoles.value = teamData.map(member => {
         const userDetail = allUsers.value.find(u => u.user_id === member.user_id)
         return {
           ...member,
-          // user_name already populated from ProjectTeamDto
           user_name: member.user_name ?? userDetail?.username ?? `User #${member.user_id}`,
-          // dept_name enriched from user cache
           dept_name: userDetail?.dept_name ?? ''
         }
       })

@@ -63,14 +63,16 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // ── Shared permission helpers ────────────────────────────────────────────
-  const canDeleteProject = computed(() => isAdmin.value || isManager.value)
+  const isAdminOrManager = computed(() => isAdmin.value || isManager.value)
+
+  const canDeleteProject = computed(() => isAdminOrManager.value)
 
   const canCreateEnquiry = computed(
-    () => isAdmin.value || isManager.value || isSalesUser.value
+    () => isAdminOrManager.value || isSalesUser.value
   )
 
   function canDeleteEnquiry(enquiry) {
-    if (isAdmin.value || isManager.value) return true
+    if (isAdminOrManager.value) return true
     return (
       isSalesUser.value &&
       enquiry.status === 'Draft' &&
@@ -79,19 +81,16 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function canStartProject(item) {
-    return authStore.isAdminOrManager && item.status === 'Submitted' && !item.proj_id
-  }
-  function canManageProject(item) {
-    return authStore.isAdminOrManager && item.status === 'Submitted' && !item.proj_id
-  }
-  function canManageSetup(item) {
-    return authStore.isAdminOrManager && !!item.proj_id
+    return isAdminOrManager.value && item.status === 'Submitted' && !item.proj_id
   }
 
-  // Convenience wrappers kept for backward compatibility with existing call sites.
-  const canEditProject  = (projId) => hasProjectRole(projId, PROJECT_ROLES.TEAM_LEAD)
-  const canEditTask     = (projId) => hasProjectRole(projId, PROJECT_ROLES.MEMBER)
-  const canViewProject  = (projId) => hasProjectRole(projId, PROJECT_ROLES.VIEWER)
+  function canManageProject(item) {
+    return isAdminOrManager.value && !!item.proj_id
+  }
+
+  const canEditProject = (projId) => hasProjectRole(projId, PROJECT_ROLES.TEAM_LEAD)
+  const canEditTask = (projId) => hasProjectRole(projId, PROJECT_ROLES.MEMBER)
+  const canViewProject = (projId) => hasProjectRole(projId, PROJECT_ROLES.VIEWER)
 
   // ── Auth actions ─────────────────────────────────────────────────────────
 
@@ -157,15 +156,14 @@ export const useAuthStore = defineStore('auth', () => {
 
     isAuthenticated, currentUser, userRole,
     userDepartment, userDeptId,
-    isAdmin, isManager, isMember, isSalesUser,
+    isAdmin, isManager, isMember, isSalesUser, isAdminOrManager,
 
     projectRoleCache,
     getProjectRole, fetchProjectRole, hasProjectRole,
 
-    canStartProject, canCreateEnquiry,
-    canDeleteEnquiry, canManageProject,
+    canStartProject, canManageProject, canDeleteProject,
+    canCreateEnquiry, canDeleteEnquiry,
     canEditProject, canEditTask, canViewProject,
-    canDeleteProject,
 
     login, logout, checkAuth,
   }

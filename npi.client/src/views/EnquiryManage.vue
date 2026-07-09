@@ -184,11 +184,9 @@
   })
 
   // Start project conditional
-  const canStartProject = computed(() => {
-    if (!enquiry.value || enquiry.value.proj_id) return false
-    const s = enquiry.value.status
-    return s === 'Submitted' && authStore.canStartProject
-  })
+  const canStartProject = computed(() =>
+    !!enquiry.value && authStore.canStartProject(enquiry.value)
+  )
 
   // Formatting & Mapping Helpers
   function getSectionLabel(sectionKey) {

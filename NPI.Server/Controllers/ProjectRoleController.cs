@@ -76,5 +76,25 @@ namespace NPI.Server.Controllers
                 ? Ok(new { success = true, message })
                 : BadRequest(new { success = false, message });
         }
+        [HttpGet("teams")]
+        public async Task<IActionResult> GetAllTeams()
+        {
+            var teams = await _projectRoleService.GetAllProjectTeamsAsync();
+            return Ok(new { success = true, data = teams });
+        }
+
+        [HttpGet("{projectId}/team")]
+        public async Task<IActionResult> GetTeamByProject(int projectId)
+        {
+            var teams = await _projectRoleService.GetProjectRolesAsync(projectId);
+            return Ok(new { success = true, data = teams });
+        }
+
+        [HttpGet("by-user/{userId}")]
+        public async Task<IActionResult> GetProjectsByUser(int userId)
+        {
+            var projectIds = await _projectRoleService.GetProjectsByUserAsync(userId);
+            return Ok(new { success = true, data = projectIds });
+        }
     }
 }
