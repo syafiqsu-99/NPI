@@ -86,7 +86,7 @@ namespace NPI.Server.Services
         // ── Upload: single file (task, project, or enquiry/customer) ─────────
 
         public async Task<(bool success, string message, Files? file)> UploadFileAsync(
-            IFormFile file, int projId, int? taskId, int? docTypeId,
+            IFormFile file, int? projId, int? taskId, int? docTypeId,
             int uploadBy, int? deptId,
             int? enquiryId = null, string? customerName = null)
         {
@@ -101,8 +101,7 @@ namespace NPI.Server.Services
                 {
                     var folderPath = await _taskService.GetTaskFolderPathAsync(taskId.Value);
                     if (folderPath is null)
-                        return (false,
-                            $"Could not resolve upload folder for task {taskId.Value}.", null);
+                        return (false, $"Could not resolve upload folder for task {taskId.Value}.", null);
 
                     Directory.CreateDirectory(folderPath);
                     filePath = BuildUniqueFilePath(folderPath, file.FileName);
@@ -125,7 +124,10 @@ namespace NPI.Server.Services
                 }
                 else
                 {
-                    var project = await _context.Projects.FindAsync(projId);
+                    if (projId is null or 0)
+                        return (false, "A project, task, or enquiry must be supplied.", null);
+
+                    var project = await _context.Projects.FindAsync(projId.Value);
                     if (project is null)
                         return (false, "Project not found", null);
 
@@ -140,7 +142,7 @@ namespace NPI.Server.Services
 
                 var record = new Files
                 {
-                    proj_id = projId > 0 ? projId : null,
+                    proj_id = projId is 0 ? null : projId,
                     task_id = taskId,
                     enquiry_id = enquiryId,
                     doc_type_id = docTypeId,

@@ -288,19 +288,36 @@
   async function uploadPendingFiles(enquiryId) {
     if (!selectedFiles.value.length) return
 
+    let compName = 'Unknown'
+    if (customerType.value === 'existing' && selectedCustomerInfo.value) {
+      compName = selectedCustomerInfo.value.comp_name
+    } else if (customerType.value === 'new') {
+      compName = formData.value.new_customer.comp_name
+    }
+
+    const failed = []
+
     for (const file of selectedFiles.value) {
       const fd = new FormData()
       fd.append('file', file)
-      fd.append('enquiry_id', enquiryId)
-      fd.append('proj_id', 0)
 
       try {
-        await api.uploadFile(`/file/upload-single`, fd)
+        await api.uploadFile(
+          `/enquiry/${enquiryId}/upload?comp_name=${encodeURIComponent(compName)}`,
+          fd
+        )
       } catch (e) {
-        console.error('File upload failed', e)
+        console.error('File upload failed', file.name, e)
+        failed.push(file.name)
       }
     }
+
     selectedFiles.value = []
+
+    if (failed.length) {
+      errorMessage.value =
+        `Enquiry saved, but these files failed to upload: ${failed.join(', ')}`
+    }
   }
 
   async function saveDraft() {

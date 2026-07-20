@@ -18,6 +18,7 @@ namespace NPI.Server.Controllers
         private readonly IFileService _fileService;
         private readonly IPdfService _pdfService;
         private readonly ApplicationDbContext _context;
+        private readonly IAuditLogService _audit;
 
         public EnquiryController(
             IEnquiryService enquiryService,
@@ -68,10 +69,8 @@ namespace NPI.Server.Controllers
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid token." });
 
-            if (!RbacHelper.CanCreateEnquiry(User))
-                return Forbid();
-
-            var (success, message, enquiry) = await _enquiryService.CreateEnquiryAsync(dto, userId);
+            var (success, message, enquiry) =
+                await _enquiryService.CreateEnquiryAsync(dto, userId, GetIpAddress());
 
             return success
                 ? Ok(new { success = true, message, data = new { enquiry } })
@@ -84,7 +83,8 @@ namespace NPI.Server.Controllers
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid token." });
 
-            var (success, message) = await _enquiryService.UpdateEnquiryAsync(id, dto, userId, RbacHelper.GetSystemRole(User));
+            var (success, message) = await _enquiryService.UpdateEnquiryAsync(
+                id, dto, userId, RbacHelper.GetSystemRole(User), GetIpAddress());
 
             return success
                 ? Ok(new { success = true, message })
@@ -97,10 +97,8 @@ namespace NPI.Server.Controllers
             if (!TryGetUserId(out var userId))
                 return Unauthorized(new { success = false, message = "Invalid token." });
 
-            if (!RbacHelper.CanCreateEnquiry(User))
-                return Forbid();
-
-            var (success, message) = await _enquiryService.SubmitEnquiryAsync(id, userId);
+            var (success, message) = await _enquiryService.SubmitEnquiryAsync(
+                id, userId, RbacHelper.GetSystemRole(User), GetIpAddress());
 
             return success
                 ? Ok(new { success = true, message })
@@ -110,14 +108,11 @@ namespace NPI.Server.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteEnquiry(int id)
         {
-            var enquiry = await _context.Enquiries.FindAsync(id);
-            if (enquiry == null)
-                return NotFound(new { success = false, message = "Enquiry not found." });
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(new { success = false, message = "Invalid token." });
 
-            if (!RbacHelper.CanDeleteEnquiry(User, enquiry.status, enquiry.created_by))
-                return Forbid();
-
-            var (success, message) = await _enquiryService.DeleteEnquiryAsync(id);
+            var (success, message) = await _enquiryService.DeleteEnquiryAsync(
+                id, userId, RbacHelper.GetSystemRole(User), GetIpAddress());
 
             return success
                 ? Ok(new { success = true, message })
@@ -136,33 +131,46 @@ namespace NPI.Server.Controllers
                 .Include(e => e.Customer)
                 .FirstOrDefaultAsync(e => e.enquiry_id == id);
 
-            if (enquiry == null)
+            if (enquiry is null)
                 return NotFound(new { success = false, message = "Enquiry not found" });
 
-            var isPrivileged = RbacHelper.GetSystemRole(User) is "Admin" or "Manager";
-            if (!isPrivileged && enquiry.created_by != userId)
+            var userRole = RbacHelper.GetSystemRole(User);
+            if (!RbacHelper.IsAdminOrManager(userRole) && enquiry.created_by != userId)
+            {
+                await _audit.LogAsync(userId, null, "UPLOAD_DENIED", "Files", id,
+                    null, new { enquiry_id = id }, GetIpAddress());
                 return Forbid();
+            }
 
             if (enquiry.status != EnquiryStatus.Draft)
-                return BadRequest(new { success = false, message = "Files can only be attached while the enquiry is a Draft." });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Files can only be attached while the enquiry is a Draft."
+                });
 
-            if (string.IsNullOrWhiteSpace(comp_name) && enquiry.Customer != null)
+            if (string.IsNullOrWhiteSpace(comp_name) && enquiry.Customer is not null)
                 comp_name = enquiry.Customer.comp_name;
 
-            var (success, message, File) =
-                await _fileService.UploadFileAsync(
-                    file,
-                    proj_id: 0,
-                    task_id: null,
-                    doc_type_id: null,
-                    uploadBy: userId,
-                    dept_id: null,
-                    enquiry_id: id,
-                    customer_name: comp_name);
+            var (success, message, uploaded) = await _fileService.UploadFileAsync(
+                file,
+                projId: null,
+                taskId: null,
+                docTypeId: null,
+                uploadBy: userId,
+                deptId: null,
+                enquiryId: id,
+                customerName: comp_name);
 
-            return success
-                ? Ok(new { success = true, message, data = new { file = File } })
-                : BadRequest(new { success = false, message });
+            if (!success)
+                return BadRequest(new { success = false, message });
+
+            await _audit.LogAsync(userId, null, "UPLOAD", "Files", uploaded!.file_id,
+                null,
+                new { uploaded.file_name, uploaded.file_size, enquiry_id = id },
+                GetIpAddress());
+
+            return Ok(new { success = true, message, data = new { file = uploaded } });
         }
 
         // ── PDF ───────────────────────────────────────────────────────────────
@@ -188,5 +196,8 @@ namespace NPI.Server.Controllers
             var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             return int.TryParse(claim, out userId);
         }
+
+        private string? GetIpAddress() =>
+            HttpContext.Connection.RemoteIpAddress?.ToString();
     }
 }

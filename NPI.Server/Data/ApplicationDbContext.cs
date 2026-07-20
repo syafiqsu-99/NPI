@@ -150,6 +150,12 @@ namespace NPI.Server.Data
                 .HasForeignKey(f => f.replaced_by)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<Files>()
+                .HasOne(f => f.Project)
+                .WithMany(p => p.Files)
+                .HasForeignKey(f => f.proj_id)
+                .OnDelete(DeleteBehavior.NoAction);
+
             modelBuilder.Entity<TaskRevisions>()
                 .HasOne(tr => tr.Revision)
                 .WithMany(pr => pr.TaskRevisions)

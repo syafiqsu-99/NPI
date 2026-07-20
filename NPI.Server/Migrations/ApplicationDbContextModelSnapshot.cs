@@ -298,6 +298,12 @@ namespace NPI.Server.Migrations
                     b.Property<DateTime>("created_at")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("deleted_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("deleted_by")
+                        .HasColumnType("int");
+
                     b.Property<int?>("dept_id")
                         .HasColumnType("int");
 
@@ -326,7 +332,7 @@ namespace NPI.Server.Migrations
                     b.Property<bool>("is_latest")
                         .HasColumnType("bit");
 
-                    b.Property<int>("proj_id")
+                    b.Property<int?>("proj_id")
                         .HasColumnType("int");
 
                     b.Property<int?>("replaced_by")
@@ -1230,8 +1236,7 @@ namespace NPI.Server.Migrations
                     b.HasOne("NPI.Server.Models.Projects", "Project")
                         .WithMany("Files")
                         .HasForeignKey("proj_id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("NPI.Server.Models.Files", "ReplacedByFile")
                         .WithMany()

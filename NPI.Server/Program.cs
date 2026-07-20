@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using NPI.Server.Data;
@@ -10,11 +11,29 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ── Database ───────────────────────────────────────────────────────────────
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException(
+        "Connection string 'DefaultConnection' is not configured.");
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(
+        maxRetryCount: 3,
+        maxRetryDelay: TimeSpan.FromSeconds(5),
+        errorNumbersToAdd: null)));
+
+builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
+    options.UseSqlServer(connectionString),
+    lifetime: ServiceLifetime.Scoped);
 
 // ── JWT Authentication ─────────────────────────────────────────────────────
-var jwtKey = builder.Configuration["Jwt:Key"]!;
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException("'Jwt:Key' is not configured.");
+
+if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
+    throw new InvalidOperationException(
+        "'Jwt:Key' must be at least 32 bytes for HMAC-SHA256 signing.");
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -27,7 +46,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-            RoleClaimType = ClaimTypes.Role
+            RoleClaimType = ClaimTypes.Role,
+            ClockSkew = TimeSpan.FromMinutes(1)
         };
 
         // Allow SignalR to receive JWT from query string
@@ -61,6 +81,7 @@ builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<NotificationTriggerService>();
 builder.Services.AddScoped<IProjectRoleService, ProjectRoleService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 // ── Background services ────────────────────────────────────────────────────
 builder.Services.AddHostedService<NotificationBackgroundJob>();
@@ -95,8 +116,18 @@ app.MapFallbackToFile("/index.html");
 // ── Database seed ──────────────────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await SeedData.InitializeAsync(context);
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        var context = services.GetRequiredService<ApplicationDbContext>();
+        await SeedData.InitializeAsync(context);
+    }
+    catch (Exception ex)
+    {
+        logger.LogCritical(ex, "Database seeding failed. Application will not start.");
+        throw;
+    }
 }
 
 app.Run();
