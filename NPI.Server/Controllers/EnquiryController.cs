@@ -124,7 +124,7 @@ namespace NPI.Server.Controllers
         [HttpPost("{id}/upload")]
         public async Task<IActionResult> UploadFile(int id, IFormFile file, [FromQuery] string comp_name = "Unknown")
         {
-            if (!TryGetUserId(out var userId))
+            if (!TryGetUserId(out var user_id))
                 return Unauthorized(new { success = false, message = "Invalid token." });
 
             var enquiry = await _context.Enquiries
@@ -135,9 +135,9 @@ namespace NPI.Server.Controllers
                 return NotFound(new { success = false, message = "Enquiry not found" });
 
             var userRole = RbacHelper.GetSystemRole(User);
-            if (!RbacHelper.IsAdminOrManager(userRole) && enquiry.created_by != userId)
+            if (!RbacHelper.IsAdminOrManager(userRole) && enquiry.created_by != user_id)
             {
-                await _audit.LogAsync(userId, null, "UPLOAD_DENIED", "Files", id,
+                await _audit.LogAsync(user_id, null, "UPLOAD_DENIED", "Files", id,
                     null, new { enquiry_id = id }, GetIpAddress());
                 return Forbid();
             }
@@ -154,18 +154,18 @@ namespace NPI.Server.Controllers
 
             var (success, message, uploaded) = await _fileService.UploadFileAsync(
                 file,
-                projId: null,
-                taskId: null,
-                docTypeId: null,
-                uploadBy: userId,
-                deptId: null,
-                enquiryId: id,
-                customerName: comp_name);
+                proj_id: null,
+                task_id: null,
+                doc_type_id: null,
+                user_id: user_id,
+                dept_id: null,
+                enquiry_id: id,
+                customer_name: comp_name);
 
             if (!success)
                 return BadRequest(new { success = false, message });
 
-            await _audit.LogAsync(userId, null, "UPLOAD", "Files", uploaded!.file_id,
+            await _audit.LogAsync(user_id, null, "UPLOAD", "Files", uploaded!.file_id,
                 null,
                 new { uploaded.file_name, uploaded.file_size, enquiry_id = id },
                 GetIpAddress());

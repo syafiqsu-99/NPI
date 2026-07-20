@@ -85,9 +85,7 @@ namespace NPI.Server.Controllers
                 return Forbid();
             }
 
-            var (success, message, result) = await _fileService.UploadFileAsync(
-                file, proj_id, task_id, doc_type_id,
-                userId, dept_id, enquiry_id, customer_name);
+            var (success, message, result) = await _fileService.UploadFileAsync(file, proj_id, task_id, doc_type_id, user_id, dept_id, enquiry_id, customer_name);
 
             if (!success || result is null)
                 return BadRequest(new { success = false, message });
