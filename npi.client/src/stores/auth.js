@@ -71,6 +71,12 @@ export const useAuthStore = defineStore('auth', () => {
     () => isAdminOrManager.value || isSalesUser.value
   )
 
+  function canEditEnquiry(enquiry) {
+    if (enquiry.status !== 'Draft') return false
+    if (isAdminOrManager.value) return true
+    return isSalesUser.value && Number(enquiry.created_by) === user.value?.user_id
+  }
+
   function canDeleteEnquiry(enquiry) {
     if (isAdminOrManager.value) return true
     return (
@@ -162,7 +168,7 @@ export const useAuthStore = defineStore('auth', () => {
     getProjectRole, fetchProjectRole, hasProjectRole,
 
     canStartProject, canManageProject, canDeleteProject,
-    canCreateEnquiry, canDeleteEnquiry,
+    canCreateEnquiry, canEditEnquiry, canDeleteEnquiry,
     canEditProject, canEditTask, canViewProject,
 
     login, logout, checkAuth,

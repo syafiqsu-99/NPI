@@ -93,21 +93,21 @@
                 <v-icon size="18">mdi-chart-gantt</v-icon>
               </v-btn>
 
-              <v-btn v-if="canStartProject(item)"
+              <v-btn v-if="authStore.canStartProject(item)"
                      icon size="small" variant="text" color="primary"
                      title="Start Project"
                      @click="viewEnquiryDetail(item.enquiry_id)">
                 <v-icon size="18">mdi-rocket-launch</v-icon>
               </v-btn>
 
-              <v-btn v-if="canManageSetup(item)"
+              <v-btn v-if="authStore.canManageProject(item)"
                      icon size="small" variant="text" color="primary"
                      title="Manage Project Setup"
                      @click="$router.push(`/projects/${item.proj_id}/setup`)">
                 <v-icon size="18">mdi-cog</v-icon>
               </v-btn>
 
-              <v-btn v-if="canEditEnquiry(item)"
+              <v-btn v-if="authStore.canEditEnquiry(item)"
                      icon size="small" variant="text" color="info"
                      title="Edit"
                      @click="editEnquiry(item.enquiry_id)">
@@ -232,18 +232,6 @@
     { title: 'Created Date', key: 'created_at',   sortable: true },
     { title: 'Actions',     key: 'actions',       sortable: false, align: 'center', width: '190px' },
   ]
-
-  // ── Permission helpers ──────────────────────────────────────────────────────
-
-  function canEditEnquiry(enquiry) {
-    if (enquiry.status !== 'Draft') return false
-
-    if (!authStore.canCreateEnquiry) return false
-
-    if (authStore.isAdmin || authStore.isManager) return true
-
-    return Number(enquiry.created_by) === authStore.user?.user_id
-  }
 
   // ── Status colour ───────────────────────────────────────────────────────────
 
