@@ -120,7 +120,7 @@
                         rows="3"
                         class="mb-4" />
             <v-switch v-model="roleFormData.is_active"
-                      label=
+                      label="Status"
                       color="success" hide-details />
           </v-form>
         </v-card-text>

@@ -617,14 +617,6 @@
   }
 
   function fileApiPath(item, inline = false) {
-    const ext = file.file_name.split('.').pop()?.toLowerCase()
-    if (PREVIEWABLE_EXTENSIONS.includes(ext)) {
-      previewUrl.value = await api.previewFile(`/file/download/${file.file_id}?inline=true`)
-      previewDialog.value = true
-    } else {
-      await api.downloadFile(`/file/download/${file.file_id}`, file.file_name)
-    }
-
     const path = item.file_id
       ? `/api/file/download/${item.file_id}`
       : `/api/file/download-physical?path=${encodeURIComponent(item.path)}`
