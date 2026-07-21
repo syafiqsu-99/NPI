@@ -11,7 +11,6 @@ namespace NPI.Server.Data
         public DbSet<AuditLogs> AuditLogs { get; set; }
         public DbSet<Customers> Customers { get; set; }
         public DbSet<Departments> Departments { get; set; }
-        public DbSet<DocumentTypes> DocumentTypes { get; set; }
 
         // ── NPI Form Config ───────────────────────────────────────────────────
         public DbSet<NpiCategory> NpiCategories { get; set; }

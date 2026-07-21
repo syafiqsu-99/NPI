@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using NPI.Server.Helpers;
 using NPI.Server.Models;
 
 namespace NPI.Server.Data
@@ -14,12 +15,12 @@ namespace NPI.Server.Data
             {
                 var departments = new[]
                 {
-                    new Departments { dept_name = "Sales",      dept_code = "SLS", description = "Sales & Customer Service" , color_hex = "#2196F3" },
-                    new Departments { dept_name = "Technical",  dept_code = "TEC", description = "Technical & Engineering"  , color_hex = "#4CAF50"},
-                    new Departments { dept_name = "Purchaser",  dept_code = "PUR", description = "Purchasing Department"    , color_hex = "#FF9800"},
-                    new Departments { dept_name = "Production", dept_code = "PRD", description = "Production Department"    , color_hex = "#F44336"},
-                    new Departments { dept_name = "QA",         dept_code = "QA",  description = "Quality Assurance"        , color_hex = "#9C27B0"},
-                    new Departments { dept_name = "Management", dept_code = "MGT", description = "Management"               , color_hex = "#607D8B"}
+                    new Departments { dept_name = "Sales",      dept_code = "SLS", description = "Sales & Customer Service", color_hex = "#2196F3" },
+                    new Departments { dept_name = "Technical",  dept_code = "TEC", description = "Technical & Engineering" , color_hex = "#4CAF50"},
+                    new Departments { dept_name = "Purchaser",  dept_code = "PUR", description = "Purchasing Department"   , color_hex = "#FF9800"},
+                    new Departments { dept_name = "Production", dept_code = "PRD", description = "Production Department"   , color_hex = "#F44336"},
+                    new Departments { dept_name = "QA",         dept_code = "QA",  description = "Quality Assurance"       , color_hex = "#9C27B0"},
+                    new Departments { dept_name = "Management", dept_code = "MGT", description = "Management"              , color_hex = "#607D8B"}
                 };
                 await context.Departments.AddRangeAsync(departments);
                 await context.SaveChangesAsync();
@@ -81,46 +82,11 @@ namespace NPI.Server.Data
                     full_name = "System Administrator",
                     dept_id = mgtDept.dept_id,
                     role_id = adminRole.role_id,
-                    password_hash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
+                    password_hash = PasswordHelper.HashPassword("Admin@123"),
                     is_active = true,
                     created_at = DateTime.Now
                 };
                 await context.Users.AddAsync(adminUser);
-                await context.SaveChangesAsync();
-            }
-
-            // ── Document Types ────────────────────────────────────────────────
-            if (!await context.DocumentTypes.AnyAsync())
-            {
-                var techDept = await context.Departments.FirstAsync(d => d.dept_code == "TEC");
-                var salesDept = await context.Departments.FirstAsync(d => d.dept_code == "SLS");
-                var qaDept = await context.Departments.FirstAsync(d => d.dept_code == "QA");
-                var purDept = await context.Departments.FirstAsync(d => d.dept_code == "PUR");
-                var prdDept = await context.Departments.FirstAsync(d => d.dept_code == "PRD");
-
-                var docTypes = new[]
-                {
-                    new DocumentTypes { type_name = "Sales Enquiry Form",     dept_id = salesDept.dept_id, is_required = true },
-                    new DocumentTypes { type_name = "Customer Approval",       dept_id = salesDept.dept_id, is_required = true },
-                    new DocumentTypes { type_name = "Customer Info",           dept_id = salesDept.dept_id, is_required = false },
-                    new DocumentTypes { type_name = "Proposal Drawing",        dept_id = techDept.dept_id,  is_required = true },
-                    new DocumentTypes { type_name = "DFM Report",              dept_id = techDept.dept_id,  is_required = true },
-                    new DocumentTypes { type_name = "Quotation",               dept_id = techDept.dept_id,  is_required = true },
-                    new DocumentTypes { type_name = "Mold Cost Comparison",    dept_id = techDept.dept_id,  is_required = false },
-                    new DocumentTypes { type_name = "Product Drawing",         dept_id = techDept.dept_id,  is_required = true },
-                    new DocumentTypes { type_name = "Mold Drawing",            dept_id = techDept.dept_id,  is_required = true },
-                    new DocumentTypes { type_name = "Gantt Chart",             dept_id = techDept.dept_id,  is_required = true },
-                    new DocumentTypes { type_name = "Blue Card",               dept_id = techDept.dept_id,  is_required = false },
-                    new DocumentTypes { type_name = "Improvement Report",      dept_id = techDept.dept_id,  is_required = false },
-                    new DocumentTypes { type_name = "Material SDS",            dept_id = purDept.dept_id,   is_required = true },
-                    new DocumentTypes { type_name = "Material TDS",            dept_id = purDept.dept_id,   is_required = true },
-                    new DocumentTypes { type_name = "Material FDA",            dept_id = purDept.dept_id,   is_required = false },
-                    new DocumentTypes { type_name = "Delivery Order",          dept_id = purDept.dept_id,   is_required = false },
-                    new DocumentTypes { type_name = "Packing Format",          dept_id = prdDept.dept_id,   is_required = true },
-                    new DocumentTypes { type_name = "FAI Report",              dept_id = qaDept.dept_id,    is_required = true },
-                    new DocumentTypes { type_name = "Cp/Cpk Report",           dept_id = qaDept.dept_id,    is_required = true }
-                };
-                await context.DocumentTypes.AddRangeAsync(docTypes);
                 await context.SaveChangesAsync();
             }
 
