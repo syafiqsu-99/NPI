@@ -6,10 +6,26 @@ using System.Text.Json;
 
 namespace NPI.Server.Services
 {
-    /// <summary>
-    /// Manages the metadata that drives the dynamic NPI Enquiry Form:
-    /// NpiCategory, NpiFormSection, NpiFormField.
-    /// </summary>
+    public interface INpiFormConfigService
+    {
+        Task<NpiFormConfigResponseDto> GetFormConfigAsync();
+        Task<List<NpiCategoryDto>> GetAllCategoriesAsync();
+        Task<(bool Success, string Message, int Id)> CreateCategoryAsync(UpsertNpiCategoryDto dto);
+        Task<(bool Success, string Message)> UpdateCategoryAsync(int id, UpsertNpiCategoryDto dto);
+        Task<(bool Success, string Message)> DeleteCategoryAsync(int id);
+        Task<List<NpiFormSectionDto>> GetAllSectionsAsync();
+        Task<NpiFormSectionDto?> GetSectionByIdAsync(int id);
+        Task<(bool Success, string Message, int Id)> CreateSectionAsync(CreateNpiFormSectionDto dto);
+        Task<(bool Success, string Message)> UpdateSectionAsync(int id, UpdateNpiFormSectionDto dto);
+        Task<(bool Success, string Message)> DeleteSectionAsync(int id);
+        Task<(bool Success, string Message)> ToggleSectionStatusAsync(int id);
+        Task<(bool Success, string Message)> ReorderSectionsAsync(List<int> orderedIds);
+        Task<List<NpiFormFieldDto>> GetAllFieldsAsync();
+        Task<(bool Success, string Message, int Id)> CreateFieldAsync(UpsertNpiFormFieldDto dto);
+        Task<(bool Success, string Message)> UpdateFieldAsync(int id, UpsertNpiFormFieldDto dto);
+        Task<(bool Success, string Message)> DeleteFieldAsync(int id);
+    }
+
     public class NpiFormConfigService : INpiFormConfigService
     {
         private readonly ApplicationDbContext _context;

@@ -1,4 +1,4 @@
-﻿namespace NPI.Server.Services
+﻿namespace NPI.Server.Helpers
 {
     public static class PasswordHelper
     {

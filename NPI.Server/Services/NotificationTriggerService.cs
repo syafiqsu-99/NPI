@@ -142,7 +142,7 @@ namespace NPI.Server.Services
 
             // Find Sales dept members on this project
             var salesDept = await _context.Departments
-                .FirstOrDefaultAsync(d => d.dept_name == "Sales");
+                .FirstOrDefaultAsync(d => d.dept_code == "SLS");
 
             if (salesDept == null) return;
 

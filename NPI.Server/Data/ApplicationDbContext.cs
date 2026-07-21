@@ -29,6 +29,7 @@ namespace NPI.Server.Data
         public DbSet<Notifications> Notifications { get; set; }
         public DbSet<Projects> Projects { get; set; }
         public DbSet<Tasks> Tasks { get; set; }
+        public DbSet<TaskTemplates> TaskTemplates { get; set; }
 
         // ── Teams & Roles ─────────────────────────────────────────────────────
         public DbSet<ProjectTeams> ProjectTeams { get; set; }
@@ -111,6 +112,18 @@ namespace NPI.Server.Data
                 .WithMany(t => t.SubTasks)
                 .HasForeignKey(t => t.parent_task_id)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // ── TaskTemplates ─────────────────────────────────────────────────
+            modelBuilder.Entity<TaskTemplates>()
+                .HasOne(t => t.Department)
+                .WithMany()
+                .HasForeignKey(t => t.dept_id)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<TaskTemplates>()
+                .HasIndex(t => new { t.stage_id, t.task_code })
+                .IsUnique()
+                .HasDatabaseName("IX_TaskTemplates_Stage_Code");
 
             // ── ProjectTeams ──────────────────────────────────────────────────
             modelBuilder.Entity<ProjectTeams>()

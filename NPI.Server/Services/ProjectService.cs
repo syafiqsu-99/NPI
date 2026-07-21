@@ -6,6 +6,21 @@ using NPI.Server.Models;
 
 namespace NPI.Server.Services
 {
+    public interface IProjectService
+    {
+        Task<List<ProjectResponseDto>> GetAllProjectsAsync();
+        Task<ProjectResponseDto?> GetProjectByIdAsync(int projectId);
+        Task<(bool success, string message)> UpdateProjectAsync(int projectId, UpdateProjectDto dto, int userId, string userRole);
+        Task<(bool success, string message)> DeleteProjectAsync(int projectId);
+        Task<(bool success, string message, int proj_id)> CreateProjectFromEnquiryAsync(int enquiryId, int userId, CreateProjectFromEnquiryDto? dto = null);
+        Task<List<TaskResponseDto>> GetProjectTasksAsync(int projectId);
+        Task<(bool success, string message, List<string>? folderWarnings)> LaunchProjectAsync(int projectId, LaunchProjectDto dto, int userId);
+        Task<(bool success, string message)> UpdateProjectStatusAsync(int projectId, string status, int userId, string userRole);
+        Task<List<ProjectResponseDto>> GetProjectsByStatusAsync(string status);
+        Task<List<ProjectResponseDto>> GetProjectsByDepartmentAsync(int deptId);
+        Task<List<ProjectResponseDto>> GetProjectsByCustomerAsync(int customerId);
+    }
+
     public class ProjectService : IProjectService
     {
         private readonly ApplicationDbContext _context;
@@ -215,77 +230,84 @@ namespace NPI.Server.Services
 
         public async Task<(bool success, string message)> DeleteProjectAsync(int projectId)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            var strategy = _context.Database.CreateExecutionStrategy();
 
-            try
+            return await strategy.ExecuteAsync(async () =>
             {
-                var project = await _context.Projects
-                    .Include(p => p.Tasks)
-                        .ThenInclude(t => t.Files)
-                    .Include(p => p.Tasks)
-                        .ThenInclude(t => t.SubTasks)
-                            .ThenInclude(st => st.Files)
-                    .Include(p => p.Tasks)
-                        .ThenInclude(t => t.SubTasks)
-                            .ThenInclude(st => st.Milestone)
-                    .Include(p => p.ProjectTeams)
-                    .FirstOrDefaultAsync(p => p.proj_id == projectId);
+                _context.ChangeTracker.Clear();
 
-                if (project == null)
-                    return (false, "Project not found");
+                await using var transaction = await _context.Database.BeginTransactionAsync();
 
-                var relatedEnquiries = await _context.Enquiries
-                    .Where(e => e.proj_id == projectId)
-                    .ToListAsync();
-
-                foreach (var enquiry in relatedEnquiries)
+                try
                 {
-                    enquiry.proj_id = null;
-                    enquiry.updated_at = DateTime.Now;
-                    enquiry.status = EnquiryStatus.Submitted;
+                    var project = await _context.Projects
+                        .Include(p => p.Tasks)
+                            .ThenInclude(t => t.Files)
+                        .Include(p => p.Tasks)
+                            .ThenInclude(t => t.SubTasks)
+                                .ThenInclude(st => st.Files)
+                        .Include(p => p.Tasks)
+                            .ThenInclude(t => t.SubTasks)
+                                .ThenInclude(st => st.Milestone)
+                        .Include(p => p.ProjectTeams)
+                        .FirstOrDefaultAsync(p => p.proj_id == projectId);
+
+                    if (project == null)
+                        return (false, "Project not found");
+
+                    var projNo = project.proj_no;
+
+                    var relatedEnquiries = await _context.Enquiries
+                        .Where(e => e.proj_id == projectId)
+                        .ToListAsync();
+
+                    foreach (var enquiry in relatedEnquiries)
+                    {
+                        enquiry.proj_id = null;
+                        enquiry.updated_at = DateTime.Now;
+                        enquiry.status = EnquiryStatus.Submitted;
+                    }
+
+                    var allTasks = project.Tasks
+                        .Concat(project.Tasks.SelectMany(t => t.SubTasks ?? new List<Tasks>()))
+                        .ToList();
+
+                    var allFiles = allTasks
+                        .SelectMany(t => t.Files ?? new List<Files>())
+                        .ToList();
+
+                    if (allFiles.Any())
+                        _context.Files.RemoveRange(allFiles);
+
+                    await _context.SaveChangesAsync();
+
+                    var subTasks = project.Tasks
+                        .SelectMany(t => t.SubTasks ?? new List<Tasks>())
+                        .ToList();
+
+                    if (subTasks.Any())
+                        _context.Tasks.RemoveRange(subTasks);
+
+                    await _context.SaveChangesAsync();
+
+                    _context.Tasks.RemoveRange(project.Tasks);
+                    _context.ProjectTeams.RemoveRange(project.ProjectTeams);
+
+                    await _context.SaveChangesAsync();
+
+                    _context.Projects.Remove(project);
+                    await _context.SaveChangesAsync();
+
+                    await transaction.CommitAsync();
+
+                    return (true, $"Project {projNo} deleted successfully");
                 }
-
-                await _context.SaveChangesAsync();
-
-                var allTasks = project.Tasks
-                    .Concat(project.Tasks.SelectMany(t => t.SubTasks ?? new List<Tasks>()))
-                    .ToList();
-
-                var allFiles = allTasks
-                    .SelectMany(t => t.Files ?? new List<Files>())
-                    .ToList();
-
-                if (allFiles.Any())
-                    _context.Files.RemoveRange(allFiles);
-
-                await _context.SaveChangesAsync();
-
-                var subTasks = project.Tasks
-                    .SelectMany(t => t.SubTasks ?? new List<Tasks>())
-                    .ToList();
-
-                if (subTasks.Any())
-                    _context.Tasks.RemoveRange(subTasks);
-
-                await _context.SaveChangesAsync();
-
-                _context.Tasks.RemoveRange(project.Tasks);
-                _context.ProjectTeams.RemoveRange(project.ProjectTeams);
-
-                await _context.SaveChangesAsync();
-
-                _context.Projects.Remove(project);
-                await _context.SaveChangesAsync();
-
-                await transaction.CommitAsync();
-
-                return (true, $"Project {project.proj_no} deleted successfully");
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                return (false, $"Error deleting project: {ex.Message}");
-            }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    return (false, $"Error deleting project: {ex.Message}");
+                }
+            });
         }
 
         public async Task<(bool success, string message)> UpdateProjectStatusAsync(int projectId, string status, int userId, string userRole)
@@ -365,205 +387,153 @@ namespace NPI.Server.Services
 
         public async Task<(bool success, string message, int proj_id)> CreateProjectFromEnquiryAsync(int enquiryId, int userId, CreateProjectFromEnquiryDto? dto = null)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
             {
-                var enquiry = await _context.Enquiries
-                    .Include(e => e.Customer)
-                    .FirstOrDefaultAsync(e => e.enquiry_id == enquiryId);
+                _context.ChangeTracker.Clear();
 
-                if (enquiry == null)
-                    return (false, "Enquiry not found", 0);
-
-                if (enquiry.status != EnquiryStatus.Submitted)
-                    return (false, "Projects can only be created from a Submitted enquiry.", 0);
-
-                if (enquiry.proj_id.HasValue)
-                    return (false, $"This enquiry is already linked to project #{enquiry.proj_id}.", 0);
-
-                string projName;
-                if (!string.IsNullOrWhiteSpace(dto?.project_name))
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    projName = dto.project_name.Trim();
-                }
-                else
-                {
-                    var company = enquiry.Customer?.comp_name
-                                  ?? "New Project";
-                    var category = enquiry.npi_category ?? "";
-                    projName = string.IsNullOrWhiteSpace(category)
-                        ? company
-                        : $"{company} - {category}";
-                }
+                    var enquiry = await _context.Enquiries
+                        .Include(e => e.Customer)
+                        .FirstOrDefaultAsync(e => e.enquiry_id == enquiryId);
 
-                var priority = !string.IsNullOrWhiteSpace(dto?.priority)
-                    ? dto!.priority
-                    : "Medium";
+                    if (enquiry == null)
+                        return (false, "Enquiry not found", 0);
 
-                var description = !string.IsNullOrWhiteSpace(dto?.description)
-                    ? dto!.description
-                    : $"NPI Project for {enquiry.npi_category}";
+                    if (enquiry.status != EnquiryStatus.Submitted)
+                        return (false, "Projects can only be created from a Submitted enquiry.", 0);
 
-                DateOnly? targetDate = null;
-                if (dto?.expected_completion != null)
-                {
-                    targetDate = dto.expected_completion;
-                }
+                    if (enquiry.proj_id.HasValue)
+                        return (false, $"This enquiry is already linked to project #{enquiry.proj_id}.", 0);
 
-                // ── 3. Generate project number ────────────────────────────────────
-                var year = DateTime.Now.Year;
-                var lastProject = await _context.Projects
-                    .Where(p => p.proj_no.StartsWith($"PRJ{year}"))
-                    .OrderByDescending(p => p.proj_id)
-                    .FirstOrDefaultAsync();
-
-                string projectNo = $"PRJ{year}001";
-                if (lastProject != null)
-                {
-                    var lastNumStr = lastProject.proj_no.Substring(7);
-                    if (int.TryParse(lastNumStr, out int lastNum))
-                        projectNo = $"PRJ{year}{(lastNum + 1):D3}";
-                }
-
-                var project = new Projects
-                {
-                    proj_no = projectNo,
-                    proj_name = projName,
-                    cust_id = enquiry.cust_id,
-                    enquiry_date = DateOnly.FromDateTime(enquiry.created_at),
-                    project_start_date = DateOnly.FromDateTime(DateTime.Now),
-                    target_completion_date = targetDate,
-                    priority = priority,
-                    status = "Planning",
-                    description = description,
-                    pilot_mould_required = false,
-                    machine_purchase_required = false,
-                    created_by = userId,
-                    created_at = DateTime.Now
-                };
-
-                _context.Projects.Add(project);
-                await _context.SaveChangesAsync();
-
-                var projectId = project.proj_id;
-
-                enquiry.proj_id = projectId;
-                enquiry.status = "Started";
-                enquiry.updated_at = DateTime.Now;
-                enquiry.updated_by = userId;
-                await _context.SaveChangesAsync();
-
-                var departments = await _context.Departments.ToListAsync();
-
-                Departments? LookupDept(string name) =>
-                    departments.FirstOrDefault(d =>
-                        d.dept_name.Contains(name, StringComparison.OrdinalIgnoreCase));
-
-                var salesDept = LookupDept("Sales");
-                var technicalDept = LookupDept("Technical");
-                var purchaserDept = LookupDept("Purchaser") ?? LookupDept("Purchasing");
-                var qaDept = LookupDept("QA");
-                var productionDept = LookupDept("Production");
-
-                Departments? ResolveDept(string pic) => pic switch
-                {
-                    "Sales" => salesDept,
-                    "Technical" => technicalDept,
-                    "Purchaser" => purchaserDept,
-                    "QA" => qaDept,
-                    "Production" => productionDept,
-                    _ => null
-                };
-
-                var stage0Tasks = new[]
-                {
-                    new { code = "0.1", title = "Sales Enquiry Form",  pic = "Sales"     },
-                    new { code = "0.2", title = "Customer Info",       pic = "Sales"     },
-                    new { code = "0.3", title = "Project Awarded",     pic = "Technical" },
-                };
-
-                var stage1Tasks = new[]
-                {
-                    new { code = "1.1", title = "Project awarded / Contract signing",  pic = "Sales"     },
-                    new { code = "1.2", title = "Drawing preparation",                 pic = "Technical" },
-                    new { code = "1.3", title = "Drawing submission to customer",      pic = "Sales"     },
-                    new { code = "1.4", title = "DFM preparation",                     pic = "Technical" },
-                    new { code = "1.5", title = "DFM submission to customer",           pic = "Technical" },
-                    new { code = "1.6", title = "Customer drawing approval",            pic = "Sales"     },
-                    new { code = "1.7", title = "PO issuance from customer",            pic = "Sales"     },
-                    new { code = "1.8", title = "PO issuance to supplier",              pic = "Purchaser" },
-                };
-
-                var projectPath = GetProjectPath(project.proj_name);
-                Directory.CreateDirectory(projectPath);
-                project.storage_path = projectPath;
-
-                var today = DateOnly.FromDateTime(DateTime.Now);
-
-                var seededDepts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var t in stage0Tasks)
-                {
-                    var dept = ResolveDept(t.pic);
-                    EnsureDeptFolder(projectPath, dept?.dept_name, seededDepts);
-
-                    _context.Tasks.Add(new Tasks
+                    string projName;
+                    if (!string.IsNullOrWhiteSpace(dto?.project_name))
                     {
-                        proj_id = projectId,
-                        stage_id = "0.0",
-                        task_code = t.code,
-                        title = t.title,
-                        dept_id = dept?.dept_id,
-                        planned_start_date = today,
-                        planned_end_date = today,
-                        actual_start_date = today,
-                        actual_end_date = today,
-                        duration = 1,
-                        status = "Completed",
-                        per_complete = 100,
-                        priority = "Medium",
-                        completed_at = DateTime.Now,
-                        created_at = DateTime.Now
-                    });
-                }
-
-                foreach (var t in stage1Tasks)
-                {
-                    var dept = ResolveDept(t.pic);
-                    EnsureDeptFolder(projectPath, dept?.dept_name, seededDepts);
-
-                    _context.Tasks.Add(new Tasks
+                        projName = dto.project_name.Trim();
+                    }
+                    else
                     {
-                        proj_id = projectId,
-                        stage_id = "1.0",
-                        task_code = t.code,
-                        title = t.title,
-                        dept_id = dept?.dept_id,
-                        planned_start_date = today,
-                        planned_end_date = today.AddDays(5),
-                        duration = 5,
-                        status = "Not Started",
-                        per_complete = 0,
-                        priority = "Medium",
+                        var company = enquiry.Customer?.comp_name ?? "New Project";
+                        var category = enquiry.npi_category ?? "";
+                        projName = string.IsNullOrWhiteSpace(category)
+                            ? company
+                            : $"{company} - {category}";
+                    }
+
+                    var priority = !string.IsNullOrWhiteSpace(dto?.priority)
+                        ? dto!.priority
+                        : "Medium";
+
+                    var description = !string.IsNullOrWhiteSpace(dto?.description)
+                        ? dto!.description
+                        : $"NPI Project for {enquiry.npi_category}";
+
+                    DateOnly? targetDate = null;
+                    if (dto?.expected_completion != null)
+                        targetDate = dto.expected_completion;
+
+                    var year = DateTime.Now.Year;
+                    var lastProject = await _context.Projects
+                        .Where(p => p.proj_no.StartsWith($"PRJ{year}"))
+                        .OrderByDescending(p => p.proj_id)
+                        .FirstOrDefaultAsync();
+
+                    string projectNo = $"PRJ{year}001";
+                    if (lastProject != null)
+                    {
+                        var lastNumStr = lastProject.proj_no.Substring(7);
+                        if (int.TryParse(lastNumStr, out int lastNum))
+                            projectNo = $"PRJ{year}{(lastNum + 1):D3}";
+                    }
+
+                    var project = new Projects
+                    {
+                        proj_no = projectNo,
+                        proj_name = projName,
+                        cust_id = enquiry.cust_id,
+                        enquiry_date = DateOnly.FromDateTime(enquiry.created_at),
+                        project_start_date = DateOnly.FromDateTime(DateTime.Now),
+                        target_completion_date = targetDate,
+                        priority = priority,
+                        status = "Planning",
+                        description = description,
+                        pilot_mould_required = false,
+                        machine_purchase_required = false,
+                        created_by = userId,
                         created_at = DateTime.Now
-                    });
+                    };
+
+                    _context.Projects.Add(project);
+                    await _context.SaveChangesAsync();
+
+                    var projectId = project.proj_id;
+
+                    enquiry.proj_id = projectId;
+                    enquiry.status = "Started";
+                    enquiry.updated_at = DateTime.Now;
+                    enquiry.updated_by = userId;
+
+                    var seedStages = new[] { NpiStages.Enquiry, NpiStages.ProjectStart };
+
+                    var templates = await _context.TaskTemplates
+                        .AsNoTracking()
+                        .Include(t => t.Department)
+                        .Where(t => t.is_active && seedStages.Contains(t.stage_id))
+                        .OrderBy(t => t.stage_id)
+                        .ThenBy(t => t.display_order)
+                        .ToListAsync();
+
+                    var projectPath = GetProjectPath(project.proj_name);
+                    Directory.CreateDirectory(projectPath);
+                    project.storage_path = projectPath;
+
+                    var today = DateOnly.FromDateTime(DateTime.Now);
+                    var seededDepts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var now = DateTime.Now;
+
+                    foreach (var t in templates)
+                    {
+                        EnsureDeptFolder(projectPath, t.Department?.dept_name, seededDepts);
+
+                        var autoComplete = NpiStages.AutoComplete.Contains(t.stage_id);
+
+                        _context.Tasks.Add(new Tasks
+                        {
+                            proj_id = projectId,
+                            stage_id = t.stage_id,
+                            task_code = t.task_code,
+                            title = t.title,
+                            dept_id = t.dept_id,
+                            planned_start_date = today,
+                            planned_end_date = autoComplete ? today : today.AddDays(t.default_duration),
+                            actual_start_date = autoComplete ? today : null,
+                            actual_end_date = autoComplete ? today : null,
+                            duration = autoComplete ? 1 : t.default_duration,
+                            status = autoComplete ? "Completed" : "Not Started",
+                            per_complete = autoComplete ? 100 : 0,
+                            priority = "Medium",
+                            completed_at = autoComplete ? now : null,
+                            created_at = now
+                        });
+                    }
+
+                    if (targetDate == null)
+                        project.target_completion_date = today.AddDays(40);
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    return (true, "Project created with stage-aware tasks", projectId);
                 }
-
-                await _context.SaveChangesAsync();
-
-                if (targetDate == null)
-                    project.target_completion_date = today.AddDays(40);
-
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                return (true, "Project created with stage-aware tasks", projectId);
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                return (false, $"Error creating project: {ex.Message}", 0);
-            }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    return (false, $"Error creating project: {ex.Message}", 0);
+                }
+            });
         }
 
         private static void EnsureDeptFolder(string projectPath, string? deptName, HashSet<string> created)
@@ -575,262 +545,271 @@ namespace NPI.Server.Services
 
         public async Task<(bool success, string message, List<string>? folderWarnings)> LaunchProjectAsync(int projectId, LaunchProjectDto dto, int userId)
         {
-            using var tx = await _context.Database.BeginTransactionAsync();
-            try
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            var result = await strategy.ExecuteAsync(async () =>
             {
-                var project = await _context.Projects.FindAsync(projectId);
-                if (project == null)
-                    return (false, "Project not found", null);
+                _context.ChangeTracker.Clear();
 
-                var isFirstLaunch = project.status == "Planning";
-
-                if (!string.IsNullOrEmpty(dto.priority))
-                    project.priority = dto.priority;
-
-                if (!string.IsNullOrEmpty(dto.description))
-                    project.description = dto.description;
-
-                project.pilot_mould_required = dto.pilot_mould_required;
-                project.machine_purchase_required = dto.machine_purchase_required;
-
-                // Replace team
-                var existingTeam = await _context.ProjectTeams
-                    .Where(pt => pt.proj_id == projectId)
-                    .ToListAsync();
-                _context.ProjectTeams.RemoveRange(existingTeam);
-
-                foreach (var member in dto.team_members)
+                await using var tx = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    string assignedRole = member.role ?? "Member";
+                    var project = await _context.Projects.FindAsync(projectId);
+                    if (project == null)
+                        return (false, "Project not found", (List<string>?)null, false);
 
-                    // Write ONLY to ProjectTeams — never mutate Users.role_id
-                    _context.ProjectTeams.Add(new ProjectTeams
+                    var isFirstLaunch = project.status == "Planning";
+
+                    if (!string.IsNullOrEmpty(dto.priority))
+                        project.priority = dto.priority;
+
+                    if (!string.IsNullOrEmpty(dto.description))
+                        project.description = dto.description;
+
+                    project.pilot_mould_required = dto.pilot_mould_required;
+                    project.machine_purchase_required = dto.machine_purchase_required;
+
+                    // Replace team
+                    var existingTeam = await _context.ProjectTeams
+                        .Where(pt => pt.proj_id == projectId)
+                        .ToListAsync();
+                    _context.ProjectTeams.RemoveRange(existingTeam);
+
+                    foreach (var member in dto.team_members)
                     {
-                        proj_id = projectId,
-                        user_id = member.user_id,
-                        role = assignedRole,
-                        created_at = DateTime.Now
-                    });
-                }
+                        string assignedRole = member.role ?? "Member";
 
-                var existingTasks = await _context.Tasks
-                    .Where(t => t.proj_id == projectId)
-                    .ToListAsync();
-
-                var existingTaskDict = existingTasks.ToDictionary(t => t.task_id);
-                var incomingTaskIds = new HashSet<int>(
-                    dto.tasks.Where(t => t.task_id.HasValue).Select(t => t.task_id!.Value));
-
-                // Track date changes for revision history
-                var taskRevisionsToAdd = new List<(int taskId, string title, DateOnly? oldStart,
-                    DateOnly? oldEnd, DateOnly? newStart, DateOnly? newEnd, string? note,
-                    float? duration, int? deptId)>();
-
-                foreach (var taskDto in dto.tasks)
-                {
-                    if (taskDto.task_id.HasValue &&
-                        existingTaskDict.TryGetValue(taskDto.task_id.Value, out var existing))
-                    {
-                        // Track changes before updating
-                        bool datesChanged = existing.planned_start_date != taskDto.start_date
-                                         || existing.planned_end_date != taskDto.end_date;
-
-                        if (datesChanged && !string.IsNullOrWhiteSpace(taskDto.revision_note))
-                        {
-                            var dept = !string.IsNullOrEmpty(taskDto.dept_name)
-                                ? await _context.Departments
-                                    .FirstOrDefaultAsync(d => d.dept_name == taskDto.dept_name)
-                                : null;
-
-                            taskRevisionsToAdd.Add((
-                                existing.task_id, existing.title,
-                                existing.planned_start_date, existing.planned_end_date,
-                                taskDto.start_date, taskDto.end_date,
-                                taskDto.revision_note, taskDto.duration, dept?.dept_id));
-                        }
-
-                        // Update existing task
-                        existing.title = taskDto.title;
-                        existing.planned_start_date = taskDto.start_date;
-                        existing.planned_end_date = taskDto.end_date;
-                        existing.duration = taskDto.duration;
-                        existing.stage_id = taskDto.stage_id;
-                        existing.task_code = taskDto.task_code;
-                        existing.updated_at = DateTime.Now;
-
-                        if (!string.IsNullOrEmpty(taskDto.dept_name))
-                        {
-                            var dept = await _context.Departments
-                                .FirstOrDefaultAsync(d => d.dept_name == taskDto.dept_name);
-                            if (dept != null)
-                                existing.dept_id = dept.dept_id;
-                        }
-                    }
-                    else
-                    {
-                        // Add new task
-                        var dept = await _context.Departments
-                            .FirstOrDefaultAsync(d => d.dept_name == taskDto.dept_name);
-
-                        var isStage0 = isFirstLaunch && taskDto.stage_id == "0.0";
-
-                        _context.Tasks.Add(new Tasks
+                        _context.ProjectTeams.Add(new ProjectTeams
                         {
                             proj_id = projectId,
-                            title = taskDto.title,
-                            planned_start_date = taskDto.start_date,
-                            planned_end_date = taskDto.end_date,
-                            duration = taskDto.duration,
-                            dept_id = dept?.dept_id,
-                            stage_id = taskDto.stage_id,
-                            task_code = taskDto.task_code,
-                            status = isStage0 ? "Completed" : "Not Started",
-                            per_complete = isStage0 ? 100 : 0,
-                            actual_start_date = isStage0 ? DateOnly.FromDateTime(DateTime.Now) : null,
-                            actual_end_date = isStage0 ? DateOnly.FromDateTime(DateTime.Now) : null,
-                            completed_at = isStage0 ? DateTime.Now : null,
-                            priority = "Medium",
-                            assigned_by = userId,
+                            user_id = member.user_id,
+                            role = assignedRole,
                             created_at = DateTime.Now
                         });
                     }
-                }
 
-                await _context.SaveChangesAsync();
-
-                // Create project revision if any task dates changed
-                if (taskRevisionsToAdd.Count > 0)
-                {
-                    var lastRevNumber = await _context.ProjectRevisions
-                        .Where(pr => pr.proj_id == projectId)
-                        .Select(pr => (int?)pr.revision_number)
-                        .MaxAsync() ?? 0;
-
-                    var previousRevisions = await _context.ProjectRevisions
-                        .Where(pr => pr.proj_id == projectId && pr.is_active)
+                    var existingTasks = await _context.Tasks
+                        .Where(t => t.proj_id == projectId)
                         .ToListAsync();
 
-                    foreach (var rev in previousRevisions)
-                        rev.is_active = false;
+                    var existingTaskDict = existingTasks.ToDictionary(t => t.task_id);
+                    var incomingTaskIds = new HashSet<int>(
+                        dto.tasks.Where(t => t.task_id.HasValue).Select(t => t.task_id!.Value));
 
-                    var newTargetDate = dto.tasks
+                    // Track date changes for revision history
+                    var taskRevisionsToAdd = new List<(int taskId, string title, DateOnly? oldStart,
+                        DateOnly? oldEnd, DateOnly? newStart, DateOnly? newEnd, string? note,
+                        float? duration, int? deptId)>();
+
+                    foreach (var taskDto in dto.tasks)
+                    {
+                        if (taskDto.task_id.HasValue &&
+                            existingTaskDict.TryGetValue(taskDto.task_id.Value, out var existing))
+                        {
+                            // Track changes before updating
+                            bool datesChanged = existing.planned_start_date != taskDto.start_date
+                                             || existing.planned_end_date != taskDto.end_date;
+
+                            if (datesChanged && !string.IsNullOrWhiteSpace(taskDto.revision_note))
+                            {
+                                var deptForRevision = !string.IsNullOrEmpty(taskDto.dept_name)
+                                    ? await _context.Departments
+                                        .FirstOrDefaultAsync(d => d.dept_name == taskDto.dept_name)
+                                    : null;
+
+                                taskRevisionsToAdd.Add((
+                                    existing.task_id, existing.title,
+                                    existing.planned_start_date, existing.planned_end_date,
+                                    taskDto.start_date, taskDto.end_date,
+                                    taskDto.revision_note, taskDto.duration, deptForRevision?.dept_id));
+                            }
+
+                            // Update existing task
+                            existing.title = taskDto.title;
+                            existing.planned_start_date = taskDto.start_date;
+                            existing.planned_end_date = taskDto.end_date;
+                            existing.duration = taskDto.duration;
+                            existing.stage_id = taskDto.stage_id;
+                            existing.task_code = taskDto.task_code;
+                            existing.updated_at = DateTime.Now;
+
+                            if (!string.IsNullOrEmpty(taskDto.dept_name))
+                            {
+                                var dept = await _context.Departments
+                                    .FirstOrDefaultAsync(d => d.dept_name == taskDto.dept_name);
+                                if (dept != null)
+                                    existing.dept_id = dept.dept_id;
+                            }
+                        }
+                        else
+                        {
+                            // Add new task
+                            var dept = await _context.Departments
+                                .FirstOrDefaultAsync(d => d.dept_name == taskDto.dept_name);
+
+                            var isStage0 = isFirstLaunch && NpiStages.AutoComplete.Contains(taskDto.stage_id ?? "");
+
+                            _context.Tasks.Add(new Tasks
+                            {
+                                proj_id = projectId,
+                                title = taskDto.title,
+                                planned_start_date = taskDto.start_date,
+                                planned_end_date = taskDto.end_date,
+                                duration = taskDto.duration,
+                                dept_id = dept?.dept_id,
+                                stage_id = taskDto.stage_id,
+                                task_code = taskDto.task_code,
+                                status = isStage0 ? "Completed" : "Not Started",
+                                per_complete = isStage0 ? 100 : 0,
+                                actual_start_date = isStage0 ? DateOnly.FromDateTime(DateTime.Now) : null,
+                                actual_end_date = isStage0 ? DateOnly.FromDateTime(DateTime.Now) : null,
+                                completed_at = isStage0 ? DateTime.Now : null,
+                                priority = "Medium",
+                                assigned_by = userId,
+                                created_at = DateTime.Now
+                            });
+                        }
+                    }
+
+                    await _context.SaveChangesAsync();
+
+                    // Create project revision if any task dates changed
+                    if (taskRevisionsToAdd.Count > 0)
+                    {
+                        var lastRevNumber = await _context.ProjectRevisions
+                            .Where(pr => pr.proj_id == projectId)
+                            .Select(pr => (int?)pr.revision_number)
+                            .MaxAsync() ?? 0;
+
+                        var previousRevisions = await _context.ProjectRevisions
+                            .Where(pr => pr.proj_id == projectId && pr.is_active)
+                            .ToListAsync();
+
+                        foreach (var rev in previousRevisions)
+                            rev.is_active = false;
+
+                        var newTargetDate = dto.tasks
+                            .Where(t => t.end_date.HasValue)
+                            .Max(t => (DateOnly?)t.end_date);
+
+                        var projectRevision = new ProjectRevisions
+                        {
+                            proj_id = projectId,
+                            revision_number = lastRevNumber + 1,
+                            revision_date = DateTime.Now,
+                            revised_by = userId,
+                            revision_notes = $"Launch update — {taskRevisionsToAdd.Count} task(s) rescheduled",
+                            previous_target_date = project.target_completion_date,
+                            new_target_date = newTargetDate,
+                            is_active = true
+                        };
+
+                        _context.ProjectRevisions.Add(projectRevision);
+                        await _context.SaveChangesAsync();
+
+                        foreach (var (tId, title, oldStart, oldEnd, newStart, newEnd, note, dur, deptId)
+                            in taskRevisionsToAdd)
+                        {
+                            _context.TaskRevisions.Add(new TaskRevisions
+                            {
+                                revision_id = projectRevision.revision_id,
+                                task_id = tId,
+                                title = title,
+                                old_start_date = oldStart,
+                                old_end_date = oldEnd,
+                                new_start_date = newStart,
+                                new_end_date = newEnd,
+                                note = note ?? string.Empty,
+                                revised_on = DateTime.Now,
+                                duration = dur,
+                                dept_id = deptId,
+                                status = "Revised"
+                            });
+                        }
+                    }
+
+                    // Remove tasks no longer in the incoming list
+                    var tasksToDelete = existingTasks
+                        .Where(t => !incomingTaskIds.Contains(t.task_id) && !NpiStages.AutoComplete.Contains(t.stage_id ?? ""))
+                        .ToList();
+
+                    if (tasksToDelete.Count > 0)
+                        _context.Tasks.RemoveRange(tasksToDelete);
+
+                    // Folder structure
+                    var projectPath = GetProjectPath(project.proj_name);
+                    Directory.CreateDirectory(projectPath);
+                    project.storage_path = projectPath;
+
+                    var customerFolder = Path.Combine(projectPath, "Customer");
+                    Directory.CreateDirectory(customerFolder);
+
+                    var allProjectTasks = await _context.Tasks
+                        .Include(t => t.Department)
+                        .Where(t => t.proj_id == projectId)
+                        .ToListAsync();
+
+                    var expectedDeptFolders = allProjectTasks
+                        .Select(t => SanitizeFolderName(t.Department?.dept_name ?? "Others"))
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    expectedDeptFolders.Add("Customer");
+
+                    foreach (var deptFolder in expectedDeptFolders)
+                        Directory.CreateDirectory(Path.Combine(projectPath, deptFolder));
+
+                    var folderWarnings = new List<string>();
+
+                    if (Directory.Exists(projectPath))
+                    {
+                        foreach (var existingDir in Directory.GetDirectories(projectPath))
+                        {
+                            var dirName = Path.GetFileName(existingDir);
+                            if (!expectedDeptFolders.Contains(dirName))
+                            {
+                                bool hasContent =
+                                    Directory.GetFiles(existingDir, "*", SearchOption.AllDirectories).Any() ||
+                                    Directory.GetDirectories(existingDir).Any();
+
+                                if (hasContent)
+                                    folderWarnings.Add(dirName);
+                                else
+                                    Directory.Delete(existingDir, recursive: true);
+                            }
+                        }
+                    }
+
+                    if (isFirstLaunch)
+                        project.status = "In Progress";
+
+                    project.updated_at = DateTime.Now;
+                    project.updated_by = userId;
+
+                    var maxEnd = dto.tasks
                         .Where(t => t.end_date.HasValue)
                         .Max(t => (DateOnly?)t.end_date);
 
-                    var projectRevision = new ProjectRevisions
-                    {
-                        proj_id = projectId,
-                        revision_number = lastRevNumber + 1,
-                        revision_date = DateTime.Now,
-                        revised_by = userId,
-                        revision_notes = $"Launch update — {taskRevisionsToAdd.Count} task(s) rescheduled",
-                        previous_target_date = project.target_completion_date,
-                        new_target_date = newTargetDate,
-                        is_active = true
-                    };
+                    if (maxEnd.HasValue)
+                        project.target_completion_date = maxEnd.Value;
 
-                    _context.ProjectRevisions.Add(projectRevision);
-                    await _context.SaveChangesAsync(); // flush to get revision_id
+                    await _context.SaveChangesAsync();
+                    await tx.CommitAsync();
 
-                    foreach (var (tId, title, oldStart, oldEnd, newStart, newEnd, note, dur, deptId)
-                        in taskRevisionsToAdd)
-                    {
-                        _context.TaskRevisions.Add(new TaskRevisions
-                        {
-                            revision_id = projectRevision.revision_id,
-                            task_id = tId,
-                            title = title,
-                            old_start_date = oldStart,
-                            old_end_date = oldEnd,
-                            new_start_date = newStart,
-                            new_end_date = newEnd,
-                            note = note ?? string.Empty,
-                            revised_on = DateTime.Now,
-                            duration = dur,
-                            dept_id = deptId,
-                            status = "Revised"
-                        });
-                    }
+                    return folderWarnings.Count > 0
+                        ? (true, "Project saved. Some folders could not be removed — they still contain files.", (List<string>?)folderWarnings, isFirstLaunch)
+                        : (true, isFirstLaunch ? "Project launched successfully" : "Project updated successfully", (List<string>?)null, isFirstLaunch);
                 }
-
-                // Remove tasks no longer in the incoming list (non-stage-0 only)
-                var tasksToDelete = existingTasks
-                    .Where(t => !incomingTaskIds.Contains(t.task_id) && t.stage_id != "0.0")
-                    .ToList();
-
-                if (tasksToDelete.Count > 0)
-                    _context.Tasks.RemoveRange(tasksToDelete);
-
-                // Folder structure
-                var projectPath = GetProjectPath(project.proj_name);
-                Directory.CreateDirectory(projectPath);
-                project.storage_path = projectPath;
-
-                var customerFolder = Path.Combine(projectPath, "Customer");
-                Directory.CreateDirectory(customerFolder);
-
-                var allProjectTasks = await _context.Tasks
-                    .Include(t => t.Department)
-                    .Where(t => t.proj_id == projectId)
-                    .ToListAsync();
-
-                var expectedDeptFolders = allProjectTasks
-                    .Select(t => SanitizeFolderName(t.Department?.dept_name ?? "Others"))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var deptFolder in expectedDeptFolders)
-                    Directory.CreateDirectory(Path.Combine(projectPath, deptFolder));
-
-                var folderWarnings = new List<string>();
-
-                if (Directory.Exists(projectPath))
+                catch (Exception ex)
                 {
-                    foreach (var existingDir in Directory.GetDirectories(projectPath))
-                    {
-                        var dirName = Path.GetFileName(existingDir);
-                        if (!expectedDeptFolders.Contains(dirName))
-                        {
-                            bool hasContent =
-                                Directory.GetFiles(existingDir, "*", SearchOption.AllDirectories).Any() ||
-                                Directory.GetDirectories(existingDir).Any();
-
-                            if (hasContent)
-                                folderWarnings.Add(dirName);
-                            else
-                                Directory.Delete(existingDir, recursive: true);
-                        }
-                    }
+                    await tx.RollbackAsync();
+                    return (false, $"Operation failed: {ex.Message}", (List<string>?)null, false);
                 }
+            });
 
-                if (isFirstLaunch)
-                    project.status = "In Progress";
+            if (result.Item1 && result.Item4)
+                await _triggerService.OnProjectLaunchedAsync(projectId);
 
-                project.updated_at = DateTime.Now;
-                project.updated_by = userId;
-
-                var maxEnd = dto.tasks
-                    .Where(t => t.end_date.HasValue)
-                    .Max(t => (DateOnly?)t.end_date);
-
-                if (maxEnd.HasValue)
-                    project.target_completion_date = maxEnd.Value;
-
-                await _context.SaveChangesAsync();
-                await tx.CommitAsync();
-
-                // N5: Notify team of project launch (only on first launch)
-                if (isFirstLaunch)
-                    await _triggerService.OnProjectLaunchedAsync(projectId);
-
-                return folderWarnings.Count > 0
-                    ? (true, "Project saved. Some folders could not be removed — they still contain files.", folderWarnings)
-                    : (true, isFirstLaunch ? "Project launched successfully" : "Project updated successfully", null);
-            }
-            catch (Exception ex)
-            {
-                await tx.RollbackAsync();
-                return (false, $"Operation failed: {ex.Message}", null);
-            }
+            return (result.Item1, result.Item2, result.Item3);
         }
 
         public async Task<List<TaskResponseDto>> GetProjectTasksAsync(int projectId)
@@ -874,11 +853,6 @@ namespace NPI.Server.Services
                         revised_on = r.revised_on
                     }).ToList() ?? new List<TaskRevisionDto>()
             }).ToList();
-        }
-
-        public async Task<List<MilestoneResponseDto>> GetProjectMilestonesAsync(int projectId)
-        {
-            return await Task.FromResult(new List<MilestoneResponseDto>());
         }
 
         public async Task<List<ProjectResponseDto>> GetProjectsByStatusAsync(string status)

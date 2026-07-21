@@ -18,7 +18,7 @@ namespace NPI.Server.Controllers
         private readonly IFileService _fileService;
         private readonly IPdfService _pdfService;
         private readonly ApplicationDbContext _context;
-        private readonly IAuditLogService _audit;
+        private readonly AuditLogService _audit;
 
         public EnquiryController(
             IEnquiryService enquiryService,

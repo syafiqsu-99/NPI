@@ -34,10 +34,10 @@
           Enquiry Form
         </v-tab>
 
-        <!--<v-tab value="system">
+        <v-tab value="taskTemplate">
           <v-icon start size="18">mdi-cog-outline</v-icon>
           System
-        </v-tab>-->
+        </v-tab>
       </v-tabs>
     </v-card>
 
@@ -63,9 +63,9 @@
         <NpiFormConfig />
       </v-window-item>
 
-      <!--<v-window-item value="system" class="fill-height">
-        <SystemSettings />
-      </v-window-item>-->
+      <v-window-item value="taskTemplate" class="fill-height">
+        <TaskTemplate />
+      </v-window-item>
 
     </v-window>
   </div>
@@ -80,6 +80,7 @@
   import DepartmentManagement from '@/components/settings/DepartmentManagement.vue'
   import SystemSettings from '@/components/settings/SystemSettings.vue'
   import NpiFormConfig from '@/components/settings/NpiFormConfig.vue'
+  import TaskTemplate from '@/components/settings/TaskTemplateManagement.vue'
 
   const authStore = useAuthStore()
   const activeTab = ref('users')

@@ -81,7 +81,8 @@ builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<NotificationTriggerService>();
 builder.Services.AddScoped<IProjectRoleService, ProjectRoleService>();
-builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<AuditLogService, AuditLogService>();
+builder.Services.AddScoped<ITaskTemplateService, TaskTemplateService>();
 
 // ── Background services ────────────────────────────────────────────────────
 builder.Services.AddHostedService<NotificationBackgroundJob>();

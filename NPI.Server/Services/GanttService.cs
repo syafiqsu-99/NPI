@@ -5,6 +5,13 @@ using NPI.Server.Models;
 
 namespace NPI.Server.Services
 {
+    public interface IGanttService
+    {
+        Task<GanttDataDto> GetGanttDataAsync(int projectId, int? revisionId = null);
+        Task<List<ProjectRevisionDto>> GetProjectRevisionsAsync(int projectId);
+        Task<(bool success, string message, int? revisionId)> CreateRevisionAsync(int projectId, CreateRevisionDto dto, int userId);
+    }
+
     public class GanttService : IGanttService
     {
         private readonly ApplicationDbContext _context;
@@ -48,7 +55,7 @@ namespace NPI.Server.Services
                         task_id = tr.task_id,
                         title = tr.title ?? tr.Task?.title,
                         dept_name = tr.Task?.Department?.dept_name,
-                        dept_color = GetDepartmentColor(tr.Task?.Department?.dept_name),
+                        dept_color = tr.Task?.Department?.color_hex,
                         planned_start_date = tr.new_start_date,
                         planned_end_date = tr.new_end_date,
                         duration = tr.duration,
@@ -74,7 +81,7 @@ namespace NPI.Server.Services
                     task_id = t.task_id,
                     title = t.title,
                     dept_name = t.Department?.dept_name,
-                    dept_color = GetDepartmentColor(t.Department?.dept_name),
+                    dept_color = t.Department?.color_hex,
                     planned_start_date = t.planned_start_date,
                     planned_end_date = t.planned_end_date,
                     duration = t.duration,
@@ -124,138 +131,144 @@ namespace NPI.Server.Services
             }).ToList();
         }
 
-        public async Task<(bool success, string message, int? revisionId)> CreateRevisionAsync(
-            int projectId, CreateRevisionDto dto, int userId)
+        public async Task<(bool success, string message, int? revisionId)> CreateRevisionAsync(int projectId, CreateRevisionDto dto, int userId)
         {
-            using var tx = await _context.Database.BeginTransactionAsync();
+            var strategy = _context.Database.CreateExecutionStrategy();
 
-            try
+            return await strategy.ExecuteAsync(async () =>
             {
-                var project = await _context.Projects.FindAsync(projectId);
-                if (project == null)
-                    return (false, "Project not found", null);
+                _context.ChangeTracker.Clear();
 
-                var lastRevision = await _context.ProjectRevisions
-                    .Where(r => r.proj_id == projectId)
-                    .OrderByDescending(r => r.revision_number)
-                    .FirstOrDefaultAsync();
+                await using var tx = await _context.Database.BeginTransactionAsync();
 
-                var newRevisionNumber = (lastRevision?.revision_number ?? 0) + 1;
-
-                var oldTargetDate = project.target_completion_date;
-
-                var previousRevisions = await _context.ProjectRevisions
-                    .Where(r => r.proj_id == projectId && r.is_active)
-                    .ToListAsync();
-
-                foreach (var prevRevision in previousRevisions)
+                try
                 {
-                    prevRevision.is_active = false;
-                }
+                    var project = await _context.Projects.FindAsync(projectId);
+                    if (project == null)
+                        return (false, "Project not found", (int?)null);
 
-                var newTargetDate = dto.tasks
-                    .Where(t => t.end_date.HasValue)
-                    .Select(t => t.end_date)
-                    .DefaultIfEmpty(null)
-                    .Max();
+                    var lastRevision = await _context.ProjectRevisions
+                        .Where(r => r.proj_id == projectId)
+                        .OrderByDescending(r => r.revision_number)
+                        .FirstOrDefaultAsync();
 
-                var revision = new ProjectRevisions
-                {
-                    proj_id = projectId,
-                    revision_number = newRevisionNumber,
-                    revision_date = DateTime.Now,
-                    revised_by = userId,
-                    revision_notes = dto.revision_notes,
-                    previous_target_date = oldTargetDate,
-                    new_target_date = newTargetDate,
-                    is_active = true
-                };
+                    var newRevisionNumber = (lastRevision?.revision_number ?? 0) + 1;
 
-                _context.ProjectRevisions.Add(revision);
-                await _context.SaveChangesAsync();
+                    var oldTargetDate = project.target_completion_date;
 
-                var currentTasks = await _context.Tasks
-                    .Where(t => t.proj_id == projectId)
-                    .ToListAsync();
+                    var previousRevisions = await _context.ProjectRevisions
+                        .Where(r => r.proj_id == projectId && r.is_active)
+                        .ToListAsync();
 
-                foreach (var task in currentTasks)
-                {
-                    var taskRevision = new TaskRevisions
+                    foreach (var prevRevision in previousRevisions)
                     {
-                        revision_id = revision.revision_id,
-                        task_id = task.task_id,
-                        title = task.title,
-                        old_start_date = task.planned_start_date,
-                        old_end_date = task.planned_end_date,
-                        new_start_date = task.planned_start_date,
-                        new_end_date = task.planned_end_date,
-                        duration = task.duration,
-                        dept_id = task.dept_id,
-                        status = task.status,
-                        revised_on = DateTime.Now
+                        prevRevision.is_active = false;
+                    }
+
+                    var newTargetDate = dto.tasks
+                        .Where(t => t.end_date.HasValue)
+                        .Select(t => t.end_date)
+                        .DefaultIfEmpty(null)
+                        .Max();
+
+                    var revision = new ProjectRevisions
+                    {
+                        proj_id = projectId,
+                        revision_number = newRevisionNumber,
+                        revision_date = DateTime.Now,
+                        revised_by = userId,
+                        revision_notes = dto.revision_notes,
+                        previous_target_date = oldTargetDate,
+                        new_target_date = newTargetDate,
+                        is_active = true
                     };
 
-                    _context.TaskRevisions.Add(taskRevision);
-                }
+                    _context.ProjectRevisions.Add(revision);
+                    await _context.SaveChangesAsync();
 
-                await _context.SaveChangesAsync();
+                    var currentTasks = await _context.Tasks
+                        .Where(t => t.proj_id == projectId)
+                        .ToListAsync();
 
-                foreach (var taskUpdate in dto.tasks)
-                {
-                    if (taskUpdate.task_id.HasValue)
+                    var taskRevisionsByTaskId = new Dictionary<int, TaskRevisions>();
+
+                    foreach (var task in currentTasks)
                     {
-                        var task = currentTasks.FirstOrDefault(t => t.task_id == taskUpdate.task_id.Value);
-                        if (task != null)
+                        var taskRevision = new TaskRevisions
                         {
-                            task.title = taskUpdate.title;
-                            task.planned_start_date = taskUpdate.start_date;
-                            task.planned_end_date = taskUpdate.end_date;
-                            task.duration = taskUpdate.duration;
+                            revision_id = revision.revision_id,
+                            task_id = task.task_id,
+                            title = task.title,
+                            old_start_date = task.planned_start_date,
+                            old_end_date = task.planned_end_date,
+                            new_start_date = task.planned_start_date,
+                            new_end_date = task.planned_end_date,
+                            duration = task.duration,
+                            dept_id = task.dept_id,
+                            status = task.status,
+                            revised_on = DateTime.Now
+                        };
 
-                            if (!string.IsNullOrEmpty(taskUpdate.dept_name))
-                            {
-                                var dept = await _context.Departments
-                                    .FirstOrDefaultAsync(d => d.dept_name == taskUpdate.dept_name);
-                                task.dept_id = dept?.dept_id;
-                            }
+                        _context.TaskRevisions.Add(taskRevision);
+                        taskRevisionsByTaskId[task.task_id] = taskRevision;
+                    }
 
-                            task.updated_at = DateTime.Now;
+                    var departments = await _context.Departments.ToListAsync();
 
-                            var taskRevision = await _context.TaskRevisions
-                                .FirstOrDefaultAsync(tr => tr.revision_id == revision.revision_id
-                                    && tr.task_id == task.task_id);
+                    foreach (var taskUpdate in dto.tasks)
+                    {
+                        if (!taskUpdate.task_id.HasValue)
+                            continue;
 
-                            if (taskRevision != null)
-                            {
-                                taskRevision.new_start_date = taskUpdate.start_date;
-                                taskRevision.new_end_date = taskUpdate.end_date;
-                                taskRevision.duration = taskUpdate.duration;
-                                taskRevision.title = taskUpdate.title;
-                            }
+                        var task = currentTasks.FirstOrDefault(t => t.task_id == taskUpdate.task_id.Value);
+                        if (task == null)
+                            continue;
+
+                        task.title = taskUpdate.title;
+                        task.planned_start_date = taskUpdate.start_date;
+                        task.planned_end_date = taskUpdate.end_date;
+                        task.duration = taskUpdate.duration;
+
+                        if (!string.IsNullOrEmpty(taskUpdate.dept_name))
+                        {
+                            var dept = departments
+                                .FirstOrDefault(d => d.dept_name == taskUpdate.dept_name);
+                            task.dept_id = dept?.dept_id;
+                        }
+
+                        task.updated_at = DateTime.Now;
+
+                        if (taskRevisionsByTaskId.TryGetValue(task.task_id, out var taskRevision))
+                        {
+                            taskRevision.new_start_date = taskUpdate.start_date;
+                            taskRevision.new_end_date = taskUpdate.end_date;
+                            taskRevision.duration = taskUpdate.duration;
+                            taskRevision.title = taskUpdate.title;
                         }
                     }
-                }
 
-                if (newTargetDate.HasValue)
+                    if (newTargetDate.HasValue)
+                    {
+                        project.target_completion_date = newTargetDate.Value;
+                        revision.new_target_date = newTargetDate.Value;
+                    }
+
+                    project.updated_at = DateTime.Now;
+                    project.updated_by = userId;
+
+                    await _context.SaveChangesAsync();
+                    await tx.CommitAsync();
+
+                    return (true, "Revision created successfully", (int?)revision.revision_id);
+                }
+                catch (Exception ex)
                 {
-                    project.target_completion_date = newTargetDate.Value;
-                    revision.new_target_date = newTargetDate.Value;
+                    await tx.RollbackAsync();
+                    return (false, $"Error creating revision: {ex.Message}", (int?)null);
                 }
-
-                project.updated_at = DateTime.Now;
-                project.updated_by = userId;
-
-                await _context.SaveChangesAsync();
-                await tx.CommitAsync();
-
-                return (true, "Revision created successfully", revision.revision_id);
-            }
-            catch (Exception ex)
-            {
-                await tx.RollbackAsync();
-                return (false, $"Error creating revision: {ex.Message}", null);
-            }
+            });
         }
+
         private string GetDepartmentColor(string? deptName)
         {
             if (string.IsNullOrEmpty(deptName)) return "#808080";

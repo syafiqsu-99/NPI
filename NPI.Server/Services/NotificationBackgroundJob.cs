@@ -3,10 +3,6 @@ using NPI.Server.Data;
 
 namespace NPI.Server.Services
 {
-    /// <summary>
-    /// Runs every 6 hours.
-    /// Handles: N3 (overdue tasks), N4 (stuck in Planning), N10 (approval tasks stalled).
-    /// </summary>
     public class NotificationBackgroundJob : BackgroundService
     {
         private readonly IServiceProvider _services;
@@ -23,7 +19,6 @@ namespace NPI.Server.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            // Stagger startup by 30 seconds to let the app warm up
             await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
 
             while (!stoppingToken.IsCancellationRequested)
@@ -169,7 +164,7 @@ namespace NPI.Server.Services
             {
                 // Find Sales dept users on this project
                 var salesDept = await context.Departments
-                    .FirstOrDefaultAsync(d => d.dept_name == "Sales", ct);
+                    .FirstOrDefaultAsync(d => d.dept_code == "SLS", ct);
 
                 if (salesDept == null) continue;
 

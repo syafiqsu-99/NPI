@@ -239,8 +239,8 @@
                                       style="min-width:44px; justify-content:center">
                                 {{ stageId }}
                               </v-chip>
-                              <span class="font-weight-medium">{{ NPI_STAGES[stageId].name }}</span>
-                              <v-chip v-if="!NPI_STAGES[stageId].required"
+                              <span class="font-weight-medium">{{ getStageName(stageId) }}</span>
+                              <v-chip v-if="!isStageRequired(stageId)"
                                       size="x-small"
                                       color="orange"
                                       variant="outlined">
@@ -261,7 +261,6 @@
                           </v-expansion-panel-title>
 
                           <v-expansion-panel-text class="pa-0">
-                            <!-- FIX: width:100%, no overflow-x -->
                             <div style="width:100%; overflow-x:hidden;">
                               <v-table class="tasks-table" density="compact" style="width:100%;">
                                 <thead>
@@ -282,9 +281,8 @@
                                   <tr v-for="(task, tIdx) in getStageTaskRows(stageId)"
                                       :key="task._localId"
                                       :class="{
-                                      'task-row--stage0': stageId === '0.0' && !!task.task_id
+                                      'task-row--stage0': isAutoCompleteStage(stageId) && !!task.task_id
                                     }">
-                                    <!-- Code -->
                                     <td class="text-center">
                                       <v-chip size="x-small"
                                               :color="getStageColor(stageId)"
@@ -358,7 +356,6 @@
 
                                     <!-- Delete row -->
                                     <td class="text-center">
-                                      <!-- FIX: allow delete for all non-DB stage-0 tasks -->
                                       <v-btn v-if="!isStage0DbTask(task)"
                                              icon
                                              size="x-small"
@@ -414,7 +411,6 @@
                         </span>
                       </v-alert>
 
-                      <!-- FIX: equal-height card rows using d-flex -->
                       <v-row dense class="mb-4">
                         <!-- Active Stages summary -->
                         <v-col cols="12" md="6" class="d-flex">
@@ -433,7 +429,7 @@
                                         class="mr-2">
                                   {{ sId }}
                                 </v-chip>
-                                <span class="text-body-2">{{ NPI_STAGES[sId].name }}</span>
+                                <span class="text-body-2">{{ getStageName(sId) }}</span>
                                 <v-spacer />
                                 <span class="text-caption text-grey">
                                   {{ getStageTaskCount(sId) }} tasks
@@ -629,12 +625,13 @@
   import { ref, computed, onMounted } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { useProjectStore } from '@/stores/project'
-  import { NPI_STAGES } from '@/stores/stageTemplate'
+  import { useSettingsStore } from '@/stores/setting'
   import { api } from '@/utils/api'
 
   const router = useRouter()
   const route = useRoute()
   const projectStore = useProjectStore()
+  const settingsStore = useSettingsStore()
 
   // ── State ─────────────────────────────────────────────────────────────────────
   const loading = ref(false)
@@ -677,30 +674,49 @@
 
   const STAGE_COLORS = {
     '0.0': 'blue-grey',
-    '1.0': 'primary',
+    '1.0': 'indigo',
     '2.0': 'purple',
     '3.0': 'teal',
-    '4.0': 'indigo',
-    '5.0': 'deep-orange'
+    '4.0': 'orange',
+    '5.0': 'green'
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────────
+  const OPTIONAL_STAGE_FLAGS = {
+    '2.0': 'pilot_mould_required',
+    '3.0': 'machine_purchase_required'
+  }
+
   function getStageColor(stageId) {
     return STAGE_COLORS[stageId] || 'grey'
   }
 
+  function getStageName(stageId) {
+    return settingsStore.getStageName(stageId)
+  }
+
+  function isStageRequired(stageId) {
+    return !!settingsStore.stagesById[stageId]?.is_required
+  }
+
+  function isAutoCompleteStage(stageId) {
+    return settingsStore.isAutoCompleteStage(stageId)
+  }
+
   function isStage0DbTask(task) {
-    return task.stage_id === '0.0' && !!task.task_id
+    return isAutoCompleteStage(task.stage_id) && !!task.task_id
   }
 
   const isFirstLaunch = computed(() => project.value.status === 'Planning')
 
+  const allStageIds = computed(() =>
+    settingsStore.stages.map(s => s.stage_id)
+  )
+
   const activeStageIds = computed(() =>
-    Object.keys(NPI_STAGES).filter(id => {
-      if (NPI_STAGES[id].required) return true
-      if (id === '2.0') return stageFlags.value.pilot_mould_required
-      if (id === '3.0') return stageFlags.value.machine_purchase_required
-      return false
+    allStageIds.value.filter(id => {
+      if (isStageRequired(id)) return true
+      const flagKey = OPTIONAL_STAGE_FLAGS[id]
+      return flagKey ? !!stageFlags.value[flagKey] : false
     })
   )
 
@@ -715,14 +731,16 @@
   const folderPreviewDepts = computed(() => {
     const depts = new Set(
       allTasks.value
-        .filter(t => t.stage_id !== '0.0' && t.department)
+        .filter(t => !isAutoCompleteStage(t.stage_id) && t.department)
         .map(t => t.department)
     )
     return [...depts].sort((a, b) => a.localeCompare(b))
   })
 
   function deptTaskCount(dept) {
-    return allTasks.value.filter(t => t.department === dept && t.stage_id !== '0.0').length
+    return allTasks.value.filter(
+      t => t.department === dept && !isAutoCompleteStage(t.stage_id)
+    ).length
   }
 
   function getStageTaskRows(stageId) {
@@ -756,8 +774,8 @@
       const hasSaved = (tasksByStage.value[stageId] || []).some(t => t.task_id)
       if (hasSaved) {
         showSnack(`Stage ${stageId} has saved tasks — cannot be removed once launched`, 'warning')
-        if (stageId === '2.0') stageFlags.value.pilot_mould_required = true
-        if (stageId === '3.0') stageFlags.value.machine_purchase_required = true
+        const flagKey = OPTIONAL_STAGE_FLAGS[stageId]
+        if (flagKey) stageFlags.value[flagKey] = true
         return
       }
       delete tasksByStage.value[stageId]
@@ -767,27 +785,27 @@
   function seedStage(stageId) {
     if (tasksByStage.value[stageId]?.length) return
     const today = new Date().toISOString().split('T')[0]
-    tasksByStage.value[stageId] = NPI_STAGES[stageId].tasks.map((t, idx) => {
-      const stageNum = stageId.split('.')[0]
-      return {
-        _localId: `${stageId}_${idx}_${Date.now()}`,
-        task_id: null,
-        stage_id: stageId,
-        task_code: `${stageNum}.${idx + 1}`,
-        order: idx + 1,
-        title: t.title,
-        department: t.pic,
-        start_date: today,
-        working_days: 5,
-        end_date: null,
-        computing: false,
-        revision_note: '',
-        has_date_change: false,
-        has_link: t.hasLink || false,
-        doc_format: t.docFormat || null,
-        role_gated: t.roleGated || null
-      }
-    })
+
+    const templates = settingsStore.getTemplatesForStage(stageId)
+
+    tasksByStage.value[stageId] = templates.map((t, idx) => ({
+      _localId: `${stageId}_${idx}_${Date.now()}`,
+      task_id: null,
+      stage_id: stageId,
+      task_code: t.task_code,
+      order: idx + 1,
+      title: t.title,
+      department: t.dept_name,
+      start_date: today,
+      working_days: t.default_duration || 5,
+      end_date: null,
+      computing: false,
+      revision_note: '',
+      has_date_change: false,
+      has_link: t.has_link || false,
+      doc_format: t.doc_format || null,
+      role_gated: t.role_gated || null
+    }))
   }
 
   function addTaskToStage(stageId) {
@@ -1081,6 +1099,8 @@
 
   // ── Mount ─────────────────────────────────────────────────────────────────────
   onMounted(async () => {
+    await settingsStore.fetchTaskTemplates()
+
     loading.value = true
     try {
       const pr = await projectStore.fetchProjectById(route.params.id)
@@ -1097,7 +1117,6 @@
         stageFlags.value.pilot_mould_required = !!d.pilot_mould_required
         stageFlags.value.machine_purchase_required = !!d.machine_purchase_required
 
-        // FIX: map team members with consistent property names
         if (d.team_members) {
           teamMembers.value = d.team_members.map(m => ({
             user_id: m.user_id,
@@ -1109,20 +1128,19 @@
         }
       }
 
-      // Seed required stages
-      Object.keys(NPI_STAGES).forEach(id => {
-        if (NPI_STAGES[id].required) seedStage(id)
+      allStageIds.value.forEach(id => {
+        if (isStageRequired(id)) seedStage(id)
       })
-      if (stageFlags.value.pilot_mould_required) seedStage('2.0')
-      if (stageFlags.value.machine_purchase_required) seedStage('3.0')
+      Object.entries(OPTIONAL_STAGE_FLAGS).forEach(([stageId, flagKey]) => {
+        if (stageFlags.value[flagKey]) seedStage(stageId)
+      })
 
-      try {
-        const dr = await api.get('/department')
-        const allDepts = dr?.data || dr || []
-        departments.value = allDepts.filter(
+      const deptResult = await settingsStore.fetchDepartments()
+      if (deptResult?.success) {
+        departments.value = settingsStore.departments.filter(
           dept => dept.dept_name?.toLowerCase() !== 'management'
         )
-      } catch {
+      } else {
         showSnack('Warning: Could not load departments', 'warning')
       }
 

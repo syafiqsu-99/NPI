@@ -3,11 +3,18 @@ using MigraDoc.DocumentObjectModel;
 using MigraDoc.DocumentObjectModel.Tables;
 using MigraDoc.Rendering;
 using NPI.Server.Data;
+using NPI.Server.Helpers;
 using NPI.Server.Models;
 using PdfSharp.Fonts;
 
 namespace NPI.Server.Services
 {
+    public interface IPdfService
+    {
+        Task<byte[]> GenerateEnquiryPdfAsync(int enquiryId);
+        Task<byte[]> GenerateProjectStatusReportAsync(int projectId);
+    }
+
     public class PdfService : IPdfService
     {
         private readonly ApplicationDbContext _context;
@@ -331,15 +338,7 @@ namespace NPI.Server.Services
             section.AddParagraph("NPI Stage Progress", "Heading2");
 
             var stageIds = new[] { "0.0", "1.0", "2.0", "3.0", "4.0", "5.0" };
-            var stageNames = new Dictionary<string, string>
-            {
-                ["0.0"] = "Enquiry",
-                ["1.0"] = "Project Start",
-                ["2.0"] = "Pilot Mould",
-                ["3.0"] = "New Machine",
-                ["4.0"] = "Prod Mould",
-                ["5.0"] = "Trial JJ"
-            };
+            var stageNames = NpiStages.Names;
 
             var table = section.AddTable();
             table.Borders.Width = 0;

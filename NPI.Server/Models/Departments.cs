@@ -17,6 +17,9 @@ namespace NPI.Server.Models
         [StringLength(200)]
         public string? description { get; set; }
 
+        [StringLength(10)]
+        public string? color_hex { get; set; }
+
         public virtual ICollection<Users>? Users { get; set; }
         public virtual ICollection<DocumentTypes>? DocumentTypes { get; set; }
         public virtual ICollection<Milestones>? Milestones { get; set; }

@@ -6,6 +6,27 @@ using NPI.Server.Models;
 
 namespace NPI.Server.Services
 {
+    public interface IFileService
+    {
+        Task<(bool success, string message, Files? file)> UploadFileAsync(IFormFile file, int? proj_id, int? task_id, int? doc_type_id, int user_id, int? dept_id, int? enquiry_id = null, string? customer_name = null);
+        Task<(bool success, string message, Files? file)> UploadCustomerFileAsync(IFormFile file, int enquiry_id, int user_id, string comp_name);
+        Task<(bool success, byte[]? fileData, string? contentType)> DownloadFileAsync(int file_id);
+        Task<bool> DeleteFileAsync(int file_id);
+        Task<(bool success, string message, List<int> fileIds)> UploadFilesAsync(List<IFormFile> files, int proj_id, int task_id, string task_folder, string description, int user_id);
+        Task<List<FileResponseDto>> GetFilesByTaskAsync(int task_id);
+        Task<List<FileResponseDto>> GetFilesByProjectAsync(int proj_id);
+        Task<List<FileResponseDto>> GetFilesByEnquiryAsync(int enquiry_id);
+        Task<(bool success, string message, string? filePath)> GetFilePathAsync(int file_id);
+        Task<(bool success, string message)> DeleteFileWithMessageAsync(int file_id, int deleted_by);
+        Task<int> GetTaskDocumentCountAsync(int task_id);
+        Task<string> EnsureCustomerFolderAsync(string comp_name);
+        Task<string> EnsureProjectCustomerFolderAsync(int proj_id);
+        Task<List<FileResponseDto>> GetAllCustomerFilesAsync();
+        Task<List<DirectoryNodeDto>> GetPhysicalFolderStructureAsync(int user_id);
+        Task<(bool success, byte[]? fileData, string? contentType)> DownloadPhysicalFileAsync(string path);
+        Task<(bool success, string message)> DeletePhysicalFileAsync(string path, int deleted_by);
+    }
+
     public class FileService : IFileService
     {
         private readonly ApplicationDbContext _context;
@@ -43,6 +64,8 @@ namespace NPI.Server.Services
                 if (task is null)
                     return (false, "Task not found", uploadedIds);
 
+                var records = new List<Files>();
+
                 foreach (var file in files)
                 {
                     if (file.Length == 0) continue;
@@ -51,7 +74,7 @@ namespace NPI.Server.Services
                     await using (var stream = new FileStream(destPath, FileMode.Create))
                         await file.CopyToAsync(stream);
 
-                    var record = new Files
+                    records.Add(new Files
                     {
                         proj_id = projId > 0 ? projId : null,
                         task_id = taskId,
@@ -65,11 +88,14 @@ namespace NPI.Server.Services
                         status = FileStatus.Active,
                         is_latest = true,
                         created_at = DateTime.Now
-                    };
+                    });
+                }
 
-                    _context.Files.Add(record);
+                if (records.Count > 0)
+                {
+                    await _context.Files.AddRangeAsync(records);
                     await _context.SaveChangesAsync();
-                    uploadedIds.Add(record.file_id);
+                    uploadedIds.AddRange(records.Select(r => r.file_id));
                 }
 
                 if (uploadedIds.Count > 0)
@@ -85,10 +111,7 @@ namespace NPI.Server.Services
 
         // ── Upload: single file (task, project, or enquiry/customer) ─────────
 
-        public async Task<(bool success, string message, Files? file)> UploadFileAsync(
-            IFormFile file, int? projId, int? taskId, int? docTypeId,
-            int uploadBy, int? deptId,
-            int? enquiryId = null, string? customerName = null)
+        public async Task<(bool success, string message, Files? file)> UploadFileAsync(IFormFile file, int? projId, int? taskId, int? docTypeId, int uploadBy, int? deptId, int? enquiryId = null, string? customerName = null)
         {
             try
             {

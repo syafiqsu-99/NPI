@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using NPI.Server.Data;
+using NPI.Server.Helpers;
 using NPI.Server.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -8,6 +9,15 @@ using System.Text;
 
 namespace NPI.Server.Services
 {
+    public interface IAuthService
+    {
+        Task<(bool Success, string? Token, Users? User)> LoginAsync(string username, string password);
+        Task<(bool Success, string Message)> RegisterAsync(Users user, string password);
+        Task<Users?> GetUserByIdAsync(int userId);
+        string GenerateJwtToken(Users user);
+        Task LogoutAsync(int userId, string sessionId);
+    }
+
     public class AuthService : IAuthService
     {
         private readonly ApplicationDbContext _context;
@@ -19,7 +29,7 @@ namespace NPI.Server.Services
             _configuration = configuration;
         }
 
-        public async Task<(bool Success, string Token, Users User)> LoginAsync(string username, string password)
+        public async Task<(bool Success, string? Token, Users? User)> LoginAsync(string username, string password)
         {
             var user = await _context.Users
                 .Include(u => u.Department)
@@ -73,7 +83,7 @@ namespace NPI.Server.Services
             return (true, "User registered successfully");
         }
 
-        public async Task<Users> GetUserByIdAsync(int userId)
+        public async Task<Users?> GetUserByIdAsync(int userId)
         {
             return await _context.Users
                 .Include(u => u.Department)

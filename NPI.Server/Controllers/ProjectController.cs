@@ -161,7 +161,7 @@ namespace NPI.Server.Controllers
         {
             try
             {
-                var milestones = await _projectService.GetProjectMilestonesAsync(id);
+                var milestones = await _milestoneService.GetProjectMilestonesAsync(id);
                 return Ok(new { success = true, data = milestones });
             }
             catch (Exception ex)

@@ -63,7 +63,7 @@ namespace NPI.Server.Controllers
             [FromForm] int? enquiry_id,
             [FromForm] string? customer_name)
         {
-            if (!TryGetUserId(out var userId))
+            if (!TryGetUserId(out var user_id))
                 return Unauthorized(new { success = false, message = "Invalid user identity." });
 
             if (file == null || file.Length == 0)
@@ -72,7 +72,7 @@ namespace NPI.Server.Controllers
             if (task_id.HasValue)
             {
                 var (authorized, _) = await _taskService.ValidateTaskWriteAccessAsync(
-                    task_id.Value, userId, RbacHelper.GetSystemRole(User), RbacHelper.GetDepartmentId(User));
+                    task_id.Value, user_id, RbacHelper.GetSystemRole(User), RbacHelper.GetDepartmentId(User));
                 if (!authorized)
                     return Forbid();
             }
@@ -213,11 +213,6 @@ namespace NPI.Server.Controllers
         {
             var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             return int.TryParse(claim, out userId);
-        }
-        private bool IsManagerOrAdmin()
-        {
-            var role = User.FindFirst(ClaimTypes.Role)?.Value;
-            return role == "Admin" || role == "Manager";
         }
     }
 }
