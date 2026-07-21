@@ -25,6 +25,7 @@ namespace NPI.Server.DTOs
     {
         public int dept_id { get; set; }
         public string dept_name { get; set; }
+        public string color_hex { get; set; }
         public string? description { get; set; }
         public DateTime created_at { get; set; }
     }

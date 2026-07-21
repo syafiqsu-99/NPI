@@ -397,12 +397,13 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { useAuthStore } from '@/stores/auth'
-  import { NPI_STAGES } from '@/stores/stageTemplate'
+  import { useSettingsStore } from '@/stores/setting'
   import { api } from '@/utils/api'
   import { TASK_STATUSES, PRIORITY_OPTIONS, TASK_STATUS_COLORS, TASK_STATUS_ICONS, PRIORITY_COLORS, STAGE_COLORS, PROJECT_ROLES } from '@/utils/constants'
   import { formatDate, formatDateTime, formatSize, getFileIcon, getFileIconColor } from '@/utils/formatters'
 
   const authStore = useAuthStore()
+  const settingsStore = useSettingsStore()
 
   const currentUser = computed(() => authStore.user ?? authStore.currentUser)
 
@@ -551,7 +552,9 @@
   }
 
   function getCurrentStageId(tasks) {
-    const stageOrder = Object.keys(NPI_STAGES).sort((a, b) => parseFloat(a) - parseFloat(b))
+    const stageOrder = settingsStore.stages
+      .map(s => s.stage_id)
+      .sort((a, b) => parseFloat(a) - parseFloat(b))
     for (const sid of stageOrder) {
       const st = tasks.filter(t => (t.stage_id || deriveStageFromCode(t.task_code) || '1.0') === sid)
       if (st.length && !st.every(t => t.status === 'Completed')) return sid
@@ -571,7 +574,7 @@
     visible.forEach(task => {
       const sid = task.stage_id || deriveStageFromCode(task.task_code) || '1.0'
       if (!groups.has(sid)) {
-        groups.set(sid, { stageId: sid, stageName: NPI_STAGES[sid]?.name ?? sid, tasks: [] })
+        groups.set(sid, { stageId: sid, stageName: settingsStore.getStageName(sid), tasks: [] })
       }
       groups.get(sid).tasks.push({ ...task, stage_id: sid })
     })
@@ -797,7 +800,10 @@
     snackbar.value = true
   }
 
-  onMounted(loadTasks)
+  onMounted(async () => {
+    await settingsStore.fetchTaskTemplates()
+    await loadTasks()
+  })
 </script>
 
 

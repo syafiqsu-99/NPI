@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
 using NPI.Server.DTOs;
+using NPI.Server.Helpers;
 using NPI.Server.Models;
 
 namespace NPI.Server.Services
@@ -60,7 +61,7 @@ namespace NPI.Server.Services
                         planned_end_date = tr.new_end_date,
                         duration = tr.duration,
                         per_complete = 0,
-                        status = tr.status ?? "Not Started"
+                        status = tr.status ?? TasksStatus.NotStarted
                     }).ToList();
                 }
                 else
@@ -267,24 +268,6 @@ namespace NPI.Server.Services
                     return (false, $"Error creating revision: {ex.Message}", (int?)null);
                 }
             });
-        }
-
-        private string GetDepartmentColor(string? deptName)
-        {
-            if (string.IsNullOrEmpty(deptName)) return "#808080";
-
-            var colors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                { "Sales", "#2196F3" },
-                { "Technical", "#4CAF50" },
-                { "Purchaser", "#FF9800" },
-                { "Purchasing", "#FF9800" },
-                { "QA", "#9C27B0" },
-                { "Production", "#F44336" },
-                { "Others", "#607D8B" }
-            };
-
-            return colors.TryGetValue(deptName, out var color) ? color : "#808080";
         }
     }
 }

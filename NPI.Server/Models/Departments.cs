@@ -21,7 +21,6 @@ namespace NPI.Server.Models
         public string? color_hex { get; set; }
 
         public virtual ICollection<Users>? Users { get; set; }
-        public virtual ICollection<DocumentTypes>? DocumentTypes { get; set; }
         public virtual ICollection<Milestones>? Milestones { get; set; }
         public virtual ICollection<Files>? Files { get; set; }
         public DateTime created_at { get; internal set; }

@@ -183,8 +183,8 @@
 <script setup>
   import { ref, computed, watch } from 'vue'
   import { useAuthStore } from '@/stores/auth'
-  import { NPI_STAGES } from '@/stores/stageTemplate'
-  import { PROJECT_STATUS_COLORS, PRIORITY_COLORS, STAGE_COLORS_HEX, STAGE_SHORT_NAMES } from '@/utils/constants'
+  import { useSettingsStore } from '@/stores/setting'
+  import { PROJECT_STATUS_COLORS, PRIORITY_COLORS, STAGE_COLORS_HEX, STAGE_SHORT_NAMES, OPTIONAL_STAGE_FLAGS } from '@/utils/constants'
   import { formatDate, formatDateTime, getInitials } from '@/utils/formatters'
 
   const props = defineProps({
@@ -193,6 +193,7 @@
     teamMembers: Array,
     revisions:   Array,
   })
+  const settingsStore = useSettingsStore()
   const emit = defineEmits(['update:modelValue', 'manage', 'gantt'])
 
   const isOpen = computed({
@@ -224,12 +225,12 @@
 
   const projectStages = computed(() => {
     if (!props.project) return []
-    return Object.keys(NPI_STAGES)
+    return settingsStore.stages
+      .map(s => s.stage_id)
       .filter(id => {
-        if (NPI_STAGES[id].required) return true
-        if (id === '2.0') return !!props.project.pilot_mould_required
-        if (id === '3.0') return !!props.project.machine_purchase_required
-        return false
+        if (settingsStore.stagesById[id]?.is_required) return true
+        const flagKey = OPTIONAL_STAGE_FLAGS[id]
+        return flagKey ? !!props.project[flagKey] : false
       })
       .map(id => {
         const progress = props.project.stage_progress?.[id]
@@ -238,7 +239,7 @@
         else if (progress?.in_progress) status = 'active'
         return {
           id,
-          name: NPI_STAGES[id].name,
+          name: settingsStore.getStageName(id),
           shortName: STAGE_SHORT_NAMES[id] || id,
           status,
           color: STAGE_COLORS_HEX[id] || '#9E9E9E',

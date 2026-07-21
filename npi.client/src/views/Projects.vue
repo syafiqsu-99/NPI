@@ -206,10 +206,10 @@
   import { useRouter } from 'vue-router'
   import { useProjectStore } from '@/stores/project'
   import { useAuthStore } from '@/stores/auth'
-  import { NPI_STAGES } from '@/stores/stageTemplate'
+  import { useSettingsStore } from '@/stores/setting'
   import { api } from '@/utils/api'
   import { openProjectStatusEmail } from '@/utils/mailtoHelper'
-  import { PROJECT_STATUSES, PROJECT_STATUS_COLORS, PRIORITY_OPTIONS, PRIORITY_COLORS, STAGE_COLORS, STAGE_COLORS_HEX, STAGE_SHORT_NAMES } from '@/utils/constants'
+  import { PROJECT_STATUSES, PROJECT_STATUS_COLORS, PRIORITY_OPTIONS, PRIORITY_COLORS, STAGE_COLORS, STAGE_COLORS_HEX, STAGE_SHORT_NAMES, OPTIONAL_STAGE_FLAGS } from '@/utils/constants'
   import { formatDate } from '@/utils/formatters'
 
   import ProjectDetailDialog from '@/components/projects/ProjectDetailDialog.vue'
@@ -218,6 +218,7 @@
   const router       = useRouter()
   const projectStore = useProjectStore()
   const authStore    = useAuthStore()
+  const settingsStore = useSettingsStore()
  
   const statusFilter     = ref('all')
   const search           = ref('')
@@ -317,11 +318,10 @@
   }
 
   function getProjectStages(project) {
-    const stageIds = Object.keys(NPI_STAGES).filter(id => {
-      if (NPI_STAGES[id].required) return true
-      if (id === '2.0') return !!project.pilot_mould_required
-      if (id === '3.0') return !!project.machine_purchase_required
-      return false
+    const stageIds = settingsStore.stages.map(s => s.stage_id).filter(id => {
+      if (settingsStore.stagesById[id]?.is_required) return true
+      const flagKey = OPTIONAL_STAGE_FLAGS[id]
+      return flagKey ? !!project[flagKey] : false
     })
     return stageIds.map(id => {
       const progress = project.stage_progress?.[id]
@@ -330,10 +330,10 @@
       else if (progress?.in_progress) status = 'active'
       return {
         id,
-        name:      NPI_STAGES[id].name,
+        name: settingsStore.getStageName(id),
         shortName: STAGE_SHORT_NAMES[id] || id,
         status,
-        color:     STAGE_COLORS_HEX[id] || '#9E9E9E',
+        color: STAGE_COLORS_HEX[id] || '#9E9E9E',
       }
     })
   }
@@ -391,6 +391,7 @@
   }
  
   onMounted(async () => {
+    await settingsStore.fetchTaskTemplates()
     const result = await projectStore.fetchProjects()
     if (!result.success) {
       snackbarMessage.value = result.message || 'Failed to load projects'

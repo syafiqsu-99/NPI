@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
 using NPI.Server.DTOs;
+using NPI.Server.Helpers;
 using NPI.Server.Models;
 
 namespace NPI.Server.Services
@@ -125,7 +126,7 @@ namespace NPI.Server.Services
                 if (dto.actual_date.HasValue)
                 {
                     milestone.actual_date = dto.actual_date;
-                    milestone.status = "Completed";
+                    milestone.status = TasksStatus.Completed;
                 }
 
                 await _context.SaveChangesAsync();
@@ -181,7 +182,7 @@ namespace NPI.Server.Services
                     return (false, "Milestone already completed");
 
                 milestone.actual_date = DateOnly.FromDateTime(DateTime.Now);
-                milestone.status = "Completed";
+                milestone.status = TasksStatus.Completed;
 
                 await _context.SaveChangesAsync();
 

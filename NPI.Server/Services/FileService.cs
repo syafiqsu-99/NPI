@@ -8,7 +8,7 @@ namespace NPI.Server.Services
 {
     public interface IFileService
     {
-        Task<(bool success, string message, Files? file)> UploadFileAsync(IFormFile file, int? proj_id, int? task_id, int? doc_type_id, int user_id, int? dept_id, int? enquiry_id = null, string? customer_name = null);
+        Task<(bool success, string message, Files? file)> UploadFileAsync(IFormFile file, int? proj_id, int? task_id, int user_id, int? dept_id, int? enquiry_id = null, string? customer_name = null);
         Task<(bool success, string message, Files? file)> UploadCustomerFileAsync(IFormFile file, int enquiry_id, int user_id, string comp_name);
         Task<(bool success, byte[]? fileData, string? contentType)> DownloadFileAsync(int file_id);
         Task<bool> DeleteFileAsync(int file_id);
@@ -31,14 +31,14 @@ namespace NPI.Server.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ITaskService _taskService;
-        private readonly NotificationTriggerService _triggerService;
+        private readonly INotificationService _notificationService;
         private readonly string _basePath;
 
-        public FileService(ApplicationDbContext context, ITaskService taskService, IConfiguration configuration, NotificationTriggerService triggerService)
+        public FileService(ApplicationDbContext context, ITaskService taskService, IConfiguration configuration, INotificationService notificationService)
         {
             _context = context;
             _taskService = taskService;
-            _triggerService = triggerService;
+            _notificationService = notificationService;
             _basePath = configuration["FileStorage:BasePath"]
                         ?? throw new InvalidOperationException(
                             "FileStorage:BasePath not configured.");
@@ -99,7 +99,7 @@ namespace NPI.Server.Services
                 }
 
                 if (uploadedIds.Count > 0)
-                    await _triggerService.OnFileUploadedAsync(projId, userId);
+                    await _notificationService.OnFileUploadedAsync(projId, userId);
 
                 return (true, $"{uploadedIds.Count} file(s) uploaded", uploadedIds);
             }
@@ -111,7 +111,7 @@ namespace NPI.Server.Services
 
         // ── Upload: single file (task, project, or enquiry/customer) ─────────
 
-        public async Task<(bool success, string message, Files? file)> UploadFileAsync(IFormFile file, int? projId, int? taskId, int? docTypeId, int uploadBy, int? deptId, int? enquiryId = null, string? customerName = null)
+        public async Task<(bool success, string message, Files? file)> UploadFileAsync(IFormFile file, int? projId, int? taskId, int uploadBy, int? deptId, int? enquiryId = null, string? customerName = null)
         {
             try
             {
@@ -168,7 +168,6 @@ namespace NPI.Server.Services
                     proj_id = projId is 0 ? null : projId,
                     task_id = taskId,
                     enquiry_id = enquiryId,
-                    doc_type_id = docTypeId,
                     file_version = 1,
                     upload_by = uploadBy,
                     dept_id = deptId,

@@ -1,5 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
+using NPI.Server.Helpers;
+using System.Linq;
 
 namespace NPI.Server.Services
 {
@@ -7,7 +9,10 @@ namespace NPI.Server.Services
     {
         private readonly IServiceProvider _services;
         private readonly ILogger<NotificationBackgroundJob> _logger;
-        private static readonly TimeSpan _interval = TimeSpan.FromHours(6);
+
+        private const int DueSoonDays = 3;
+        private const int PlanningStuckHours = 48;
+        private const int ApprovalStallHours = 72;
 
         public NotificationBackgroundJob(
             IServiceProvider services,
@@ -19,10 +24,23 @@ namespace NPI.Server.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
-
             while (!stoppingToken.IsCancellationRequested)
             {
+                var delay = TimeUntilNextMidnight();
+
+                _logger.LogInformation(
+                    "NotificationBackgroundJob: next run in {hours:F1}h.",
+                    delay.TotalHours);
+
+                try
+                {
+                    await Task.Delay(delay, stoppingToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    break;
+                }
+
                 try
                 {
                     await RunChecksAsync(stoppingToken);
@@ -31,9 +49,14 @@ namespace NPI.Server.Services
                 {
                     _logger.LogError(ex, "NotificationBackgroundJob encountered an error.");
                 }
-
-                await Task.Delay(_interval, stoppingToken);
             }
+        }
+
+        private static TimeSpan TimeUntilNextMidnight()
+        {
+            var now = DateTime.Now;
+            var nextMidnight = now.Date.AddDays(1);
+            return nextMidnight - now;
         }
 
         private async Task RunChecksAsync(CancellationToken ct)
@@ -45,74 +68,101 @@ namespace NPI.Server.Services
             var today = DateOnly.FromDateTime(DateTime.Now);
             var now = DateTime.Now;
 
+            // Preload today's notifications once — avoids an AnyAsync per recipient.
+            var sentToday = await context.Notifications
+                .AsNoTracking()
+                .Where(n => n.created_at >= now.Date)
+                .Select(n => new { n.user_id, n.task_id, n.proj_id, n.notif_type })
+                .ToListAsync(ct);
+
+            var sentTaskKeys = sentToday
+                .Where(n => n.task_id.HasValue)
+                .Select(n => (n.user_id, n.task_id!.Value, n.notif_type))
+                .ToHashSet();
+
+            var sentProjKeys = sentToday
+                .Where(n => n.proj_id.HasValue && !n.task_id.HasValue)
+                .Select(n => (n.user_id, n.proj_id!.Value, n.notif_type))
+                .ToHashSet();
+
             // ── N3: Overdue tasks ─────────────────────────────────────────────
             var overdueTasks = await context.Tasks
+                .AsNoTracking()
                 .Include(t => t.Project)
-                .Where(t => t.status != "Completed"
-                         && t.status != "Cancelled"
+                .Where(t => t.status != TasksStatus.Completed
+                         && t.status != TasksStatus.Cancelled
                          && t.planned_end_date.HasValue
-                         && t.planned_end_date.Value < today
-                         && t.assigned_to.HasValue)
+                         && t.planned_end_date.Value < today)
                 .ToListAsync(ct);
 
             foreach (var task in overdueTasks)
             {
-                if (task.assigned_to.HasValue)
-                {
-                    // De-duplicate: only notify once per day using a simple check
-                    // (notification type + task_id + today's date prefix)
-                    var alreadyNotifiedToday = await context.Notifications
-                        .AnyAsync(n => n.task_id == task.task_id
-                                    && n.notif_type == "overdue"
-                                    && n.created_at.Date == now.Date
-                                    && n.user_id == task.assigned_to.Value, ct);
+                var daysOverdue = today.DayNumber - task.planned_end_date!.Value.DayNumber;
 
-                    if (!alreadyNotifiedToday)
-                    {
-                        var daysOverdue = today.DayNumber - task.planned_end_date!.Value.DayNumber;
-                        await notifications.NotifyAsync(
-                            task.assigned_to.Value,
-                            "overdue",
-                            $"Overdue task: {task.task_code ?? task.title}",
-                            $"Task '{task.title}' in '{task.Project?.proj_name}' is {daysOverdue} day(s) overdue. " +
-                            $"It was due {task.planned_end_date:dd MMM yyyy}.",
-                            task.proj_id, task.task_id);
-                    }
-                }
+                var recipients = new List<int>();
+                if (task.assigned_to.HasValue) recipients.Add(task.assigned_to.Value);
+                if (task.Project != null) recipients.Add(task.Project.created_by);
 
-                // Notify project creator separately if different from assignee
-                if (task.Project?.created_by != null &&
-                    task.Project.created_by != task.assigned_to)
-                {
-                    var creatorNotified = await context.Notifications
-                        .AnyAsync(n => n.task_id == task.task_id
-                                    && n.notif_type == "overdue"
-                                    && n.created_at.Date == now.Date
-                                    && n.user_id == task.Project.created_by, ct);
+                var pending = recipients
+                    .Distinct()
+                    .Where(uid => !sentTaskKeys.Contains((uid, task.task_id, "overdue")))
+                    .ToList();
 
-                    if (!creatorNotified)
-                    {
-                        await notifications.NotifyAsync(
-                            task.Project.created_by,
-                            "overdue",
-                            $"Overdue task: {task.task_code ?? task.title}",
-                            $"Task '{task.title}' assigned to your project team is overdue.",
-                            task.proj_id, task.task_id);
-                    }
-                }
+                if (pending.Count == 0) continue;
+
+                await notifications.NotifyManyAsync(
+                    pending,
+                    "overdue",
+                    $"Overdue task: {task.task_code ?? task.title}",
+                    $"Task '{task.title}' in '{task.Project?.proj_name}' is {daysOverdue} day(s) overdue. " +
+                    $"It was due {task.planned_end_date:dd MMM yyyy}.",
+                    task.proj_id, task.task_id);
             }
 
-            // ── N4: Projects stuck in Planning > 48 hours ─────────────────────
-            var stuckThreshold = now.AddHours(-48);
+            // ── N12: Tasks due within the next 3 days ─────────────────────────
+            var dueSoonCutoff = today.AddDays(DueSoonDays);
+
+            var dueSoonTasks = await context.Tasks
+                .AsNoTracking()
+                .Include(t => t.Project)
+                .Where(t => t.status != TasksStatus.Completed
+                         && t.status != TasksStatus.Cancelled
+                         && t.planned_end_date.HasValue
+                         && t.planned_end_date.Value >= today
+                         && t.planned_end_date.Value <= dueSoonCutoff
+                         && t.assigned_to.HasValue)
+                .ToListAsync(ct);
+
+            foreach (var task in dueSoonTasks)
+            {
+                var uid = task.assigned_to!.Value;
+                if (sentTaskKeys.Contains((uid, task.task_id, "due_soon"))) continue;
+
+                var daysLeft = task.planned_end_date!.Value.DayNumber - today.DayNumber;
+                var whenText = daysLeft == 0 ? "today" : $"in {daysLeft} day(s)";
+
+                await notifications.NotifyAsync(
+                    uid,
+                    "due_soon",
+                    $"Due {whenText}: {task.task_code ?? task.title}",
+                    $"Task '{task.title}' in '{task.Project?.proj_name}' is due " +
+                    $"{task.planned_end_date:dd MMM yyyy}.",
+                    task.proj_id, task.task_id);
+            }
+
+            // ── N4: Projects stuck in Planning ────────────────────────────────
+            var stuckThreshold = now.AddHours(-PlanningStuckHours);
             var stuckProjects = await context.Projects
-                .Where(p => p.status == "Planning"
+                .AsNoTracking()
+                .Where(p => p.status == ProjectsStatus.Planning
                          && p.created_at <= stuckThreshold)
                 .ToListAsync(ct);
 
-            if (stuckProjects.Any())
+            if (stuckProjects.Count > 0)
             {
                 var adminIds = await context.Users
-                    .Where(u => u.Role!.role_name == "Admin" && u.is_active)
+                    .AsNoTracking()
+                    .Where(u => u.Role!.role_name == SystemRoles.Admin && u.is_active)
                     .Select(u => u.user_id)
                     .ToListAsync(ct);
 
@@ -120,94 +170,91 @@ namespace NPI.Server.Services
                 {
                     var hoursStuck = (int)(now - proj.created_at).TotalHours;
 
-                    foreach (var adminId in adminIds)
-                    {
-                        var alreadyNotified = await context.Notifications
-                            .AnyAsync(n => n.proj_id == proj.proj_id
-                                        && n.notif_type == "planning_stuck"
-                                        && n.created_at.Date == now.Date
-                                        && n.user_id == adminId, ct);
+                    var pending = adminIds
+                        .Where(uid => !sentProjKeys.Contains((uid, proj.proj_id, "planning_stuck")))
+                        .ToList();
 
-                        if (!alreadyNotified)
-                        {
-                            await notifications.NotifyAsync(
-                                adminId,
-                                "planning_stuck",
-                                $"Project not launched: {proj.proj_no}",
-                                $"Project '{proj.proj_name}' has been in Planning status for {hoursStuck}h. " +
-                                $"It may need team assignment and launch.",
-                                proj.proj_id);
-                        }
-                    }
+                    if (pending.Count == 0) continue;
+
+                    await notifications.NotifyManyAsync(
+                        pending,
+                        "planning_stuck",
+                        $"Project not launched: {proj.proj_no}",
+                        $"Project '{proj.proj_name}' has been in Planning status for {hoursStuck}h. " +
+                        $"It may need team assignment and launch.",
+                        proj.proj_id);
                 }
             }
 
-            // ── N10: Approval tasks (hasLink tasks) stalled > 72 hours ─────────
-            // task_code patterns for approval tasks: x.6, x.11 (customer approval)
-            // and any task with title containing "approval" or "customer"
-            var approvalStallThreshold = now.AddHours(-72);
+            // ── N10: Approval tasks stalled ───────────────────────────────────
+            var approvalStallThreshold = now.AddHours(-ApprovalStallHours);
 
-            var stalledApprovalTasks = await context.Tasks
-                .Include(t => t.Project)
-                .Where(t => t.status == "In Progress"
-                         && t.updated_at.HasValue
-                         && t.updated_at.Value <= approvalStallThreshold
-                         && (t.title.ToLower().Contains("approval")
-                             || t.title.ToLower().Contains("customer")
-                             || (t.task_code != null && (
-                                    t.task_code.EndsWith(".6") ||
-                                    t.task_code.EndsWith(".11") ||
-                                    t.task_code == "5.10"))))
-                .ToListAsync(ct);
+            var salesDept = await context.Departments
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.dept_code == DeptCodes.Sales, ct);
 
-            foreach (var task in stalledApprovalTasks)
+            var stalledApprovalTasks = new List<Models.Tasks>();
+
+            if (salesDept != null)
             {
-                // Find Sales dept users on this project
-                var salesDept = await context.Departments
-                    .FirstOrDefaultAsync(d => d.dept_code == "SLS", ct);
-
-                if (salesDept == null) continue;
-
-                var salesUserIds = await context.ProjectTeams
-                    .Where(pt => pt.proj_id == task.proj_id)
-                    .Join(context.Users,
-                        pt => pt.user_id,
-                        u => u.user_id,
-                        (pt, u) => u)
-                    .Where(u => u.dept_id == salesDept.dept_id && u.is_active)
-                    .Select(u => u.user_id)
+                var approvalCodes = await context.TaskTemplates
+                    .AsNoTracking()
+                    .Where(t => t.is_active && t.has_link)
+                    .Select(t => t.task_code)
                     .ToListAsync(ct);
 
-                var hoursStalled = task.updated_at.HasValue
-                    ? (int)(now - task.updated_at.Value).TotalHours
-                    : 72;
+                stalledApprovalTasks = await context.Tasks
+                    .AsNoTracking()
+                    .Include(t => t.Project)
+                    .Where(t => t.status == TasksStatus.InProgress
+                             && t.updated_at.HasValue
+                             && t.updated_at.Value <= approvalStallThreshold
+                             && t.task_code != null
+                             && approvalCodes.Contains(t.task_code))
+                    .ToListAsync(ct);
 
-                foreach (var uid in salesUserIds)
+                var projIds = stalledApprovalTasks.Select(t => t.proj_id).Distinct().ToList();
+
+                var salesByProject = await context.ProjectTeams
+                    .AsNoTracking()
+                    .Where(pt => projIds.Contains(pt.proj_id))
+                    .Join(context.Users, pt => pt.user_id, u => u.user_id,
+                          (pt, u) => new { pt.proj_id, u.user_id, u.dept_id, u.is_active })
+                    .Where(x => x.dept_id == salesDept.dept_id && x.is_active)
+                    .ToListAsync(ct);
+
+                var salesLookup = salesByProject
+                    .GroupBy(x => x.proj_id)
+                    .ToDictionary(g => g.Key, g => g.Select(x => x.user_id).ToList());
+
+                foreach (var task in stalledApprovalTasks)
                 {
-                    var alreadyNotified = await context.Notifications
-                        .AnyAsync(n => n.task_id == task.task_id
-                                    && n.notif_type == "approval_stalled"
-                                    && n.created_at.Date == now.Date
-                                    && n.user_id == uid, ct);
+                    if (!salesLookup.TryGetValue(task.proj_id, out var salesUserIds)) continue;
 
-                    if (!alreadyNotified)
-                    {
-                        await notifications.NotifyAsync(
-                            uid,
-                            "approval_stalled",
-                            $"Approval stalled: {task.task_code ?? task.title}",
-                            $"Customer approval task '{task.title}' in '{task.Project?.proj_name}' " +
-                            $"has been In Progress for {hoursStalled}h without an update. " +
-                            $"Follow up with the customer.",
-                            task.proj_id, task.task_id);
-                    }
+                    var hoursStalled = (int)(now - task.updated_at!.Value).TotalHours;
+
+                    var pending = salesUserIds
+                        .Where(uid => !sentTaskKeys.Contains((uid, task.task_id, "approval_stalled")))
+                        .ToList();
+
+                    if (pending.Count == 0) continue;
+
+                    await notifications.NotifyManyAsync(
+                        pending,
+                        "approval_stalled",
+                        $"Approval stalled: {task.task_code ?? task.title}",
+                        $"Customer approval task '{task.title}' in '{task.Project?.proj_name}' " +
+                        $"has been In Progress for {hoursStalled}h without an update. " +
+                        $"Follow up with the customer.",
+                        task.proj_id, task.task_id);
                 }
             }
 
             _logger.LogInformation(
-                "NotificationBackgroundJob: checked {overdue} overdue tasks, " +
+                "NotificationBackgroundJob: {overdue} overdue, {dueSoon} due soon, " +
                 "{stuck} stuck projects, {stalled} stalled approvals.",
-                overdueTasks.Count, stuckProjects.Count, stalledApprovalTasks.Count);
+                overdueTasks.Count, dueSoonTasks.Count, stuckProjects.Count,
+                stalledApprovalTasks.Count);
         }
     }
 }

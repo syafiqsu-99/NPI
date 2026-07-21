@@ -58,7 +58,6 @@ namespace NPI.Server.Controllers
             [FromForm] IFormFile file,
             [FromForm] int proj_id,
             [FromForm] int? task_id,
-            [FromForm] int? doc_type_id,
             [FromForm] int? dept_id,
             [FromForm] int? enquiry_id,
             [FromForm] string? customer_name)
@@ -85,7 +84,7 @@ namespace NPI.Server.Controllers
                 return Forbid();
             }
 
-            var (success, message, result) = await _fileService.UploadFileAsync(file, proj_id, task_id, doc_type_id, user_id, dept_id, enquiry_id, customer_name);
+            var (success, message, result) = await _fileService.UploadFileAsync(file, proj_id, task_id, user_id, dept_id, enquiry_id, customer_name);
 
             if (!success || result is null)
                 return BadRequest(new { success = false, message });

@@ -186,6 +186,14 @@ export const STAGE_SHORT_NAMES = Object.freeze({
   '5.0': 'Trial JJ',
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// OPTIONAL STAGE → Projects table flag column
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const OPTIONAL_STAGE_FLAGS = Object.freeze({
+  '2.0': 'pilot_mould_required',
+  '3.0': 'machine_purchase_required',
+})
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FILE TYPES

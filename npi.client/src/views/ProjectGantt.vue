@@ -224,12 +224,13 @@
 <script setup>
   import { ref, computed, onMounted, nextTick, watch, onBeforeUnmount } from 'vue'
   import { useRoute } from 'vue-router'
-  import { NPI_STAGES } from '@/stores/stageTemplate'
+  import { useSettingsStore } from '@/stores/setting'
   import { api } from '@/utils/api'
-  import { STAGE_COLORS, STAGE_COLORS_HEX, STAGE_SHORT_NAMES, PROJECT_STATUS_COLORS, PRIORITY_COLORS} from '@/utils/constants'
+  import { STAGE_COLORS, STAGE_COLORS_HEX, STAGE_SHORT_NAMES, PROJECT_STATUS_COLORS, PRIORITY_COLORS, OPTIONAL_STAGE_FLAGS } from '@/utils/constants'
   import { formatDate, formatDateShort } from '@/utils/formatters'
 
   const route = useRoute()
+  const settingsStore = useSettingsStore()
 
   // ── State ─────────────────────────────────────────────────────────────────────
   const loading = ref(false)
@@ -279,17 +280,16 @@
   // ── Pipeline ──────────────────────────────────────────────────────────────────
   const projectStages = computed(() => {
     if (!project.value) return []
-    return Object.keys(NPI_STAGES).filter(id => {
-      if (NPI_STAGES[id].required) return true
-      if (id === '2.0') return !!project.value.pilot_mould_required
-      if (id === '3.0') return !!project.value.machine_purchase_required
-      return false
+    return settingsStore.stages.map(s => s.stage_id).filter(id => {
+      if (settingsStore.stagesById[id]?.is_required) return true
+      const flagKey = OPTIONAL_STAGE_FLAGS[id]
+      return flagKey ? !!project.value[flagKey] : false
     }).map(id => {
       const st = tasks.value.filter(t => resolvedStageId(t) === id)
       const allDone = st.length > 0 && st.every(t => t.status === 'Completed')
       const anyActive = st.some(t => t.status === 'In Progress')
       return {
-        id, name: NPI_STAGES[id].name, shortName: STAGE_SHORT_NAMES[id],
+        id, name: settingsStore.getStageName(id), shortName: STAGE_SHORT_NAMES[id],
         status: allDone ? 'completed' : anyActive ? 'active' : 'pending',
         bg: allDone ? 'rgba(76,175,80,0.1)' : anyActive ? `${STAGE_COLORS_HEX[id]}12` : 'transparent',
         border: allDone ? '#4CAF50' : anyActive ? STAGE_COLORS_HEX[id] : '#BDBDBD',
@@ -315,7 +315,7 @@
           rowId: `stage_${stageId}_header`,
           rowType: 'stage-header',
           stage_id: stageId,
-          stageName: NPI_STAGES[stageId]?.name ?? stageId,
+          stageName: settingsStore.getStageName(stageId),
           taskCount: stageTasks.length,
         })
       }
@@ -588,6 +588,7 @@
   let resizeObserver = null
 
   onMounted(async () => {
+    await settingsStore.fetchTaskTemplates()
     await loadProjectData()
     attachScrollSync()
 

@@ -26,7 +26,7 @@
         public const string Deleted = "Deleted";
     }
 
-    public static class TaskStatus
+    public static class TasksStatus
     {
         public const string NotStarted  = "Not Started";
         public const string InProgress  = "In Progress";
@@ -35,12 +35,22 @@
         public const string Cancelled   = "Cancelled";
     }
 
-    public static class ProjectStatus
+    public static class ProjectsStatus
     {
+        public const string Planning    = "Planning";
         public const string NotStarted  = "Not Started";
         public const string InProgress  = "In Progress";
         public const string OnHold      = "On Hold";
         public const string Completed   = "Completed";
         public const string Cancelled   = "Cancelled";
+    }
+    public static class DeptCodes
+    {
+        public const string Sales = "SLS";
+        public const string Technical = "TEC";
+        public const string Purchaser = "PUR";
+        public const string Production = "PRD";
+        public const string QA = "QA";
+        public const string Management = "MGT";
     }
 }

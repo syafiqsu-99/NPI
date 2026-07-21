@@ -156,7 +156,6 @@ namespace NPI.Server.Controllers
                 file,
                 proj_id: null,
                 task_id: null,
-                doc_type_id: null,
                 user_id: user_id,
                 dept_id: null,
                 enquiry_id: id,

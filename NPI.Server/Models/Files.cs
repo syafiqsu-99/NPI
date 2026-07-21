@@ -10,8 +10,6 @@ namespace NPI.Server.Models
         public int? proj_id { get; set; }
         public int? task_id { get; set; }
         public int? enquiry_id { get; set; }
-        public int? doc_type_id { get; set; }
-
         public int file_version { get; set; } = 1;
         public int upload_by { get; set; }
         public int? dept_id { get; set; }
@@ -48,9 +46,6 @@ namespace NPI.Server.Models
 
         [ForeignKey("enquiry_id")]
         public virtual Enquiries? Enquiry { get; set; }
-
-        [ForeignKey("doc_type_id")]
-        public virtual DocumentTypes? DocumentType { get; set; }
 
         [ForeignKey("upload_by")]
         public virtual Users? UploadByUser { get; set; }

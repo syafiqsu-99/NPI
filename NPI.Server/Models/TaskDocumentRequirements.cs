@@ -24,9 +24,6 @@ namespace NPI.Server.Models
         [ForeignKey("task_id")]
         public virtual Tasks? Task { get; set; }
 
-        [ForeignKey("doc_type_id")]
-        public virtual DocumentTypes? DocumentType { get; set; }
-
         [ForeignKey("file_id")]
         public virtual Files? File { get; set; }
     }

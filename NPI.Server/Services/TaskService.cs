@@ -30,16 +30,16 @@ namespace NPI.Server.Services
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly INotificationService _notificationService;
-        private readonly NotificationTriggerService _triggerService;
         private readonly string _basePath;
 
-        public TaskService(ApplicationDbContext context, IConfiguration configuration, INotificationService notificationService, NotificationTriggerService triggerService)
+        public TaskService(ApplicationDbContext context, IConfiguration configuration, INotificationService notificationService)
         {
             _context = context;
             _configuration = configuration;
-            _basePath = configuration["FileStorage:BasePath"] ?? @"D:\NPI_Projects";
+            _basePath = configuration["FileStorage:BasePath"]
+                        ?? throw new InvalidOperationException(
+                            "FileStorage:BasePath not configured.");
             _notificationService = notificationService;
-            _triggerService = triggerService;
         }
 
         /// <summary>
@@ -233,7 +233,7 @@ namespace NPI.Server.Services
 
                 // N9: Task assignment notification
                 if (dto.assigned_to.HasValue)
-                    await _triggerService.OnTaskAssignedAsync(task.task_id, task.proj_id, dto.assigned_to.Value);
+                    await _notificationService.OnTaskAssignedAsync(task.task_id, task.proj_id, dto.assigned_to.Value);
 
                 var folderPath = await GetTaskFolderPathAsync(task.task_id);
                 if (folderPath != null)
@@ -360,7 +360,7 @@ namespace NPI.Server.Services
             await _context.SaveChangesAsync();
 
             // N7: Date revision notification
-            await _triggerService.OnTaskDatesRevisedAsync(
+            await _notificationService.OnTaskDatesRevisedAsync(
                 taskId, task.proj_id,
                 task.planned_start_date, task.planned_end_date,
                 new_start_date, new_end_date);
@@ -427,7 +427,7 @@ namespace NPI.Server.Services
 
                 if (status == "Completed")
                 {
-                    await _triggerService.OnTaskCompletedAsync(taskId, task.proj_id, task.stage_id);
+                    await _notificationService.OnTaskCompletedAsync(taskId, task.proj_id, task.stage_id);
 
                     if (!string.IsNullOrEmpty(task.stage_id))
                     {
@@ -438,11 +438,11 @@ namespace NPI.Server.Services
                             t.task_id != taskId);
 
                         if (stageComplete)
-                            await _triggerService.OnStageCompletedAsync(task.proj_id, task.stage_id);
+                            await _notificationService.OnStageCompletedAsync(task.proj_id, task.stage_id);
                     }
 
                     if (task.task_code == "5.8")
-                        await _triggerService.OnFaiCompletedAsync(task.proj_id, taskId);
+                        await _notificationService.OnFaiCompletedAsync(task.proj_id, taskId);
                 }
 
                 return (true, "Task status updated successfully");

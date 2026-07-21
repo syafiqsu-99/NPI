@@ -25,15 +25,17 @@ namespace NPI.Server.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
-        private readonly NotificationTriggerService _triggerService;
+        private readonly INotificationService _notificationService;
         private readonly string _basePath;
 
-        public ProjectService(ApplicationDbContext context, IConfiguration configuration, NotificationTriggerService triggerService)
+        public ProjectService(ApplicationDbContext context, IConfiguration configuration, INotificationService notificationService)
         {
             _context = context;
             _configuration = configuration;
-            _basePath = configuration["FileStorage:BasePath"] ?? @"D:\NPI_Projects";
-            _triggerService = triggerService;
+            _basePath = configuration["FileStorage:BasePath"]
+                        ?? throw new InvalidOperationException(
+                            "FileStorage:BasePath not configured.");
+            _notificationService = notificationService;
         }
 
         private static string SanitizeFolderName(string name)
@@ -375,7 +377,7 @@ namespace NPI.Server.Services
                 await _context.SaveChangesAsync();
 
                 // 8. Trigger Notifications
-                await _triggerService.OnProjectStatusChangedAsync(projectId, status);
+                await _notificationService.OnProjectStatusChangedAsync(projectId, status);
 
                 return (true, $"Project status updated to '{status}' successfully");
             }
@@ -807,7 +809,7 @@ namespace NPI.Server.Services
             });
 
             if (result.Item1 && result.Item4)
-                await _triggerService.OnProjectLaunchedAsync(projectId);
+                await _notificationService.OnProjectLaunchedAsync(projectId);
 
             return (result.Item1, result.Item2, result.Item3);
         }
