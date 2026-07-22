@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NPI.Server.Data;
 
@@ -11,9 +12,11 @@ using NPI.Server.Data;
 namespace NPI.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260722014802_NPI4")]
+    partial class NPI4
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -82,8 +85,23 @@ namespace NPI.Server.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("contact_email")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("contact_name")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("contact_phone")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<DateTime>("created_at")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("cust_addr")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("is_active")
                         .HasColumnType("bit");
@@ -154,7 +172,7 @@ namespace NPI.Server.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<string>("form_category")
+                    b.Property<string>("npi_category")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -322,126 +340,6 @@ namespace NPI.Server.Migrations
                     b.ToTable("Files");
                 });
 
-            modelBuilder.Entity("NPI.Server.Models.FormCategory", b =>
-                {
-                    b.Property<int>("category_id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("category_id"));
-
-                    b.Property<string>("category_name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTime>("created_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("display_order")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("is_active")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("updated_at")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("category_id");
-
-                    b.ToTable("FormCategories");
-                });
-
-            modelBuilder.Entity("NPI.Server.Models.FormField", b =>
-                {
-                    b.Property<int>("field_id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("field_id"));
-
-                    b.Property<DateTime>("created_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("display_order")
-                        .HasColumnType("int");
-
-                    b.Property<string>("field_key")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("field_label")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("field_type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<bool>("is_active")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("is_required")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("options")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("section_id")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("updated_at")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("field_id");
-
-                    b.HasIndex("section_id");
-
-                    b.ToTable("FormFields");
-                });
-
-            modelBuilder.Entity("NPI.Server.Models.FormSection", b =>
-                {
-                    b.Property<int>("section_id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("section_id"));
-
-                    b.Property<DateTime>("created_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("display_order")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("is_active")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("section_key")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("section_label")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("trigger_keywords")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime?>("updated_at")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("section_id");
-
-                    b.ToTable("FormSections");
-                });
-
             modelBuilder.Entity("NPI.Server.Models.Notifications", b =>
                 {
                     b.Property<int>("notif_id")
@@ -492,6 +390,126 @@ namespace NPI.Server.Migrations
                         .HasDatabaseName("IX_Notifications_User_Unread");
 
                     b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.NpiCategory", b =>
+                {
+                    b.Property<int>("category_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("category_id"));
+
+                    b.Property<string>("category_name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("display_order")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("is_active")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("category_id");
+
+                    b.ToTable("NpiCategories");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.NpiFormField", b =>
+                {
+                    b.Property<int>("field_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("field_id"));
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("display_order")
+                        .HasColumnType("int");
+
+                    b.Property<string>("field_key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("field_label")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("field_type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("is_active")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("is_required")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("options")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("section_id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("field_id");
+
+                    b.HasIndex("section_id");
+
+                    b.ToTable("NpiFormFields");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.NpiFormSection", b =>
+                {
+                    b.Property<int>("section_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("section_id"));
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("display_order")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("is_active")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("section_key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("section_label")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("trigger_keywords")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("section_id");
+
+                    b.ToTable("NpiFormSections");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.ProjectRevisions", b =>
@@ -565,6 +583,44 @@ namespace NPI.Server.Migrations
                     b.HasKey("proj_role_id");
 
                     b.ToTable("ProjectRoles");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.ProjectStatusHistory", b =>
+                {
+                    b.Property<int>("history_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("history_id"));
+
+                    b.Property<DateTime>("changed_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("changed_by")
+                        .HasColumnType("int");
+
+                    b.Property<string>("new_status")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("old_status")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("proj_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("remark")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("history_id");
+
+                    b.HasIndex("changed_by");
+
+                    b.HasIndex("proj_id");
+
+                    b.ToTable("ProjectStatusHistory");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.ProjectTeams", b =>
@@ -682,6 +738,44 @@ namespace NPI.Server.Migrations
                     b.HasIndex("updated_by");
 
                     b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.RolePermissions", b =>
+                {
+                    b.Property<int>("permission_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("permission_id"));
+
+                    b.Property<bool>("can_approve")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("can_create")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("can_delete")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("can_read")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("can_update")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("resource")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("role_id")
+                        .HasColumnType("int");
+
+                    b.HasKey("permission_id");
+
+                    b.HasIndex("role_id");
+
+                    b.ToTable("RolePermissions");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.Roles", b =>
@@ -937,16 +1031,6 @@ namespace NPI.Server.Migrations
                     b.Property<bool>("is_active")
                         .HasColumnType("bit");
 
-                    b.Property<DateTime?>("last_seen_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("revoked_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("revoked_reason")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<string>("token_hash")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1129,17 +1213,6 @@ namespace NPI.Server.Migrations
                     b.Navigation("UploadByUser");
                 });
 
-            modelBuilder.Entity("NPI.Server.Models.FormField", b =>
-                {
-                    b.HasOne("NPI.Server.Models.FormSection", "Section")
-                        .WithMany("Fields")
-                        .HasForeignKey("section_id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Section");
-                });
-
             modelBuilder.Entity("NPI.Server.Models.Notifications", b =>
                 {
                     b.HasOne("NPI.Server.Models.Projects", "Project")
@@ -1165,6 +1238,17 @@ namespace NPI.Server.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("NPI.Server.Models.NpiFormField", b =>
+                {
+                    b.HasOne("NPI.Server.Models.NpiFormSection", "Section")
+                        .WithMany("Fields")
+                        .HasForeignKey("section_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Section");
+                });
+
             modelBuilder.Entity("NPI.Server.Models.ProjectRevisions", b =>
                 {
                     b.HasOne("NPI.Server.Models.Projects", "Project")
@@ -1182,6 +1266,25 @@ namespace NPI.Server.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("RevisedByUser");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.ProjectStatusHistory", b =>
+                {
+                    b.HasOne("NPI.Server.Models.Users", "ChangedByUser")
+                        .WithMany()
+                        .HasForeignKey("changed_by")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NPI.Server.Models.Projects", "Project")
+                        .WithMany("ProjectStatusHistories")
+                        .HasForeignKey("proj_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChangedByUser");
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.ProjectTeams", b =>
@@ -1234,6 +1337,17 @@ namespace NPI.Server.Migrations
                     b.Navigation("Customer");
 
                     b.Navigation("UpdatedByUser");
+                });
+
+            modelBuilder.Entity("NPI.Server.Models.RolePermissions", b =>
+                {
+                    b.HasOne("NPI.Server.Models.Roles", "Role")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("role_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Role");
                 });
 
             modelBuilder.Entity("NPI.Server.Models.TaskRevisions", b =>
@@ -1355,7 +1469,7 @@ namespace NPI.Server.Migrations
                     b.Navigation("Files");
                 });
 
-            modelBuilder.Entity("NPI.Server.Models.FormSection", b =>
+            modelBuilder.Entity("NPI.Server.Models.NpiFormSection", b =>
                 {
                     b.Navigation("Fields");
                 });
@@ -1375,6 +1489,8 @@ namespace NPI.Server.Migrations
 
                     b.Navigation("ProjectRevisions");
 
+                    b.Navigation("ProjectStatusHistories");
+
                     b.Navigation("ProjectTeams");
 
                     b.Navigation("Tasks");
@@ -1382,6 +1498,8 @@ namespace NPI.Server.Migrations
 
             modelBuilder.Entity("NPI.Server.Models.Roles", b =>
                 {
+                    b.Navigation("RolePermissions");
+
                     b.Navigation("Users");
                 });
 

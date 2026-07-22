@@ -1,12 +1,10 @@
 <template>
   <div class="module-root d-flex flex-column pa-3 ga-3">
 
-    <!-- Row 1: Page title -->
     <div class="flex-shrink-0">
       <h2 class="text-h6 font-weight-bold">Enquiry Form</h2>
     </div>
 
-    <!-- Row 2: Sub-tabs + loading indicator -->
     <v-card class="flex-shrink-0" elevation="1">
       <v-tabs v-model="tab" bg-color="grey-lighten-4" color="primary" density="compact">
         <v-tab value="categories">
@@ -22,16 +20,14 @@
           Fields
         </v-tab>
       </v-tabs>
-      <v-progress-linear v-if="configStore.loading" indeterminate color="primary" height="2" />
+      <v-progress-linear v-if="enquiryStore.loading" indeterminate color="primary" height="2" />
     </v-card>
 
-    <!-- Row 3: Tab content fills remaining height -->
     <v-window v-model="tab" class="flex-grow-1" style="min-height: 0;">
 
       <!-- ── CATEGORIES ──────────────────────────────────────────────────── -->
       <v-window-item value="categories">
         <div class="fill-height d-flex flex-column ga-3">
-          <!-- Controls card -->
           <v-card class="flex-shrink-0" elevation="1">
             <v-card-text class="pa-3">
               <v-row dense align="center">
@@ -43,11 +39,10 @@
               </v-row>
             </v-card-text>
           </v-card>
-          <!-- Data card -->
           <v-card class="flex-grow-1 d-flex flex-column" elevation="1" style="min-height: 0;">
             <v-data-table-virtual :headers="catHeaders"
-                                  :items="configStore.categories"
-                                  :loading="configStore.loading"
+                                  :items="enquiryStore.categories"
+                                  :loading="enquiryStore.loading"
                                   density="comfortable"
                                   fixed-header
                                   height="300"
@@ -89,7 +84,6 @@
       <!-- ── SECTIONS ───────────────────────────────────────────────────── -->
       <v-window-item value="sections">
         <div class="fill-height d-flex flex-column ga-3">
-          <!-- Controls card -->
           <v-card class="flex-shrink-0" elevation="1">
             <v-card-text class="pa-3">
               <v-row dense align="center">
@@ -109,11 +103,10 @@
               </v-row>
             </v-card-text>
           </v-card>
-          <!-- Data card -->
           <v-card class="flex-grow-1 d-flex flex-column" elevation="1" style="min-height: 0;">
             <v-data-table-virtual :headers="sectionHeaders"
-                                  :items="configStore.sections"
-                                  :loading="configStore.loading"
+                                  :items="enquiryStore.sections"
+                                  :loading="enquiryStore.loading"
                                   density="comfortable"
                                   fixed-header
                                   height="300"
@@ -234,7 +227,6 @@
       <!-- ── FIELDS ─────────────────────────────────────────────────────── -->
       <v-window-item value="fields">
         <div class="fill-height d-flex flex-column ga-3">
-          <!-- Controls card -->
           <v-card class="flex-shrink-0" elevation="1">
             <v-card-text class="pa-3">
               <v-row dense align="center">
@@ -257,9 +249,8 @@
               </v-row>
             </v-card-text>
           </v-card>
-          <!-- Data cards: one per section, scrollable container -->
           <div class="flex-grow-1 overflow-y-auto" style="min-height: 0;">
-            <v-card v-for="section in configStore.sections" :key="section.section_id"
+            <v-card v-for="section in enquiryStore.sections" :key="section.section_id"
                     class="mb-3"
                     :class="{ 'd-none': fieldSectionFilter && fieldSectionFilter !== section.section_key }"
                     elevation="1">
@@ -400,7 +391,7 @@
           <v-row>
             <v-col cols="12">
               <v-select v-model="fieldForm.section_id"
-                        :items="configStore.sections"
+                        :items="enquiryStore.sections"
                         item-title="section_label" item-value="section_id"
                         label="Section *" variant="outlined" :rules="[required]" />
             </v-col>
@@ -518,9 +509,9 @@
 
 <script setup>
   import { ref, computed, onMounted } from 'vue'
-  import { useNpiFormConfigStore } from '@/stores/npiFormConfig'
+  import { useEnquiryStore } from '@/stores/enquiry'
 
-  const configStore = useNpiFormConfigStore()
+  const enquiryStore = useEnquiryStore()
 
   const tab = ref('categories')
   const saving = ref(false)
@@ -578,8 +569,8 @@
   async function saveCategory() {
     saving.value = true
     const result = editCat.value
-      ? await configStore.updateCategory(editCat.value.category_id, catForm.value)
-      : await configStore.createCategory(catForm.value)
+      ? await enquiryStore.updateCategory(editCat.value.category_id, catForm.value)
+      : await enquiryStore.createCategory(catForm.value)
     saving.value = false
     if (result?.success) {
       showSnack(editCat.value ? 'Category updated.' : 'Category created.')
@@ -613,9 +604,9 @@
     let result
     if (editSection.value) {
       const { section_key, ...updateDto } = sectionForm.value
-      result = await configStore.updateSection(editSection.value.section_id, updateDto)
+      result = await enquiryStore.updateSection(editSection.value.section_id, updateDto)
     } else {
-      result = await configStore.createSection(sectionForm.value)
+      result = await enquiryStore.createSection(sectionForm.value)
     }
     saving.value = false
     if (result?.success) {
@@ -627,7 +618,7 @@
   }
 
   async function toggleSection(item) {
-    const result = await configStore.toggleSectionStatus(item.section_id)
+    const result = await enquiryStore.toggleSectionStatus(item.section_id)
     showSnack(result?.message || 'Status updated.', result?.success ? 'success' : 'error')
   }
 
@@ -653,7 +644,7 @@
   const fieldForm = ref(defaultFieldForm())
 
   const sectionFilterItems = computed(() =>
-    configStore.sections.map(s => ({ label: s.section_label, key: s.section_key }))
+    enquiryStore.sections.map(s => ({ label: s.section_label, key: s.section_key }))
   )
 
   function openFieldDialog(item = null, section = null) {
@@ -676,8 +667,8 @@
     saving.value = true
     const payload = { ...fieldForm.value }
     const result = editField.value
-      ? await configStore.updateField(editField.value.field_id, payload)
-      : await configStore.createField(payload)
+      ? await enquiryStore.updateField(editField.value.field_id, payload)
+      : await enquiryStore.createField(payload)
     saving.value = false
     if (result?.success) {
       showSnack(editField.value ? 'Field updated.' : 'Field created.')
@@ -693,7 +684,7 @@
   let dragSrcIdx = null
 
   function openReorderDialog() {
-    reorderList.value = [...configStore.sections].sort((a, b) => a.display_order - b.display_order)
+    reorderList.value = [...enquiryStore.sections].sort((a, b) => a.display_order - b.display_order)
     reorderDialog.value = true
   }
   function onDragStart(idx) { dragSrcIdx = idx }
@@ -708,7 +699,7 @@
   async function saveReorder() {
     saving.value = true
     const ids = reorderList.value.map(s => s.section_id)
-    const result = await configStore.reorderSections(ids)
+    const result = await enquiryStore.reorderSections(ids)
     saving.value = false
     if (result?.success) {
       showSnack('Section order saved.')
@@ -742,9 +733,9 @@
   async function executeDelete() {
     saving.value = true
     let result
-    if (deleteType === 'category') result = await configStore.deleteCategory(deleteTarget.category_id)
-    if (deleteType === 'section') result = await configStore.deleteSection(deleteTarget.section_id)
-    if (deleteType === 'field') result = await configStore.deleteField(deleteTarget.field_id)
+    if (deleteType === 'category') result = await enquiryStore.deleteCategory(deleteTarget.category_id)
+    if (deleteType === 'section') result = await enquiryStore.deleteSection(deleteTarget.section_id)
+    if (deleteType === 'field') result = await enquiryStore.deleteField(deleteTarget.field_id)
     saving.value = false
     deleteDialog.value = false
     showSnack(result?.message || 'Done.', result?.success ? 'success' : 'error')
@@ -754,7 +745,7 @@
     snackbarMsg.value = msg; snackbarColor.value = color; snackbar.value = true
   }
 
-  onMounted(() => configStore.fetchAllSections())
+  onMounted(() => enquiryStore.fetchAllSections())
 </script>
 
 <style scoped>

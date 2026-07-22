@@ -33,13 +33,13 @@
         </v-col>
         <v-col cols="6" sm="2">
           <v-select v-model="filterStatus"
-                    :items="['All', ...TASK_STATUSES]"
+                    :items="[FILTER_ALL, ...taskStatuses]"
                     label="Status" variant="outlined"
                     density="compact" hide-details bg-color="white" />
         </v-col>
         <v-col cols="6" sm="2">
           <v-select v-model="filterPriority"
-                    :items="['All', ...PRIORITY_OPTIONS]"
+                    :items="[FILTER_ALL, ...priorityOptions]"
                     label="Priority" variant="outlined"
                     density="compact" hide-details bg-color="white" />
         </v-col>
@@ -160,7 +160,7 @@
                           </v-chip>
                         </template>
                         <v-list density="compact">
-                          <v-list-item v-for="s in TASK_STATUSES" :key="s"
+                          <v-list-item v-for="s in taskStatuses" :key="s"
                                        @click="updateStatus(item, s, project.proj_id)">
                             <template #prepend>
                               <v-icon size="small" :color="getStatusColor(s)">{{ getStatusIcon(s) }}</v-icon>
@@ -399,38 +399,29 @@
   import { useAuthStore } from '@/stores/auth'
   import { useSettingsStore } from '@/stores/setting'
   import { api } from '@/utils/api'
-  import { TASK_STATUSES, PRIORITY_OPTIONS, TASK_STATUS_COLORS, TASK_STATUS_ICONS, PRIORITY_COLORS, STAGE_COLORS, PROJECT_ROLES } from '@/utils/constants'
+  import {
+    TASK_STATUS,
+    TASK_STATUSES,
+    TASK_CLOSED_STATUSES,
+    TASK_STATUS_COLORS,
+    TASK_STATUS_ICONS,
+    PROJECT_STATUS,
+    PRIORITY_OPTIONS,
+    PRIORITY_COLORS,
+    STAGE_COLORS,
+    DEFAULT_STAGE_ID,
+    DEFAULT_COLOR,
+    FILTER_ALL,
+  } from '@/utils/constants'
   import { formatDate, formatDateTime, formatSize, getFileIcon, getFileIconColor } from '@/utils/formatters'
 
   const authStore = useAuthStore()
   const settingsStore = useSettingsStore()
 
-  const currentUser = computed(() => authStore.user ?? authStore.currentUser)
+  const currentUser = computed(() => authStore.currentUser)
 
-  function isViewerOnProject(projId) {
-    if (!projId) return false
-    if (authStore.isAdmin || authStore.isManager) return false
-    return authStore.getProjectRole(projId) === PROJECT_ROLES.VIEWER
-  }
-
-  function canEditTaskItem(task, projId) {
-    if (authStore.isAdmin || authStore.isManager) return true
-    if (isViewerOnProject(projId)) return false
-
-    const projectRole = authStore.getProjectRole(projId)
-    if (projectRole === PROJECT_ROLES.TEAM_LEAD) return true
-
-    if (projectRole === PROJECT_ROLES.MEMBER) {
-      const userDeptId = currentUser.value?.dept_id
-      return (
-        task.dept_id != null &&
-        userDeptId != null &&
-        Number(task.dept_id) === Number(userDeptId)
-      )
-    }
-
-    return false
-  }
+  const canEditTaskItem = (task, projId) => authStore.canEditTaskItem(task, projId)
+  const isViewerOnProject = (projId) => authStore.isViewerOnProject(projId)
 
   // ── State ─────────────────────────────────────────────────────────────────────
   const loading = ref(false)
@@ -453,8 +444,8 @@
   const uploadDescription = ref('')
 
   const search = ref('')
-  const filterStatus = ref('All')
-  const filterPriority = ref('All')
+  const filterStatus = ref(FILTER_ALL)
+  const filterPriority = ref(FILTER_ALL)
   const showAllStages = ref(false)
   const showCompletedProjects = ref(false)
   const expandedProjects = ref([])
@@ -463,13 +454,16 @@
   const snackbarMsg = ref('')
   const snackbarColor = ref('success')
 
+  const taskStatuses = TASK_STATUSES
+  const priorityOptions = PRIORITY_OPTIONS
+
   const headers = [
     { title: 'Code', key: 'task_code', width: '80px', sortable: false },
     { title: 'Task', key: 'title', width: '40%' },
     { title: 'Status', key: 'status', width: '150px' },
     { title: 'Dept', key: 'dept_name', width: '120px' },
     { title: 'Dates', key: 'planned_dates', width: '160px', sortable: false },
-    { title: 'Actions', key: 'actions', width: '120px', sortable: false }
+    { title: 'Actions', key: 'actions', width: '120px', sortable: false },
   ]
 
   const allProjectsBase = computed(() => {
@@ -490,9 +484,9 @@
 
     return [...map.values()].map(p => {
       const isCompleted =
-        p.status === 'Completed' ||
+        p.status === PROJECT_STATUS.COMPLETED ||
         (p.allTasksForProj.length > 0 &&
-          p.allTasksForProj.every(t => t.status === 'Completed' || t.status === 'Cancelled'))
+          p.allTasksForProj.every(t => TASK_CLOSED_STATUSES.includes(t.status)))
       return { ...p, isCompleted }
     })
   })
@@ -508,8 +502,16 @@
 
   const statCards = computed(() => [
     { title: 'My Total Tasks', value: mySpecificTasks.value.length, color: 'primary' },
-    { title: 'In Progress', value: mySpecificTasks.value.filter(t => t.status === 'In Progress').length, color: 'blue' },
-    { title: 'Completed', value: mySpecificTasks.value.filter(t => t.status === 'Completed').length, color: 'green' },
+    {
+      title: TASK_STATUS.IN_PROGRESS,
+      value: mySpecificTasks.value.filter(t => t.status === TASK_STATUS.IN_PROGRESS).length,
+      color: 'blue',
+    },
+    {
+      title: TASK_STATUS.COMPLETED,
+      value: mySpecificTasks.value.filter(t => t.status === TASK_STATUS.COMPLETED).length,
+      color: 'green',
+    },
     { title: 'Overdue', value: mySpecificTasks.value.filter(t => isOverdue(t)).length, color: 'orange' },
   ])
 
@@ -525,8 +527,8 @@
       const matchSearch = !q || t.title?.toLowerCase().includes(q)
         || t.task_code?.toLowerCase().includes(q)
         || t.proj_name?.toLowerCase().includes(q)
-      const matchStatus = filterStatus.value === 'All' || t.status === filterStatus.value
-      const matchPriority = filterPriority.value === 'All' || t.priority === filterPriority.value
+      const matchStatus = filterStatus.value === FILTER_ALL || t.status === filterStatus.value
+      const matchPriority = filterPriority.value === FILTER_ALL || t.priority === filterPriority.value
       return matchSearch && matchStatus && matchPriority
     })
   })
@@ -551,15 +553,20 @@
     return m ? `${m[1]}.0` : null
   }
 
+  function stageIdOf(task) {
+    return task.stage_id || deriveStageFromCode(task.task_code) || DEFAULT_STAGE_ID
+  }
+
   function getCurrentStageId(tasks) {
-    const stageOrder = settingsStore.stages
+    const stageOrder = (settingsStore.stages ?? [])
       .map(s => s.stage_id)
       .sort((a, b) => parseFloat(a) - parseFloat(b))
+
     for (const sid of stageOrder) {
-      const st = tasks.filter(t => (t.stage_id || deriveStageFromCode(t.task_code) || '1.0') === sid)
-      if (st.length && !st.every(t => t.status === 'Completed')) return sid
+      const st = tasks.filter(t => stageIdOf(t) === sid)
+      if (st.length && !st.every(t => t.status === TASK_STATUS.COMPLETED)) return sid
     }
-    return stageOrder.at(-1) ?? '1.0'
+    return stageOrder.at(-1) ?? DEFAULT_STAGE_ID
   }
 
   function getStageGroups(project) {
@@ -567,12 +574,10 @@
     const currentStage = getCurrentStageId(project.tasks)
     const visible = showAllStages.value || project.isCompleted
       ? project.tasks
-      : project.tasks.filter(
-        t => (t.stage_id || deriveStageFromCode(t.task_code) || '1.0') === currentStage
-      )
+      : project.tasks.filter(t => stageIdOf(t) === currentStage)
 
     visible.forEach(task => {
-      const sid = task.stage_id || deriveStageFromCode(task.task_code) || '1.0'
+      const sid = stageIdOf(task)
       if (!groups.has(sid)) {
         groups.set(sid, { stageId: sid, stageName: settingsStore.getStageName(sid), tasks: [] })
       }
@@ -586,7 +591,7 @@
 
   function stagePct(tasks) {
     if (!tasks.length) return 0
-    return (tasks.filter(t => t.status === 'Completed').length / tasks.length) * 100
+    return (tasks.filter(t => t.status === TASK_STATUS.COMPLETED).length / tasks.length) * 100
   }
 
   // ── Display helpers ───────────────────────────────────────────────────────────
@@ -597,23 +602,27 @@
   }
   function isExpanded(projId) { return expandedProjects.value.includes(projId) }
 
-  function getStageColor(sid) { return STAGE_COLORS[sid] ?? 'grey' }
-  function getStatusColor(s) { return TASK_STATUS_COLORS[s] ?? 'grey' }
+  function getStageColor(sid) { return STAGE_COLORS[sid] ?? DEFAULT_COLOR }
+  function getStatusColor(s) { return TASK_STATUS_COLORS[s] ?? DEFAULT_COLOR }
   function getStatusIcon(s) { return TASK_STATUS_ICONS[s] ?? 'mdi-circle-outline' }
-  function getPriorityColor(p) { return PRIORITY_COLORS[p] ?? 'grey' }
+  function getPriorityColor(p) { return PRIORITY_COLORS[p] ?? DEFAULT_COLOR }
 
   function getProgressColor(v) {
     if (v >= 100) return 'success'
     if (v >= 50) return 'primary'
     if (v > 0) return 'warning'
-    return 'grey'
+    return DEFAULT_COLOR
   }
 
   function isOverdue(task) {
-    if (['Completed', 'Cancelled'].includes(task.status) || !task.planned_end_date) return false
+    if (TASK_CLOSED_STATUSES.includes(task.status) || !task.planned_end_date) return false
     const end = new Date(task.planned_end_date); end.setHours(0, 0, 0, 0)
     const today = new Date(); today.setHours(0, 0, 0, 0)
     return end < today
+  }
+
+  function today() {
+    return new Date().toISOString().split('T')[0]
   }
 
   // ── API ───────────────────────────────────────────────────────────────────────
@@ -625,7 +634,7 @@
 
       if (allTasks.value.length && expandedProjects.value.length === 0) {
         const inProgress = [...allTasks.value]
-          .filter(t => t.status === 'In Progress')
+          .filter(t => t.status === TASK_STATUS.IN_PROGRESS)
           .sort((a, b) => new Date(b.planned_start_date) - new Date(a.planned_start_date))[0]
         const targetId = inProgress?.proj_id ?? allTasks.value[0]?.proj_id
         if (targetId) expandedProjects.value = [targetId]
@@ -655,19 +664,22 @@
     if (!realTask) return
 
     const projTasks = allTasks.value.filter(t => t.proj_id === projId)
-    const oldCurrentStage = getCurrentStageId(projTasks)
+
+    const oldCurrentStage = getCurrentStageId(
+      projTasks.map(t => ({ ...t }))
+    )
 
     const oldStatus = realTask.status
     const oldProgress = realTask.per_complete
 
     realTask.status = newStatus
-    if (newStatus === 'Completed') {
+    if (newStatus === TASK_STATUS.COMPLETED) {
       realTask.per_complete = 100
-      realTask.actual_end_date = realTask.actual_end_date || new Date().toISOString().split('T')[0]
-    } else if (newStatus === 'In Progress') {
+      realTask.actual_end_date = realTask.actual_end_date || today()
+    } else if (newStatus === TASK_STATUS.IN_PROGRESS) {
       if (realTask.per_complete === 0) realTask.per_complete = 10
-      realTask.actual_start_date = realTask.actual_start_date || new Date().toISOString().split('T')[0]
-    } else if (newStatus === 'Not Started') {
+      realTask.actual_start_date = realTask.actual_start_date || today()
+    } else if (newStatus === TASK_STATUS.NOT_STARTED) {
       realTask.per_complete = 0
     }
 
@@ -677,8 +689,10 @@
         showSnack('Status updated', 'success')
 
         const newCurrentStage = getCurrentStageId(projTasks)
-
-        if (oldCurrentStage !== newCurrentStage && parseFloat(newCurrentStage) > parseFloat(oldCurrentStage)) {
+        if (
+          oldCurrentStage !== newCurrentStage &&
+          parseFloat(newCurrentStage) > parseFloat(oldCurrentStage)
+        ) {
           await autoStartStageTasks(projId, newCurrentStage)
         }
       } else {
@@ -697,8 +711,7 @@
     const projTasks = allTasks.value.filter(t => t.proj_id === projId)
 
     const tasksToStart = projTasks.filter(t =>
-      (t.stage_id || deriveStageFromCode(t.task_code) || '1.0') === newStageId &&
-      t.status === 'Not Started'
+      stageIdOf(t) === newStageId && t.status === TASK_STATUS.NOT_STARTED
     )
 
     if (tasksToStart.length === 0) return
@@ -706,27 +719,41 @@
     let successCount = 0
 
     await Promise.all(tasksToStart.map(async (t) => {
-      t.status = 'In Progress'
+      const prevStatus = t.status
+      const prevProgress = t.per_complete
+
+      t.status = TASK_STATUS.IN_PROGRESS
       t.per_complete = 10
-      t.actual_start_date = t.actual_start_date || new Date().toISOString().split('T')[0]
+      t.actual_start_date = t.actual_start_date || today()
 
       try {
-        const res = await api.put(`/task/${t.task_id}/status`, { status: 'In Progress' })
-        if (res?.success) successCount++
+        const res = await api.put(`/task/${t.task_id}/status`, { status: TASK_STATUS.IN_PROGRESS })
+        if (res?.success) {
+          successCount++
+        } else {
+          t.status = prevStatus
+          t.per_complete = prevProgress
+        }
       } catch (e) {
+        t.status = prevStatus
+        t.per_complete = prevProgress
         console.error(`Error auto-starting task ${t.task_id}:`, e)
       }
     }))
 
     if (successCount > 0) {
-      showSnack(`Stage ${newStageId} started: ${successCount} task(s) auto-moved to In Progress.`, 'info')
+      showSnack(
+        `Stage ${newStageId} started: ${successCount} task(s) auto-moved to ${TASK_STATUS.IN_PROGRESS}.`,
+        'info'
+      )
     }
   }
 
-  async function openUpload(task, project) {
+  function openUpload(task, project) {
     selectedTask.value = task
     selectedProject.value = project
     uploadFiles.value = []
+    uploadDescription.value = ''
     uploadDialog.value = true
   }
 
@@ -734,6 +761,7 @@
     uploadDialog.value = false
     selectedTask.value = null
     uploadFiles.value = []
+    uploadDescription.value = ''
   }
 
   async function doUpload() {
@@ -746,9 +774,10 @@
       fd.append('description', uploadDescription.value ?? '')
       for (const f of Array.from(uploadFiles.value)) fd.append('files', f)
 
+      const count = uploadFiles.value.length
       const result = await api.uploadFile('/file/upload', fd)
       if (result?.success) {
-        showSnack(`${uploadFiles.value.length} file(s) uploaded`, 'success')
+        showSnack(`${count} file(s) uploaded`, 'success')
         closeUpload()
       } else {
         showSnack(result?.message || 'Upload failed', 'error')
@@ -764,8 +793,13 @@
     selectedTask.value = task
     selectedProject.value = project
     docsDialog.value = true
-    const result = await api.get(`/file/by-task/${task.task_id}`)
-    taskDocs.value = result?.data ?? []
+    try {
+      const result = await api.get(`/file/by-task/${task.task_id}`)
+      taskDocs.value = result?.data ?? []
+    } catch {
+      taskDocs.value = []
+      showSnack('Failed to load documents', 'error')
+    }
   }
 
   function downloadDoc(doc) { window.open(`/api/file/download/${doc.file_id}`, '_blank') }
@@ -780,6 +814,8 @@
         taskDocs.value = taskDocs.value.filter(d => d.file_id !== docToDelete.value.file_id)
         deleteDialog.value = false
         showSnack('Document deleted', 'success')
+      } else {
+        showSnack(result?.message || 'Failed to delete', 'error')
       }
     } catch {
       showSnack('Failed to delete', 'error')
@@ -801,7 +837,10 @@
   }
 
   onMounted(async () => {
-    await settingsStore.fetchTaskTemplates()
+    const templateResult = await settingsStore.fetchTaskTemplates()
+    if (!templateResult?.success) {
+      showSnack('Warning: could not load stage definitions', 'warning')
+    }
     await loadTasks()
   })
 </script>

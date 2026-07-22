@@ -204,7 +204,7 @@
   import { useRouter } from 'vue-router'
   import { useEnquiryStore } from '@/stores/enquiry'
   import { useAuthStore } from '@/stores/auth'
-  import { ENQUIRY_STATUS_COLORS } from '@/utils/constants'
+  import { ENQUIRY_STATUS_COLORS, DEFAULT_COLOR } from '@/utils/constants'
   import { formatDate } from '@/utils/formatters'
 
   const router = useRouter()
@@ -224,19 +224,19 @@
   const downloadingPDF = ref(false)
 
   const headers = [
-    { title: '',             key: 'project_indicator', sortable: false, align: 'center', width: '52px' },
-    { title: 'Enquiry No',  key: 'enquiry_no',   sortable: true },
-    { title: 'NPI Category', key: 'npi_category', sortable: true },
-    { title: 'Status',      key: 'status',        sortable: true },
-    { title: 'Created By',  key: 'created_by',    sortable: true },
-    { title: 'Created Date', key: 'created_at',   sortable: true },
-    { title: 'Actions',     key: 'actions',       sortable: false, align: 'center', width: '190px' },
+    { title: '', key: 'project_indicator', sortable: false, align: 'center', width: '52px' },
+    { title: 'Enquiry No', key: 'enquiry_no', sortable: true },
+    { title: 'NPI Category', key: 'form_category', sortable: true },
+    { title: 'Status', key: 'status', sortable: true },
+    { title: 'Created By', key: 'created_by', sortable: true },
+    { title: 'Created Date', key: 'created_at', sortable: true },
+    { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '190px' },
   ]
 
   // ── Status colour ───────────────────────────────────────────────────────────
 
   function getStatusColor(status) {
-    return ENQUIRY_STATUS_COLORS[status] ?? 'grey'
+    return ENQUIRY_STATUS_COLORS[status] ?? DEFAULT_COLOR
   }
 
   // ── PDF ─────────────────────────────────────────────────────────────────────
@@ -275,7 +275,7 @@
   // ── Navigation ──────────────────────────────────────────────────────────────
 
   function viewEnquiryDetail(id) { router.push(`/enquiries/${id}/detail`) }
-  function editEnquiry(id)       { router.push(`/enquiries/${id}/edit`) }
+  function editEnquiry(id) { router.push(`/enquiries/${id}/edit`) }
 
   // ── Delete ──────────────────────────────────────────────────────────────────
 
@@ -301,14 +301,18 @@
   // ── Mount ────────────────────────────────────────────────────────────────────
 
   onMounted(async () => {
-    await enquiryStore.fetchEnquiries()
+    try {
+      await enquiryStore.fetchEnquiries()
 
-    const projIds = [...new Set(
-      enquiryStore.enquiries
-        .filter(e => e.proj_id)
-        .map(e => e.proj_id)
-    )]
-    await Promise.all(projIds.map(id => authStore.fetchProjectRole(id)))
+      const projIds = [...new Set(
+        (enquiryStore.enquiries ?? [])
+          .filter(e => e.proj_id)
+          .map(e => e.proj_id)
+      )]
+      await Promise.all(projIds.map(id => authStore.fetchProjectRole(id)))
+    } catch (err) {
+      console.error('Enquiries mount error:', err)
+    }
   })
 </script>
 

@@ -12,13 +12,11 @@ namespace NPI.Server.Controllers
     public class ProjectController : ControllerBase
     {
         private readonly IProjectService _projectService;
-        private readonly IMilestoneService _milestoneService;
         private readonly IPdfService _pdfService;
 
-        public ProjectController(IProjectService projectService, IMilestoneService milestoneService, IPdfService pdfservice)
+        public ProjectController(IProjectService projectService, IPdfService pdfservice)
         {
             _projectService = projectService;
-            _milestoneService = milestoneService;
             _pdfService = pdfservice;
         }
 
@@ -156,20 +154,6 @@ namespace NPI.Server.Controllers
             }
         }
 
-        [HttpGet("{id}/milestones")]
-        public async Task<IActionResult> GetProjectMilestones(int id)
-        {
-            try
-            {
-                var milestones = await _milestoneService.GetProjectMilestonesAsync(id);
-                return Ok(new { success = true, data = milestones });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { success = false, message = ex.Message });
-            }
-        }
-
         [HttpPost("{id}/launch")]
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> LaunchProject(int id, [FromBody] LaunchProjectDto dto)
@@ -232,20 +216,6 @@ namespace NPI.Server.Controllers
             try
             {
                 var projects = await _projectService.GetProjectsByStatusAsync(status);
-                return Ok(new { success = true, data = projects });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { success = false, message = ex.Message });
-            }
-        }
-
-        [HttpGet("by-department/{deptId}")]
-        public async Task<IActionResult> GetProjectsByDepartment(int deptId)
-        {
-            try
-            {
-                var projects = await _projectService.GetProjectsByDepartmentAsync(deptId);
                 return Ok(new { success = true, data = projects });
             }
             catch (Exception ex)

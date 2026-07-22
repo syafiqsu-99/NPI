@@ -1,28 +1,35 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from '@/utils/api'
-import { SYSTEM_ROLES, PROJECT_ROLES, PROJECT_ROLE_HIERARCHY, DEPT_NAMES } from '@/utils/constants.js'
+import {
+  SYSTEM_ROLES,
+  PROJECT_ROLES,
+  PROJECT_ROLE_HIERARCHY,
+  ENQUIRY_ALLOWED_DEPT_CODES,
+  ENQUIRY_STATUS,
+} from '@/utils/constants.js'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user    = ref(null)
-  const token   = ref(localStorage.getItem('token') || null)
+  const user = ref(null)
+  const token = ref(localStorage.getItem('token') || null)
   const loading = ref(false)
-  const error   = ref(null)
+  const error = ref(null)
 
   // ── System-level role ────────────────────────────────────────────────────
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
-  const currentUser     = computed(() => user.value)
-  const userRole        = computed(() => user.value?.role ?? SYSTEM_ROLES.MEMBER)
-  const userDepartment  = computed(() => user.value?.department)
+  const currentUser = computed(() => user.value)
+  const userRole = computed(() => user.value?.role ?? SYSTEM_ROLES.MEMBER)
+  const userDepartment = computed(() => user.value?.department)
   const userDeptId = computed(() => user.value?.dept_id)
+  const userDeptCode = computed(() => user.value?.dept_code ?? null)
 
-  const isAdmin   = computed(() => userRole.value === SYSTEM_ROLES.ADMIN)
+  const isAdmin = computed(() => userRole.value === SYSTEM_ROLES.ADMIN)
   const isManager = computed(() => userRole.value === SYSTEM_ROLES.MANAGER)
-  const isMember  = computed(() => userRole.value === SYSTEM_ROLES.MEMBER)
+  const isMember = computed(() => userRole.value === SYSTEM_ROLES.MEMBER)
 
   const isSalesUser = computed(() =>
-    user.value?.department === DEPT_NAMES.SALES
+    ENQUIRY_ALLOWED_DEPT_CODES.includes(userDeptCode.value)
   )
 
   // ── Project-level role cache ─────────────────────────────────────────────
@@ -72,7 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
   )
 
   function canEditEnquiry(enquiry) {
-    if (enquiry.status !== 'Draft') return false
+    if (enquiry.status !== ENQUIRY_STATUS.DRAFT) return false
     if (isAdminOrManager.value) return true
     return isSalesUser.value && Number(enquiry.created_by) === user.value?.user_id
   }
@@ -81,13 +88,13 @@ export const useAuthStore = defineStore('auth', () => {
     if (isAdminOrManager.value) return true
     return (
       isSalesUser.value &&
-      enquiry.status === 'Draft' &&
+      enquiry.status === ENQUIRY_STATUS.DRAFT &&
       Number(enquiry.created_by) === user.value?.user_id
     )
   }
 
   function canStartProject(item) {
-    return isAdminOrManager.value && item.status === 'Submitted' && !item.proj_id
+    return isAdminOrManager.value && item.status === ENQUIRY_STATUS.SUBMITTED && !item.proj_id
   }
 
   function canManageProject(item) {
@@ -97,6 +104,31 @@ export const useAuthStore = defineStore('auth', () => {
   const canEditProject = (projId) => hasProjectRole(projId, PROJECT_ROLES.TEAM_LEAD)
   const canEditTask = (projId) => hasProjectRole(projId, PROJECT_ROLES.MEMBER)
   const canViewProject = (projId) => hasProjectRole(projId, PROJECT_ROLES.VIEWER)
+
+  function isViewerOnProject(projId) {
+    if (!projId) return false
+    if (isAdminOrManager.value) return false
+    return getProjectRole(projId) === PROJECT_ROLES.VIEWER
+  }
+
+  function canEditTaskItem(task, projId) {
+    if (isAdminOrManager.value) return true
+
+    const projectRole = getProjectRole(projId)
+    if (projectRole === PROJECT_ROLES.TEAM_LEAD) return true
+
+    if (projectRole === PROJECT_ROLES.MEMBER) {
+      return (
+        task?.dept_id != null &&
+        userDeptId.value != null &&
+        Number(task.dept_id) === Number(userDeptId.value)
+      )
+    }
+
+    return false
+  }
+
+  const canManageFiles = computed(() => isAdminOrManager.value)
 
   // ── Auth actions ─────────────────────────────────────────────────────────
 
@@ -161,7 +193,7 @@ export const useAuthStore = defineStore('auth', () => {
     user, token, loading, error,
 
     isAuthenticated, currentUser, userRole,
-    userDepartment, userDeptId,
+    userDepartment, userDeptId, userDeptCode,
     isAdmin, isManager, isMember, isSalesUser, isAdminOrManager,
 
     projectRoleCache,
@@ -170,6 +202,7 @@ export const useAuthStore = defineStore('auth', () => {
     canStartProject, canManageProject, canDeleteProject,
     canCreateEnquiry, canEditEnquiry, canDeleteEnquiry,
     canEditProject, canEditTask, canViewProject,
+    canEditTaskItem, isViewerOnProject, canManageFiles,
 
     login, logout, checkAuth,
   }

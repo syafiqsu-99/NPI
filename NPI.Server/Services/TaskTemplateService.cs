@@ -126,8 +126,6 @@ namespace NPI.Server.Services
                     dept_id = dto.dept_id,
                     default_duration = dto.default_duration > 0 ? dto.default_duration : 5,
                     has_link = dto.has_link,
-                    doc_format = dto.doc_format,
-                    role_gated = dto.role_gated,
                     display_order = order,
                     is_active = true,
                     created_at = DateTime.Now
@@ -184,12 +182,6 @@ namespace NPI.Server.Services
 
                 if (dto.has_link.HasValue)
                     template.has_link = dto.has_link.Value;
-
-                if (dto.doc_format is not null)
-                    template.doc_format = string.IsNullOrWhiteSpace(dto.doc_format) ? null : dto.doc_format;
-
-                if (dto.role_gated is not null)
-                    template.role_gated = string.IsNullOrWhiteSpace(dto.role_gated) ? null : dto.role_gated;
 
                 if (dto.display_order.HasValue)
                     template.display_order = dto.display_order.Value;
@@ -279,8 +271,6 @@ namespace NPI.Server.Services
             dept_name = t.Department?.dept_name,
             default_duration = t.default_duration,
             has_link = t.has_link,
-            doc_format = t.doc_format,
-            role_gated = t.role_gated,
             display_order = t.display_order,
             is_active = t.is_active
         };

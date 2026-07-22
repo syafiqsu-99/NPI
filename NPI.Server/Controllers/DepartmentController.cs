@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NPI.Server.Data;
 using NPI.Server.DTOs;
+using NPI.Server.Helpers;
 using NPI.Server.Models;
+using NPI.Server.Services;
 
 namespace NPI.Server.Controllers
 {
@@ -19,6 +21,9 @@ namespace NPI.Server.Controllers
             _context = context;
         }
 
+        private static string? NormalizeCode(string? code)
+            => string.IsNullOrWhiteSpace(code) ? null : code.Trim().ToUpperInvariant();
+
         [HttpGet]
         public async Task<IActionResult> GetAllDepartments()
         {
@@ -30,7 +35,11 @@ namespace NPI.Server.Controllers
                     {
                         dept_id = d.dept_id,
                         dept_name = d.dept_name,
+                        dept_code = d.dept_code,
                         description = d.description,
+                        color_hex = d.color_hex,
+                        is_assignable = d.is_assignable,
+                        user_count = d.Users == null ? 0 : d.Users.Count,
                         created_at = d.created_at
                     })
                     .ToListAsync();
@@ -54,7 +63,11 @@ namespace NPI.Server.Controllers
                     {
                         dept_id = d.dept_id,
                         dept_name = d.dept_name,
+                        dept_code = d.dept_code,
                         description = d.description,
+                        color_hex = d.color_hex,
+                        is_assignable = d.is_assignable,
+                        user_count = d.Users == null ? 0 : d.Users.Count,
                         created_at = d.created_at
                     })
                     .FirstOrDefaultAsync();
@@ -73,7 +86,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Admin,Manager")]
+        [Authorize(Roles = $"{SystemRoles.Admin},{SystemRoles.Manager}")]
         public async Task<IActionResult> CreateDepartment([FromBody] CreateDepartmentDto dto)
         {
             try
@@ -89,20 +102,28 @@ namespace NPI.Server.Controllers
                 }
 
                 var normalizedName = dto.dept_name.Trim().ToLower();
+                var normalizedCode = NormalizeCode(dto.dept_code);
 
-                var exists = await _context.Departments
-                    .AnyAsync(d => d.dept_name.ToLower() == normalizedName);
-
-                if (exists)
+                if (await _context.Departments.AnyAsync(d => d.dept_name.ToLower() == normalizedName))
                 {
                     return BadRequest(new { success = false, message = "Department already exists" });
                 }
 
+                if (normalizedCode != null &&
+                    await _context.Departments.AnyAsync(d => d.dept_code == normalizedCode))
+                {
+                    return BadRequest(new { success = false, message = "Department code already in use" });
+                }
+
                 var department = new Departments
                 {
-                    dept_name = dto.dept_name,
+                    dept_name = dto.dept_name.Trim(),
+                    dept_code = normalizedCode,
                     description = dto.description,
-                    created_at = DateTime.UtcNow
+                    color_hex = dto.color_hex,
+                    is_assignable = dto.is_assignable,
+                    created_at = DateTime.Now,
+                    updated_at = DateTime.Now
                 };
 
                 _context.Departments.Add(department);
@@ -122,7 +143,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = "Admin,Manager")]
+        [Authorize(Roles = $"{SystemRoles.Admin},{SystemRoles.Manager}")]
         public async Task<IActionResult> UpdateDepartment(int id, [FromBody] UpdateDepartmentDto dto)
         {
             try
@@ -144,6 +165,8 @@ namespace NPI.Server.Controllers
                     return NotFound(new { success = false, message = "Department not found" });
                 }
 
+                var normalizedCode = NormalizeCode(dto.dept_code);
+
                 if (dto.dept_name != department.dept_name)
                 {
                     var nameExists = await _context.Departments
@@ -155,9 +178,23 @@ namespace NPI.Server.Controllers
                     }
                 }
 
-                department.dept_name = dto.dept_name;
+                if (normalizedCode != null && normalizedCode != department.dept_code)
+                {
+                    var codeExists = await _context.Departments
+                        .AnyAsync(d => d.dept_code == normalizedCode && d.dept_id != id);
+
+                    if (codeExists)
+                    {
+                        return BadRequest(new { success = false, message = "Department code already in use" });
+                    }
+                }
+
+                department.dept_name = dto.dept_name.Trim();
+                department.dept_code = normalizedCode;
                 department.description = dto.description;
-                department.updated_at = DateTime.UtcNow;
+                department.color_hex = dto.color_hex;
+                department.is_assignable = dto.is_assignable;
+                department.updated_at = DateTime.Now;
 
                 await _context.SaveChangesAsync();
 
@@ -170,7 +207,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Admin,Manager")]
+        [Authorize(Roles = $"{SystemRoles.Admin},{SystemRoles.Manager}")]
         public async Task<IActionResult> DeleteDepartment(int id)
         {
             try
@@ -182,23 +219,23 @@ namespace NPI.Server.Controllers
                     return NotFound(new { success = false, message = "Department not found" });
                 }
 
-                var hasUsers = await _context.Users.AnyAsync(u => u.dept_id == id);
-                if (hasUsers)
+                var userCount = await _context.Users.CountAsync(u => u.dept_id == id);
+                if (userCount > 0)
                 {
                     return BadRequest(new
                     {
                         success = false,
-                        message = "Cannot delete department with existing users"
+                        message = $"Cannot delete: {userCount} user(s) are assigned to this department."
                     });
                 }
 
-                var hasProjects = await _context.Projects.AnyAsync(p => p.dept_id == id);
-                if (hasProjects)
+                var taskCount = await _context.Tasks.CountAsync(t => t.dept_id == id);
+                if (taskCount > 0)
                 {
                     return BadRequest(new
                     {
                         success = false,
-                        message = "Cannot delete department with existing projects"
+                        message = $"Cannot delete: {taskCount} task(s) reference this department."
                     });
                 }
 
@@ -231,33 +268,6 @@ namespace NPI.Server.Controllers
                     .ToListAsync();
 
                 return Ok(new { success = true, data = users });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { success = false, message = ex.Message });
-            }
-        }
-
-        [HttpGet("{id}/projects")]
-        public async Task<IActionResult> GetDepartmentProjects(int id)
-        {
-            try
-            {
-                var projects = await _context.Projects
-                    .Where(p => p.dept_id == id)
-                    .Select(p => new
-                    {
-                        p.proj_id,
-                        p.proj_no,
-                        p.proj_name,
-                        p.status,
-                        p.priority,
-                        p.project_start_date,
-                        p.target_completion_date
-                    })
-                    .ToListAsync();
-
-                return Ok(new { success = true, data = projects });
             }
             catch (Exception ex)
             {

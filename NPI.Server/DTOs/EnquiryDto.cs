@@ -7,9 +7,9 @@ namespace NPI.Server.DTOs
         public int? cust_id { get; set; }
         public CustomerCreateDto? new_customer { get; set; }
 
-        [Required(ErrorMessage = "NPI category is required")]
+        [Required(ErrorMessage = "Form category is required")]
         [StringLength(100)]
-        public string npi_category { get; set; } = string.Empty;
+        public string form_category { get; set; } = string.Empty;
         public Dictionary<string, Dictionary<string, string?>>? field_values { get; set; }
         public CustomerRefDto? CustomerRef { get; set; }
     }
@@ -22,7 +22,7 @@ namespace NPI.Server.DTOs
         public string? proj_no { get; set; }
         public int cust_id { get; set; }
         public string? customer_name { get; set; }
-        public string npi_category { get; set; } = string.Empty;
+        public string form_category { get; set; } = string.Empty;
         public string status { get; set; } = string.Empty;
         public int created_by { get; set; }
         public string? username { get; set; }
@@ -36,13 +36,13 @@ namespace NPI.Server.DTOs
         public List<FileResponseDto>? Files { get; set; }
     }
 
-    public class NpiFormConfigResponseDto
+    public class FormConfigResponseDto
     {
-        public List<NpiCategoryDto> categories { get; set; } = new();
-        public List<NpiFormSectionDto> sections { get; set; } = new();
+        public List<FormCategoryDto> categories { get; set; } = new();
+        public List<FormSectionDto> sections { get; set; } = new();
     }
 
-    public class NpiCategoryDto
+    public class FormCategoryDto
     {
         public int category_id { get; set; }
         public string category_name { get; set; } = string.Empty;
@@ -50,7 +50,7 @@ namespace NPI.Server.DTOs
         public bool is_active { get; set; }
     }
 
-    public class UpsertNpiCategoryDto
+    public class UpsertFormCategoryDto
     {
         [Required]
         [StringLength(200)]
@@ -59,7 +59,7 @@ namespace NPI.Server.DTOs
         public int display_order { get; set; } = 0;
         public bool is_active { get; set; } = true;
     }
-    public class NpiFormSectionDto
+    public class FormSectionDto
     {
         public int section_id { get; set; }
         public string section_key { get; set; } = string.Empty;
@@ -69,10 +69,10 @@ namespace NPI.Server.DTOs
         public bool is_active { get; set; }
         public DateTime created_at { get; set; }
         public DateTime? updated_at { get; set; }
-        public List<NpiFormFieldDto> fields { get; set; } = new();
+        public List<FormFieldDto> fields { get; set; } = new();
     }
 
-    public class CreateNpiFormSectionDto
+    public class CreateFormSectionDto
     {
         [Required(ErrorMessage = "Section key is required")]
         [StringLength(100)]
@@ -89,7 +89,7 @@ namespace NPI.Server.DTOs
         public bool is_active { get; set; } = true;
     }
 
-    public class UpdateNpiFormSectionDto
+    public class UpdateFormSectionDto
     {
         [Required(ErrorMessage = "Section label is required")]
         [StringLength(200)]
@@ -102,7 +102,7 @@ namespace NPI.Server.DTOs
         public bool is_active { get; set; }
     }
 
-    public class NpiFormFieldDto
+    public class FormFieldDto
     {
         public int field_id { get; set; }
         public int section_id { get; set; }
@@ -117,7 +117,7 @@ namespace NPI.Server.DTOs
         public int display_order { get; set; }
     }
 
-    public class UpsertNpiFormFieldDto
+    public class UpsertFormFieldDto
     {
         [Required]
         public int section_id { get; set; }

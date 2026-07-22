@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace NPI.Server.Models
 {
-    public class NpiCategory
+    public class FormCategory
     {
         [Key]
         public int category_id { get; set; }
@@ -17,7 +17,7 @@ namespace NPI.Server.Models
         public DateTime? updated_at { get; set; }
     }
 
-    public class NpiFormSection
+    public class FormSection
     {
         [Key]
         public int section_id { get; set; }
@@ -33,12 +33,12 @@ namespace NPI.Server.Models
 
         public int display_order { get; set; } = 0;
         public bool is_active { get; set; } = true;
-        public virtual ICollection<NpiFormField>? Fields { get; set; }
+        public virtual ICollection<FormField>? Fields { get; set; }
         public DateTime created_at { get; set; } = DateTime.Now;
         public DateTime? updated_at { get; set; }
     }
 
-    public class NpiFormField
+    public class FormField
     {
         [Key]
         public int field_id { get; set; }
@@ -61,7 +61,7 @@ namespace NPI.Server.Models
         public int display_order { get; set; } = 0;
 
         [ForeignKey("section_id")]
-        public virtual NpiFormSection? Section { get; set; }
+        public virtual FormSection? Section { get; set; }
         public DateTime created_at { get; set; } = DateTime.Now;
         public DateTime? updated_at { get; set; }
     }

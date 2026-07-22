@@ -39,9 +39,7 @@
 
         <template #item.dept_name="{ item }">
           <div class="d-flex align-center">
-            <v-icon :color="getDepartmentColor(item.dept_name)" class="mr-3">
-              {{ getDepartmentIcon(item.dept_name) }}
-            </v-icon>
+            <v-icon :color="getDepartmentColor(item)">{{ getDepartmentIcon(item) }}</v-icon>
             <div>
               <div class="font-weight-medium">{{ item.dept_name }}</div>
               <div class="text-caption text-grey">{{ item.description || 'No description' }}</div>
@@ -94,22 +92,26 @@
         <v-divider />
         <v-card-text class="pt-4">
           <v-form ref="formRef" @submit.prevent="saveDepartment">
-            <v-text-field v-model="form.dept_name"
-                          label="Department Name"
+            <v-text-field v-model="form.dept_code"
+                          label="Department Code"
+                          hint="Short stable code (e.g. SLS). Permissions match on this, not the name."
+                          persistent-hint
                           variant="outlined"
                           density="comfortable"
-                          :rules="deptNameRules"
-                          maxlength="100"
-                          counter
-                          required />
-            <v-textarea v-model="form.description"
-                        label="Description"
-                        variant="outlined"
-                        density="comfortable"
-                        rows="3"
-                        maxlength="500"
-                        counter
-                        auto-grow />
+                          :rules="deptCodeRules"
+                          maxlength="20" />
+
+            <v-text-field v-model="form.color_hex"
+                          label="Colour"
+                          type="color"
+                          variant="outlined"
+                          density="comfortable" />
+
+            <v-switch v-model="form.is_assignable"
+                      label="Can own NPI tasks"
+                      color="primary"
+                      hint="Turn off for departments like Management that never own tasks."
+                      persistent-hint />
           </v-form>
         </v-card-text>
         <v-divider />
@@ -159,6 +161,8 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { useSettingsStore } from '@/stores/setting.js'
+  import { DEFAULT_DEPT_COLOR } from '@/utils/constants'
+  import { formatDate } from '@/utils/formatters'
 
   const settingsStore = useSettingsStore()
 
@@ -173,7 +177,25 @@
   const selectedDepartment = ref(null)
   const formRef = ref(null)
 
-  const form = ref({ dept_id: null, dept_name: '', description: '' })
+  const form = ref({
+    dept_id: null,
+    dept_name: '',
+    dept_code: '',
+    description: '',
+    color_hex: DEFAULT_DEPT_COLOR,
+    is_assignable: true,
+  })
+
+  function resetForm() {
+    form.value = {
+      dept_id: null,
+      dept_name: '',
+      dept_code: '',
+      description: '',
+      color_hex: DEFAULT_DEPT_COLOR,
+      is_assignable: true,
+    }
+  }
 
   const snackbar = ref(false)
   const snackbarMessage = ref('')
@@ -191,6 +213,11 @@
     v => (v && v.trim().length <= 100) || 'Must be 100 characters or less'
   ]
 
+  const deptCodeRules = [
+    v => !!v || 'Department code is required',
+    v => (v && /^[A-Za-z0-9]{2,20}$/.test(v.trim())) || 'Letters and numbers only, 2–20 chars',
+  ]
+
   const departments = computed(() => settingsStore.departments)
   const users = computed(() => settingsStore.users)
 
@@ -201,35 +228,15 @@
       : departments.value
   })
 
-  function getDepartmentColor(deptName) {
-    return {
-      Sales: 'blue', Technical: 'green', Purchaser: 'orange',
-      Purchasing: 'orange', QA: 'purple', Production: 'red', Others: 'grey'
-    }[deptName] || 'grey'
-  }
-
-  function getDepartmentIcon(deptName) {
-    return {
-      Sales: 'mdi-chart-line', Technical: 'mdi-cog', Purchaser: 'mdi-cart',
-      Purchasing: 'mdi-cart', QA: 'mdi-check-decagram', Production: 'mdi-factory', Others: 'mdi-domain'
-    }[deptName] || 'mdi-domain'
-  }
+  const getDepartmentColor = dept => settingsStore.getDeptColor(dept)
+  const getDepartmentIcon = dept => settingsStore.getDeptIcon(dept)
 
   function getUserCount(deptId) {
     return users.value.filter(u => Number(u.dept_id) === Number(deptId)).length
   }
 
-  function formatDate(date) {
-    if (!date) return 'N/A'
-    return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-  }
-
   function showSnackbar(message, color = 'success') {
     snackbarMessage.value = message; snackbarColor.value = color; snackbar.value = true
-  }
-
-  function resetForm() {
-    form.value = { dept_id: null, dept_name: '', description: '' }
   }
 
   function openCreateDialog() {
@@ -242,7 +249,14 @@
   function openEditDialog(item) {
     isEditMode.value = true
     selectedDepartment.value = item
-    form.value = { dept_id: item.dept_id, dept_name: item.dept_name ?? '', description: item.description ?? '' }
+    form.value = {
+      dept_id: item.dept_id,
+      dept_name: item.dept_name ?? '',
+      dept_code: item.dept_code ?? '',
+      description: item.description ?? '',
+      color_hex: item.color_hex ?? DEFAULT_DEPT_COLOR,
+      is_assignable: item.is_assignable !== false,
+    }
     dialog.value = true
   }
 
@@ -268,7 +282,10 @@
     try {
       const payload = {
         dept_name: form.value.dept_name.trim(),
-        description: form.value.description?.trim() || null
+        dept_code: form.value.dept_code.trim().toUpperCase(),
+        description: form.value.description?.trim() || null,
+        color_hex: form.value.color_hex || null,
+        is_assignable: form.value.is_assignable,
       }
       const result = isEditMode.value
         ? await settingsStore.updateDepartment(form.value.dept_id, payload)
@@ -289,18 +306,15 @@
   }
 
   async function confirmDelete() {
-    if (!selectedDepartment.value?.dept_id) return
     deleting.value = true
     try {
       const result = await settingsStore.deleteDepartment(selectedDepartment.value.dept_id)
       if (result?.success) {
-        showSnackbar('Department deleted successfully')
+        showSnackbar('Department deleted', 'success')
         closeDeleteDialog()
       } else {
         showSnackbar(result?.message || 'Failed to delete department', 'error')
       }
-    } catch {
-      showSnackbar('An unexpected error occurred', 'error')
     } finally {
       deleting.value = false
     }

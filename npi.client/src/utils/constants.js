@@ -15,33 +15,38 @@ export const SYSTEM_ROLE_NAMES = Object.freeze([
   SYSTEM_ROLES.MEMBER,
 ])
 
-
 // ─────────────────────────────────────────────────────────────────────────────
-// DEPARTMENT NAMES  (Departments table)
+// DEPARTMENT CODES  (Departments.dept_code — stable identifier)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DEPT_NAMES = Object.freeze({
-  SALES: 'Sales',
-  TECHNICAL: 'Technical',
-  PURCHASER: 'Purchaser',
+export const DEPT_CODES = Object.freeze({
+  SALES: 'SLS',
+  TECHNICAL: 'TEC',
+  PURCHASER: 'PUR',
+  PRODUCTION: 'PRD',
   QA: 'QA',
-  PRODUCTION: 'Production',
-  MANAGEMENT: 'Management',
+  MANAGEMENT: 'MGT',
 })
 
-/** Departments that are allowed to create/edit enquiries */
-export const ENQUIRY_ALLOWED_DEPTS = Object.freeze([
-  DEPT_NAMES.SALES,
+/** Department codes permitted to create/edit enquiries. */
+export const ENQUIRY_ALLOWED_DEPT_CODES = Object.freeze([
+  DEPT_CODES.SALES,
 ])
 
-/** Departments that carry task editing rights for their own dept tasks */
-export const TASK_DEPT_NAMES = Object.freeze([
-  DEPT_NAMES.SALES,
-  DEPT_NAMES.TECHNICAL,
-  DEPT_NAMES.PURCHASER,
-  DEPT_NAMES.QA,
-  DEPT_NAMES.PRODUCTION,
-])
+/** Fallback colour for a department with no color_hex set. */
+export const DEFAULT_DEPT_COLOR = '#9E9E9E'
+
+/** Fallback icon for a department with no icon mapping. */
+export const DEFAULT_DEPT_ICON = 'mdi-domain'
+
+export const DEPT_ICON_HINTS = Object.freeze({
+  [DEPT_CODES.SALES]: 'mdi-chart-line',
+  [DEPT_CODES.TECHNICAL]: 'mdi-cog',
+  [DEPT_CODES.PURCHASER]: 'mdi-cart',
+  [DEPT_CODES.PRODUCTION]: 'mdi-factory',
+  [DEPT_CODES.QA]: 'mdi-check-decagram',
+  [DEPT_CODES.MANAGEMENT]: 'mdi-domain',
+})
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -73,12 +78,27 @@ export const PROJECT_ROLE_OPTIONS = Object.freeze([
 // TASK STATUSES
 // ─────────────────────────────────────────────────────────────────────────────
 
+export const TASK_STATUS = Object.freeze({
+  NOT_STARTED: 'Not Started',
+  IN_PROGRESS: 'In Progress',
+  ON_HOLD: 'On Hold',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+})
+
+/** Ordered list for v-select / filter dropdowns */
 export const TASK_STATUSES = Object.freeze([
-  'Not Started',
-  'In Progress',
-  'On Hold',
-  'Completed',
-  'Cancelled',
+  TASK_STATUS.NOT_STARTED,
+  TASK_STATUS.IN_PROGRESS,
+  TASK_STATUS.ON_HOLD,
+  TASK_STATUS.COMPLETED,
+  TASK_STATUS.CANCELLED,
+])
+
+/** Statuses that mean a task is closed and no longer actionable */
+export const TASK_CLOSED_STATUSES = Object.freeze([
+  TASK_STATUS.COMPLETED,
+  TASK_STATUS.CANCELLED,
 ])
 
 /** Map task status → Vuetify colour name */
@@ -104,13 +124,31 @@ export const TASK_STATUS_ICONS = Object.freeze({
 // PROJECT STATUSES
 // ─────────────────────────────────────────────────────────────────────────────
 
+export const PROJECT_STATUS = Object.freeze({
+  PLANNING: 'Planning',
+  NOT_STARTED: 'Not Started',
+  IN_PROGRESS: 'In Progress',
+  ON_HOLD: 'On Hold',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+})
+
+/** Ordered list for v-select / filter dropdowns */
 export const PROJECT_STATUSES = Object.freeze([
-  'Planning',
-  'Not Started',
-  'In Progress',
-  'On Hold',
-  'Completed',
-  'Cancelled',
+  PROJECT_STATUS.PLANNING,
+  PROJECT_STATUS.NOT_STARTED,
+  PROJECT_STATUS.IN_PROGRESS,
+  PROJECT_STATUS.ON_HOLD,
+  PROJECT_STATUS.COMPLETED,
+  PROJECT_STATUS.CANCELLED,
+])
+
+/** Status transitions that trigger a team notification email */
+export const PROJECT_NOTIFY_STATUSES = Object.freeze([
+  PROJECT_STATUS.IN_PROGRESS,
+  PROJECT_STATUS.ON_HOLD,
+  PROJECT_STATUS.COMPLETED,
+  PROJECT_STATUS.CANCELLED,
 ])
 
 /** Map project status → Vuetify colour name */
@@ -128,12 +166,22 @@ export const PROJECT_STATUS_COLORS = Object.freeze({
 // PRIORITY
 // ─────────────────────────────────────────────────────────────────────────────
 
+export const PRIORITY = Object.freeze({
+  LOW: 'Low',
+  MEDIUM: 'Medium',
+  HIGH: 'High',
+  CRITICAL: 'Critical',
+})
+
+/** Ordered list for v-select / filter dropdowns */
 export const PRIORITY_OPTIONS = Object.freeze([
-  'Low',
-  'Medium',
-  'High',
-  'Critical',
+  PRIORITY.LOW,
+  PRIORITY.MEDIUM,
+  PRIORITY.HIGH,
+  PRIORITY.CRITICAL,
 ])
+
+export const DEFAULT_PRIORITY = PRIORITY.MEDIUM
 
 /** Map priority → Vuetify colour name */
 export const PRIORITY_COLORS = Object.freeze({
@@ -148,11 +196,39 @@ export const PRIORITY_COLORS = Object.freeze({
 // ENQUIRY STATUSES
 // ─────────────────────────────────────────────────────────────────────────────
 
+export const ENQUIRY_STATUS = Object.freeze({
+  DRAFT: 'Draft',
+  SUBMITTED: 'Submitted',
+})
+
 /** Map enquiry status → Vuetify colour name */
 export const ENQUIRY_STATUS_COLORS = Object.freeze({
-  Draft: 'warning',
-  Submitted: 'info',
+  [ENQUIRY_STATUS.DRAFT]: 'warning',
+  [ENQUIRY_STATUS.SUBMITTED]: 'info',
 })
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED UI DEFAULTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Sentinel value for "no filter applied" in v-select filter dropdowns */
+export const FILTER_ALL = 'All'
+
+/** Default working days applied to a newly added task row */
+export const DEFAULT_WORKING_DAYS = 5
+
+/** Fallback stage id when a task row has no stage_id */
+export const DEFAULT_STAGE_ID = '1.0'
+
+/** Fallback Vuetify colour when a lookup map misses */
+export const DEFAULT_COLOR = 'grey'
+
+/** Snackbar auto-dismiss (ms) */
+export const SNACKBAR_TIMEOUT = 3000
+
+/** Delay before redirecting after a success message (ms) */
+export const REDIRECT_DELAY_MS = 1500
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -244,34 +320,6 @@ export const EXTERNAL_APP_HINTS = Object.freeze({
   step: { icon: 'mdi-cube-outline', color: '#607D8B', app: 'CAD software' },
   stp: { icon: 'mdi-cube-outline', color: '#607D8B', app: 'CAD software' },
 })
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DEPARTMENT UI METADATA
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Map dept_name → Vuetify colour name (used in DepartmentManagement chips) */
-export const DEPT_COLORS = Object.freeze({
-  Sales: 'blue',
-  Technical: 'green',
-  Purchaser: 'orange',
-  Purchasing: 'orange',
-  QA: 'purple',
-  Production: 'red',
-  Others: 'grey',
-})
-
-/** Map dept_name → MDI icon name (used in DepartmentManagement list) */
-export const DEPT_ICONS = Object.freeze({
-  Sales: 'mdi-chart-line',
-  Technical: 'mdi-cog',
-  Purchaser: 'mdi-cart',
-  Purchasing: 'mdi-cart',
-  QA: 'mdi-check-decagram',
-  Production: 'mdi-factory',
-  Others: 'mdi-domain',
-})
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SYSTEM ROLE UI METADATA

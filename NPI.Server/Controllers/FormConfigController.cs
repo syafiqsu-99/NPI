@@ -8,11 +8,11 @@ namespace NPI.Server.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
-    public class NpiFormConfigController : ControllerBase
+    public class FormConfigController : ControllerBase
     {
-        private readonly INpiFormConfigService _service;
+        private readonly IFormConfigService _service;
 
-        public NpiFormConfigController(INpiFormConfigService service)
+        public FormConfigController(IFormConfigService service)
         {
             _service = service;
         }
@@ -32,7 +32,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost("categories")]
-        public async Task<IActionResult> CreateCategory([FromBody] UpsertNpiCategoryDto dto)
+        public async Task<IActionResult> CreateCategory([FromBody] UpsertFormCategoryDto dto)
         {
             var (success, message, id) = await _service.CreateCategoryAsync(dto);
             return success
@@ -41,7 +41,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPut("categories/{id}")]
-        public async Task<IActionResult> UpdateCategory(int id, [FromBody] UpsertNpiCategoryDto dto)
+        public async Task<IActionResult> UpdateCategory(int id, [FromBody] UpsertFormCategoryDto dto)
         {
             var (success, message) = await _service.UpdateCategoryAsync(id, dto);
             return success
@@ -75,7 +75,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost("sections")]
-        public async Task<IActionResult> CreateSection([FromBody] CreateNpiFormSectionDto dto)
+        public async Task<IActionResult> CreateSection([FromBody] CreateFormSectionDto dto)
         {
             var (success, message, id) = await _service.CreateSectionAsync(dto);
             return success
@@ -84,7 +84,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPut("sections/{id}")]
-        public async Task<IActionResult> UpdateSection(int id, [FromBody] UpdateNpiFormSectionDto dto)
+        public async Task<IActionResult> UpdateSection(int id, [FromBody] UpdateFormSectionDto dto)
         {
             var (success, message) = await _service.UpdateSectionAsync(id, dto);
             return success
@@ -130,7 +130,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPost("fields")]
-        public async Task<IActionResult> CreateField([FromBody] UpsertNpiFormFieldDto dto)
+        public async Task<IActionResult> CreateField([FromBody] UpsertFormFieldDto dto)
         {
             var (success, message, id) = await _service.CreateFieldAsync(dto);
             return success
@@ -139,7 +139,7 @@ namespace NPI.Server.Controllers
         }
 
         [HttpPut("fields/{id}")]
-        public async Task<IActionResult> UpdateField(int id, [FromBody] UpsertNpiFormFieldDto dto)
+        public async Task<IActionResult> UpdateField(int id, [FromBody] UpsertFormFieldDto dto)
         {
             var (success, message) = await _service.UpdateFieldAsync(id, dto);
             return success

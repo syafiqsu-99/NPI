@@ -35,6 +35,15 @@ export function formatDateShort(date) {
   })
 }
 
+/** Returns YYYY-MM-DD for binding to <input type="date">. UTC-based to avoid
+ *  the off-by-one that local-time parsing causes for dates near midnight. */
+export function formatDateForInput(date) {
+  if (!date) return null
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return null
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+}
+
 export function formatDateTime(date) {
   if (!date) return 'N/A'
   return new Date(date).toLocaleString('en-GB', {

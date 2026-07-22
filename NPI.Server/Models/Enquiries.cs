@@ -17,7 +17,7 @@ namespace NPI.Server.Models
 
         [Required]
         [StringLength(100)]
-        public string npi_category { get; set; } = string.Empty;
+        public string form_category { get; set; } = string.Empty;
 
         [StringLength(50)]
         public string status { get; set; } = "Draft";

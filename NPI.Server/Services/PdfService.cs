@@ -42,7 +42,7 @@ namespace NPI.Server.Services
                 ?? throw new Exception("Enquiry not found.");
 
             // Load the full section/field metadata to resolve labels
-            var sections = await _context.NpiFormSections
+            var sections = await _context.FormSections
                 .Include(s => s.Fields)
                 .Where(s => s.is_active)
                 .OrderBy(s => s.display_order)
@@ -129,10 +129,6 @@ namespace NPI.Server.Services
             section.AddParagraph("Customer Information", "Heading1");
             var table = CreateTable(section);
             AddTableRow(table, "Company Name:", enquiry.Customer?.comp_name ?? "N/A");
-            AddTableRow(table, "Contact Person:", enquiry.Customer?.contact_name ?? "N/A");
-            AddTableRow(table, "Contact Email:", enquiry.Customer?.contact_email ?? "N/A");
-            AddTableRow(table, "Contact Phone:", enquiry.Customer?.contact_phone ?? "N/A");
-            AddTableRow(table, "Address:", enquiry.Customer?.cust_addr ?? "N/A");
             AddTableRow(table, "Enquiry Date:", enquiry.created_at.ToString("dd MMM yyyy HH:mm"));
             AddTableRow(table, "Created By:", enquiry.CreatedByUser?.username ?? "N/A");
         }
@@ -143,13 +139,13 @@ namespace NPI.Server.Services
             var para = section.AddParagraph();
             para.Format.Font.Size = 11;
             para.Format.Font.Bold = true;
-            para.AddText(enquiry.npi_category);
+            para.AddText(enquiry.form_category);
             para.Format.SpaceAfter = "0.5cm";
         }
 
         private static void AddDynamicSection(
             Section section,
-            NpiFormSection sec,
+            FormSection sec,
             Dictionary<string, string?> values,
             Document document)
         {
@@ -157,7 +153,7 @@ namespace NPI.Server.Services
 
             var table = CreateTable(section);
 
-            var orderedFields = (sec.Fields ?? Enumerable.Empty<NpiFormField>())
+            var orderedFields = (sec.Fields ?? Enumerable.Empty<FormField>())
                 .Where(f => f.is_active)
                 .OrderBy(f => f.display_order)
                 .ToList();
@@ -232,7 +228,6 @@ namespace NPI.Server.Services
                 .Include(p => p.Customer)
                 .Include(p => p.Tasks).ThenInclude(t => t.Department)
                 .Include(p => p.ProjectTeams).ThenInclude(pt => pt.User)
-                .Include(p => p.Milestones)
                 .FirstOrDefaultAsync(p => p.proj_id == projectId)
                 ?? throw new Exception("Project not found");
 

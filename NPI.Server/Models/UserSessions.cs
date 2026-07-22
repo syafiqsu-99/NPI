@@ -22,6 +22,11 @@ namespace NPI.Server.Models
 
         public DateTime created_at { get; set; } = DateTime.Now;
         public DateTime expires_at { get; set; }
+        public DateTime? last_seen_at { get; set; }
+        public DateTime? revoked_at { get; set; }
+
+        [StringLength(50)]
+        public string? revoked_reason { get; set; }
         public bool is_active { get; set; } = true;
 
         [ForeignKey("user_id")]

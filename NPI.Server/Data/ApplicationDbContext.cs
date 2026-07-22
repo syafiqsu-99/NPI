@@ -13,9 +13,9 @@ namespace NPI.Server.Data
         public DbSet<Departments> Departments { get; set; }
 
         // ── NPI Form Config ───────────────────────────────────────────────────
-        public DbSet<NpiCategory> NpiCategories { get; set; }
-        public DbSet<NpiFormSection> NpiFormSections { get; set; }
-        public DbSet<NpiFormField> NpiFormFields { get; set; }
+        public DbSet<FormCategory> FormCategories { get; set; }
+        public DbSet<FormSection> FormSections { get; set; }
+        public DbSet<FormField> FormFields { get; set; }
         public DbSet<EnquiryFieldValues> EnquiryFieldValues { get; set; }
 
         // ── Enquiries ─────────────────────────────────────────────────────────
@@ -24,7 +24,6 @@ namespace NPI.Server.Data
 
         // ── Files & Projects ──────────────────────────────────────────────────
         public DbSet<Files> Files { get; set; }
-        public DbSet<Milestones> Milestones { get; set; }
         public DbSet<Notifications> Notifications { get; set; }
         public DbSet<Projects> Projects { get; set; }
         public DbSet<Tasks> Tasks { get; set; }
@@ -37,10 +36,8 @@ namespace NPI.Server.Data
         // ── Revisions ─────────────────────────────────────────────────────────
         public DbSet<ProjectRevisions> ProjectRevisions { get; set; }
         public DbSet<TaskRevisions> TaskRevisions { get; set; }
-        public DbSet<ProjectStatusHistory> ProjectStatusHistory { get; set; }
 
         // ── Users & Auth ──────────────────────────────────────────────────────
-        public DbSet<RolePermissions> RolePermissions { get; set; }
         public DbSet<Roles> Roles { get; set; }
         public DbSet<Users> Users { get; set; }
         public DbSet<UserSessions> UserSessions { get; set; }
@@ -142,13 +139,6 @@ namespace NPI.Server.Data
                 .HasForeignKey(pt => pt.assigned_by)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ── Milestones ────────────────────────────────────────────────────
-            modelBuilder.Entity<Milestones>()
-                .HasOne(m => m.Tasks)
-                .WithOne(t => t.Milestone)
-                .HasForeignKey<Milestones>(m => m.task_id)
-                .OnDelete(DeleteBehavior.Restrict);
-
             // ── Files ─────────────────────────────────────────────────────────
             modelBuilder.Entity<Files>()
                 .HasOne(f => f.Task)
@@ -188,7 +178,7 @@ namespace NPI.Server.Data
 
             modelBuilder.Entity<Notifications>()
                 .HasOne(n => n.Project)
-                .WithMany()
+                .WithMany(p => p.Notifications)
                 .HasForeignKey(n => n.proj_id)
                 .OnDelete(DeleteBehavior.SetNull);
         }

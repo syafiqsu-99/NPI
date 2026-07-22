@@ -8,7 +8,7 @@
         {{ isEdit ? 'Edit Enquiry' : 'New Sales Enquiry' }}
       </div>
       <div class="d-flex" style="gap:12px">
-        <v-btn v-if="formData.status === 'Draft'"
+        <v-btn v-if="formData.status === ENQUIRY_STATUS.DRAFT"
                variant="outlined" color="secondary"
                :loading="saving" @click="saveDraft">
           <v-icon start>mdi-content-save</v-icon>
@@ -16,7 +16,7 @@
         </v-btn>
         <v-btn color="primary" :loading="saving" @click="handleSubmit">
           <v-icon start>mdi-send</v-icon>
-          {{ formData.status === 'Draft' ? 'Submit Enquiry' : 'Update & Submit' }}
+          {{ formData.status === ENQUIRY_STATUS.DRAFT ? 'Submit Enquiry' : 'Update & Submit' }}
         </v-btn>
         <v-btn variant="text" density="comfortable" @click="$router.back()">
           <v-icon start>mdi-arrow-left</v-icon> Back
@@ -32,14 +32,14 @@
         <v-card class="mb-5 form-card" elevation="0" border>
           <v-card-title class="bg-grey-lighten-4 text-subtitle-1 font-weight-bold pa-3 d-flex align-center">
             1. NPI Category
-            <v-progress-circular v-if="configStore.loading" indeterminate size="18" class="ml-3" color="primary" />
+            <v-progress-circular v-if="enquiryStore.loading" indeterminate size="18" class="ml-3" color="primary" />
           </v-card-title>
           <v-divider />
           <v-card-text class="pa-4">
-            <v-radio-group v-model="formData.npi_category" hide-details>
+            <v-radio-group v-model="formData.form_category" hide-details>
               <v-row dense>
                 <v-col cols="12" sm="6" md="4"
-                       v-for="cat in configStore.categories"
+                       v-for="cat in enquiryStore.categories"
                        :key="cat.category_id">
                   <v-radio :label="cat.category_name" :value="cat.category_name"
                            color="primary" density="compact" />
@@ -175,14 +175,13 @@
   import { ref, computed, onMounted, watch } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import { useEnquiryStore } from '@/stores/enquiry'
-  import { useNpiFormConfigStore } from '@/stores/npiFormConfig'
   import { api } from '@/utils/api'
+  import { ENQUIRY_STATUS, REDIRECT_DELAY_MS } from '@/utils/constants'
   import { formatSize } from '@/utils/formatters'
 
   const router = useRouter()
   const route = useRoute()
   const enquiryStore = useEnquiryStore()
-  const configStore = useNpiFormConfigStore()
 
   const isEdit = ref(false)
   const saving = ref(false)
@@ -194,24 +193,24 @@
 
   const formData = ref({
     cust_id: null,
-    npi_category: '',
-    status: 'Draft',
+    form_category: '',
+    status: ENQUIRY_STATUS.DRAFT,
     field_values: {},
     CustomerRef: { mould_ownership: '' }
   })
 
   // Compute sections based on category
   const activeSections = computed(() => {
-    if (!formData.value.npi_category) return []
-    const cat = formData.value.npi_category.toLowerCase()
-    return configStore.sections.filter(s => {
+    if (!formData.value.form_category) return []
+    const cat = formData.value.form_category.toLowerCase()
+    return (enquiryStore.sections ?? []).filter(s => {
       if (!s.trigger_keywords) return false
       return s.trigger_keywords.split(',').some(kw => cat.includes(kw.trim()))
     })
   })
 
   // Initialize field values
-  watch(() => configStore.sections, (sections) => {
+  watch(() => enquiryStore.sections, (sections) => {
     sections.forEach(s => {
       if (!formData.value.field_values[s.section_key]) {
         formData.value.field_values[s.section_key] = {}
@@ -229,7 +228,7 @@
   }
 
   function validateRequiredFields() {
-    if (!formData.value.npi_category) return false
+    if (!formData.value.form_category) return false
     for (const section of activeSections.value) {
       for (const field of (section.fields || [])) {
         const val = formData.value.field_values[section.section_key]?.[field.field_key]
@@ -265,7 +264,7 @@
     }
 
     const payload = {
-      npi_category: formData.value.npi_category,
+      form_category: formData.value.form_category,
       field_values: payloadFieldValues,
       CustomerRef: { mould_ownership: formData.value.CustomerRef.mould_ownership }
     }
@@ -333,7 +332,7 @@
         const id = isEdit.value ? route.params.id : result.data?.enquiry?.enquiry_id
         if (id) await uploadPendingFiles(id)
         successMessage.value = 'Draft saved.'
-        setTimeout(() => router.push('/enquiries'), 1500)
+        setTimeout(() => router.push('/enquiries'), REDIRECT_DELAY_MS)
       } else {
         errorMessage.value = result.message
       }
@@ -365,7 +364,7 @@
 
       if (result.success) {
         successMessage.value = 'Enquiry submitted successfully.'
-        setTimeout(() => router.push('/enquiries'), 1500)
+        setTimeout(() => router.push('/enquiries'), REDIRECT_DELAY_MS)
       } else {
         errorMessage.value = result.message
       }
@@ -377,7 +376,7 @@
   }
 
   onMounted(async () => {
-    await configStore.fetchConfig()
+    await enquiryStore.fetchConfig()
 
     // Restore existing data in edit mode
     if (route.params.id) {
@@ -388,7 +387,7 @@
         const enq = result.data
 
         if (enq.cust_id) formData.value.cust_id = enq.cust_id
-        formData.value.npi_category = enq.npi_category
+        formData.value.form_category = enq.form_category
         formData.value.status = enq.status
 
         if (enq.field_values) {
@@ -398,7 +397,7 @@
             }
             Object.assign(formData.value.field_values[sectionKey], fields)
 
-            const configSection = configStore.sections.find(s => s.section_key === sectionKey)
+            const configSection = (enquiryStore.sections ?? []).find(s => s.section_key === sectionKey)
             if (configSection) {
               Object.entries(fields).forEach(([fieldKey, val]) => {
                 const configField = configSection.fields?.find(f => f.field_key === fieldKey)

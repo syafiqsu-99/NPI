@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="template-root">
     <div class="d-flex align-center mb-4">
       <div>
         <h3 class="text-h6">Project Task Templates</h3>
@@ -49,21 +49,20 @@
         </v-expansion-panel-title>
 
         <v-expansion-panel-text>
-          <v-table density="compact">
+          <v-table density="compact" class="template-table">
             <thead>
               <tr>
-                <th style="width: 90px">Code</th>
-                <th>Title</th>
-                <th style="width: 150px">Department</th>
-                <th style="width: 90px">Days</th>
-                <th style="width: 80px">Doc</th>
-                <th style="width: 120px">Format</th>
-                <th style="width: 110px" class="text-right">Actions</th>
+                <th class="tt-col-code">Code</th>
+                <th class="tt-col-title">Title</th>
+                <th class="tt-col-dept">Department</th>
+                <th class="tt-col-days">Days</th>
+                <th class="tt-col-doc">Doc</th>
+                <th class="tt-col-actions text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="templatesFor(stage.stage_id).length === 0">
-                <td colspan="7" class="text-center text-grey py-4">
+                <td colspan="6" class="text-center text-grey py-4">
                   No tasks defined for this stage.
                 </td>
               </tr>
@@ -86,7 +85,6 @@
                     {{ item.has_link ? 'mdi-paperclip' : 'mdi-minus' }}
                   </v-icon>
                 </td>
-                <td class="text-caption">{{ item.doc_format || '—' }}</td>
                 <td class="text-right">
                   <v-btn icon="mdi-pencil"
                          size="x-small"
@@ -114,7 +112,7 @@
     </v-expansion-panels>
 
     <!-- Create / Edit dialog -->
-    <v-dialog v-model="dialogOpen" max-width="640" persistent>
+    <v-dialog v-model="dialogOpen" max-width="600" persistent>
       <v-card>
         <v-card-title>
           {{ editingId ? 'Edit Template Task' : 'Add Template Task' }}
@@ -123,7 +121,7 @@
         <v-card-text>
           <v-form ref="formRef">
             <v-row dense>
-              <v-col cols="12" md="4">
+              <v-col cols="12" md="6">
                 <v-select v-model="form.stage_id"
                           :items="stageOptions"
                           item-title="label"
@@ -131,22 +129,24 @@
                           label="Stage *"
                           :disabled="!!editingId"
                           :rules="[requiredRule]"
-                          density="compact" />
+                          density="compact"
+                          @update:model-value="onStageChange" />
               </v-col>
-              <v-col cols="12" md="4">
+              <v-col cols="12" md="3">
                 <v-text-field v-model="form.task_code"
-                              label="Task Code *"
-                              placeholder="1.9"
-                              :rules="[requiredRule]"
+                              label="Task Code"
+                              readonly
                               density="compact" />
               </v-col>
-              <v-col cols="12" md="4">
-                <v-text-field v-model.number="form.default_duration"
-                              label="Default Days *"
+              <v-col cols="12" md="3">
+                <v-text-field v-model.number="form.position"
+                              label="Position *"
                               type="number"
                               min="1"
+                              :max="maxPosition"
                               :rules="[positiveRule]"
-                              density="compact" />
+                              density="compact"
+                              @update:model-value="syncCodeToPosition" />
               </v-col>
 
               <v-col cols="12">
@@ -158,7 +158,7 @@
 
               <v-col cols="12" md="6">
                 <v-select v-model="form.dept_id"
-                          :items="departments"
+                          :items="assignableDepartments"
                           item-title="dept_name"
                           item-value="dept_id"
                           label="Department *"
@@ -166,21 +166,14 @@
                           density="compact" />
               </v-col>
               <v-col cols="12" md="6">
-                <v-select v-model="form.role_gated"
-                          :items="roleGateOptions"
-                          item-title="dept_name"
-                          item-value="dept_name"
-                          label="Restricted To (optional)"
-                          clearable
-                          density="compact" />
-              </v-col>
-
-              <v-col cols="12" md="6">
-                <v-text-field v-model="form.doc_format"
-                              label="Document Format (optional)"
-                              placeholder="Excel"
+                <v-text-field v-model.number="form.default_duration"
+                              label="Default Days *"
+                              type="number"
+                              min="1"
+                              :rules="[positiveRule]"
                               density="compact" />
               </v-col>
+
               <v-col cols="12" md="6" class="d-flex align-center">
                 <v-switch v-model="form.has_link"
                           label="Requires document upload"
@@ -188,8 +181,7 @@
                           hide-details
                           density="compact" />
               </v-col>
-
-              <v-col v-if="editingId" cols="12">
+              <v-col v-if="editingId" cols="12" md="6" class="d-flex align-center">
                 <v-switch v-model="form.is_active"
                           label="Active"
                           color="success"
@@ -214,7 +206,8 @@
         <v-card-title>Delete template task?</v-card-title>
         <v-card-text>
           <strong>{{ deleteTarget?.task_code }} — {{ deleteTarget?.title }}</strong>
-          will be removed from the template. Existing projects are unaffected.
+          will be removed from the template. Remaining tasks in this stage are
+          renumbered. Existing projects are unaffected.
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -224,7 +217,7 @@
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="snack.show" :color="snack.color" timeout="3000">
+    <v-snackbar v-model="snack.show" :color="snack.color" :timeout="SNACKBAR_TIMEOUT">
       {{ snack.text }}
     </v-snackbar>
   </div>
@@ -234,10 +227,13 @@
   import { ref, reactive, computed, onMounted } from 'vue'
   import { storeToRefs } from 'pinia'
   import { useSettingsStore } from '@/stores/setting'
+  import { DEFAULT_WORKING_DAYS, SNACKBAR_TIMEOUT } from '@/utils/constants'
 
   const settingsStore = useSettingsStore()
 
-  const { stages, taskTemplates, departments, loading } = storeToRefs(settingsStore)
+  const { stages, taskTemplates, loading } = storeToRefs(settingsStore)
+
+  const assignableDepartments = computed(() => settingsStore.assignableDepartments ?? [])
 
   const openPanels = ref([])
   const dialogOpen = ref(false)
@@ -253,12 +249,11 @@
   const form = reactive({
     stage_id: '',
     task_code: '',
+    position: 1,
     title: '',
     dept_id: null,
-    default_duration: 5,
+    default_duration: DEFAULT_WORKING_DAYS,
     has_link: false,
-    doc_format: '',
-    role_gated: null,
     is_active: true
   })
 
@@ -272,9 +267,13 @@
     }))
   )
 
-  const roleGateOptions = computed(() => departments.value || [])
+  const maxPosition = computed(() => {
+    const count = templatesFor(form.stage_id).length
+    return editingId.value ? Math.max(count, 1) : count + 1
+  })
 
   function templatesFor(stageId) {
+    if (!stageId) return []
     return taskTemplates.value
       .filter(t => t.stage_id === stageId)
       .sort((a, b) => a.display_order - b.display_order)
@@ -286,36 +285,97 @@
     snack.show = true
   }
 
+  function codeForPosition(stageId, position) {
+    const prefix = String(stageId).split('.')[0]
+    return `${prefix}.${position}`
+  }
+
+  async function resequenceStage(stageId) {
+    if (!stageId) return
+
+    const changed = templatesFor(stageId)
+      .map((row, i) => ({
+        row,
+        task_code: codeForPosition(stageId, i + 1),
+        display_order: i + 1
+      }))
+      .filter(x => x.task_code !== x.row.task_code || x.display_order !== x.row.display_order)
+
+    if (changed.length === 0) return
+
+    for (const { row, task_code, display_order } of changed) {
+      await settingsStore.updateTaskTemplate(row.template_id, { task_code, display_order })
+    }
+    await settingsStore.fetchTaskTemplates(true)
+  }
+
+  async function applyPosition(stageId, templateId) {
+    const target = taskTemplates.value.find(t => t.template_id === templateId)
+    if (!target) return
+
+    const rows = templatesFor(stageId).filter(t => t.template_id !== templateId)
+    const clamped = Math.min(Math.max(Number(form.position) || 1, 1), rows.length + 1)
+    rows.splice(clamped - 1, 0, target)
+
+    let wrote = false
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const task_code = codeForPosition(stageId, i + 1)
+      const display_order = i + 1
+      if (row.task_code === task_code && row.display_order === display_order) continue
+      await settingsStore.updateTaskTemplate(row.template_id, { task_code, display_order })
+      wrote = true
+    }
+    if (wrote) await settingsStore.fetchTaskTemplates(true)
+  }
+
+  // ── Dialog ────────────────────────────────────────────────────────────────────
+
+  function syncCodeToPosition() {
+    form.task_code = form.stage_id
+      ? codeForPosition(form.stage_id, form.position || 1)
+      : ''
+  }
+
+  function onStageChange() {
+    form.position = templatesFor(form.stage_id).length + 1
+    syncCodeToPosition()
+  }
+
   function resetForm() {
     form.stage_id = ''
     form.task_code = ''
+    form.position = 1
     form.title = ''
     form.dept_id = null
-    form.default_duration = 5
+    form.default_duration = DEFAULT_WORKING_DAYS
     form.has_link = false
-    form.doc_format = ''
-    form.role_gated = null
     form.is_active = true
   }
 
   function openCreate(stageId = '') {
     editingId.value = null
     resetForm()
-    if (typeof stageId === 'string' && stageId) form.stage_id = stageId
+    if (typeof stageId === 'string' && stageId) {
+      form.stage_id = stageId
+      onStageChange()
+    }
     dialogOpen.value = true
   }
 
   function openEdit(item) {
     editingId.value = item.template_id
     form.stage_id = item.stage_id
-    form.task_code = item.task_code
     form.title = item.title
     form.dept_id = item.dept_id
     form.default_duration = item.default_duration
     form.has_link = item.has_link
-    form.doc_format = item.doc_format || ''
-    form.role_gated = item.role_gated
     form.is_active = item.is_active
+
+    const idx = templatesFor(item.stage_id).findIndex(t => t.template_id === item.template_id)
+    form.position = idx >= 0 ? idx + 1 : 1
+    form.task_code = item.task_code
+
     dialogOpen.value = true
   }
 
@@ -330,30 +390,45 @@
 
     saving.value = true
     try {
+      const stageId = form.stage_id
       const payload = {
-        stage_id: form.stage_id,
-        task_code: form.task_code,
+        stage_id: stageId,
+        task_code: codeForPosition(stageId, form.position || 1),
         title: form.title,
         dept_id: form.dept_id,
         default_duration: Number(form.default_duration),
         has_link: form.has_link,
-        doc_format: form.doc_format || null,
-        role_gated: form.role_gated || null
+        display_order: Number(form.position) || 1
       }
 
-      const result = editingId.value
-        ? await settingsStore.updateTaskTemplate(editingId.value, {
+      let result
+      let templateId = editingId.value
+
+      if (editingId.value) {
+        result = await settingsStore.updateTaskTemplate(editingId.value, {
           ...payload,
           is_active: form.is_active
         })
-        : await settingsStore.createTaskTemplate(payload)
-
-      if (result?.success) {
-        showSnack(result.message)
-        closeDialog()
       } else {
-        showSnack(result?.message || 'Save failed', 'error')
+        result = await settingsStore.createTaskTemplate(payload)
+        templateId = result?.template_id ?? null
       }
+
+      if (!result?.success) {
+        showSnack(result?.message || 'Save failed', 'error')
+        return
+      }
+
+      if (templateId) {
+        await applyPosition(stageId, templateId)
+      } else {
+        await resequenceStage(stageId)
+      }
+
+      showSnack(result.message || 'Template saved')
+      closeDialog()
+    } catch (err) {
+      showSnack(err?.message || 'Save failed', 'error')
     } finally {
       saving.value = false
     }
@@ -366,24 +441,73 @@
 
   async function doDelete() {
     deleting.value = true
+    const stageId = deleteTarget.value?.stage_id
     try {
       const result = await settingsStore.deleteTaskTemplate(deleteTarget.value.template_id)
       if (result?.success) {
-        showSnack(result.message)
+        await resequenceStage(stageId)
+        showSnack(result.message || 'Template deleted')
         deleteOpen.value = false
       } else {
         showSnack(result?.message || 'Delete failed', 'error')
       }
+    } catch (err) {
+      showSnack(err?.message || 'Delete failed', 'error')
     } finally {
       deleting.value = false
     }
   }
 
   onMounted(async () => {
-    await Promise.all([
+    const [templateResult, deptResult] = await Promise.allSettled([
       settingsStore.fetchTaskTemplates(true),
       settingsStore.fetchDepartments()
-    ])
+    ]).then(rs => rs.map(r => (r.status === 'fulfilled' ? r.value : null)))
+
+    if (!templateResult?.success) showSnack('Could not load task templates', 'error')
+    else if (!deptResult?.success) showSnack('Could not load departments', 'warning')
+
     openPanels.value = stages.value.map(s => s.stage_id)
   })
 </script>
+
+<style scoped>
+  .template-root {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 24px;
+  }
+
+  .template-table {
+    width: 100%;
+    table-layout: fixed;
+  }
+
+    .template-table :deep(th),
+    .template-table :deep(td) {
+      white-space: normal;
+      word-break: break-word;
+      vertical-align: middle;
+    }
+
+  .tt-col-code {
+    width: 88px;
+  }
+
+  .tt-col-dept {
+    width: 150px;
+  }
+
+  .tt-col-days {
+    width: 72px;
+  }
+
+  .tt-col-doc {
+    width: 64px;
+  }
+
+  .tt-col-actions {
+    width: 104px;
+  }
+</style>

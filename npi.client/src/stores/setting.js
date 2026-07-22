@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from '@/utils/api'
+import {
+  DEPT_ICON_HINTS,
+  DEFAULT_DEPT_COLOR,
+  DEFAULT_DEPT_ICON,
+} from '@/utils/constants'
 
 export const useSettingsStore = defineStore('setting', () => {
   const users = ref([])
@@ -15,14 +20,14 @@ export const useSettingsStore = defineStore('setting', () => {
     error.value = null
     try {
       const result = await api.get('/user')
-      if (result?.success && result?.data) {
-        users.value = result.data
-      } else if (Array.isArray(result)) {
-        users.value = result
-      }
+      const list = Array.isArray(result) ? result
+        : Array.isArray(result?.data) ? result.data
+          : []
+      users.value = list
       return { success: true, data: users.value }
     } catch (err) {
       error.value = err.message
+      users.value = []
       return { success: false, message: err.message }
     } finally {
       loading.value = false
@@ -109,11 +114,10 @@ export const useSettingsStore = defineStore('setting', () => {
     error.value = null
     try {
       const result = await api.get('/role')
-      if (result?.success && result?.data) {
-        roles.value = result.data
-      } else if (Array.isArray(result)) {
-        roles.value = result
-      }
+      const list = Array.isArray(result) ? result
+        : Array.isArray(result?.data) ? result.data
+          : []
+      roles.value = list
       return { success: true, data: roles.value }
     } catch (err) {
       error.value = err.message
@@ -191,11 +195,10 @@ export const useSettingsStore = defineStore('setting', () => {
     error.value = null
     try {
       const result = await api.get('/department')
-      if (result?.success && result?.data) {
-        departments.value = result.data
-      } else if (Array.isArray(result)) {
-        departments.value = result
-      }
+      const list = Array.isArray(result) ? result
+        : Array.isArray(result?.data) ? result.data
+          : []
+      departments.value = list
       return { success: true, data: departments.value }
     } catch (err) {
       error.value = err.message
@@ -254,6 +257,51 @@ export const useSettingsStore = defineStore('setting', () => {
     }
   }
 
+  // ============ Department Lookups ============
+
+  const departmentsById = computed(() =>
+    Object.fromEntries(departments.value.map(d => [d.dept_id, d]))
+  )
+
+  const departmentsByCode = computed(() =>
+    Object.fromEntries(
+      departments.value.filter(d => d.dept_code).map(d => [d.dept_code, d])
+    )
+  )
+
+  const assignableDepartments = computed(() => {
+    const all = departments.value
+    const assignable = all.filter(d => d.is_assignable !== false)
+    return assignable.length > 0 ? assignable : all
+  })
+
+  function findDepartment(deptId) {
+    return departmentsById.value[deptId] ?? null
+  }
+
+  function findDepartmentByCode(deptCode) {
+    return departmentsByCode.value[deptCode] ?? null
+  }
+
+  function getDeptName(deptId) {
+    return departmentsById.value[deptId]?.dept_name ?? ''
+  }
+
+  function getDeptColor(dept) {
+    const row = typeof dept === 'object' ? dept : findDepartment(dept)
+    return row?.color_hex || DEFAULT_DEPT_COLOR
+  }
+
+  function getDeptIcon(dept) {
+    const row = typeof dept === 'object' ? dept : findDepartment(dept)
+    return DEPT_ICON_HINTS[row?.dept_code] ?? DEFAULT_DEPT_ICON
+  }
+
+  function deptIdHasCode(deptId, codes) {
+    const code = departmentsById.value[deptId]?.dept_code
+    return !!code && codes.includes(code)
+  }
+
   // ============ Task Template Management ============
   const stages = ref([])
   const taskTemplates = ref([])
@@ -281,6 +329,10 @@ export const useSettingsStore = defineStore('setting', () => {
   const autoCompleteStageIds = computed(() =>
     stages.value.filter(s => s.auto_complete).map(s => s.stage_id)
   )
+
+  function isStageRequired(stageId) {
+    return !!stagesById.value[stageId]?.is_required
+  }
 
   function isAutoCompleteStage(stageId) {
     return autoCompleteStageIds.value.includes(stageId)
@@ -396,7 +448,25 @@ export const useSettingsStore = defineStore('setting', () => {
     createDepartment,
     updateDepartment,
     deleteDepartment,
+    // Department lookups
+    departmentsById,
+    departmentsByCode,
+    assignableDepartments,
+    findDepartment,
+    findDepartmentByCode,
+    getDeptName,
+    getDeptColor,
+    getDeptIcon,
+    deptIdHasCode,
+    // Task template state
+    stages,
+    taskTemplates,
+    stagesById,
+    templatesByStage,
+    requiredStageIds,
+    autoCompleteStageIds,
     // Task template methods
+    isStageRequired,
     isAutoCompleteStage,
     getStageName,
     getTemplatesForStage,

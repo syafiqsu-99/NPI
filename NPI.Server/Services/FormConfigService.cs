@@ -6,44 +6,44 @@ using System.Text.Json;
 
 namespace NPI.Server.Services
 {
-    public interface INpiFormConfigService
+    public interface IFormConfigService
     {
-        Task<NpiFormConfigResponseDto> GetFormConfigAsync();
-        Task<List<NpiCategoryDto>> GetAllCategoriesAsync();
-        Task<(bool Success, string Message, int Id)> CreateCategoryAsync(UpsertNpiCategoryDto dto);
-        Task<(bool Success, string Message)> UpdateCategoryAsync(int id, UpsertNpiCategoryDto dto);
+        Task<FormConfigResponseDto> GetFormConfigAsync();
+        Task<List<FormCategoryDto>> GetAllCategoriesAsync();
+        Task<(bool Success, string Message, int Id)> CreateCategoryAsync(UpsertFormCategoryDto dto);
+        Task<(bool Success, string Message)> UpdateCategoryAsync(int id, UpsertFormCategoryDto dto);
         Task<(bool Success, string Message)> DeleteCategoryAsync(int id);
-        Task<List<NpiFormSectionDto>> GetAllSectionsAsync();
-        Task<NpiFormSectionDto?> GetSectionByIdAsync(int id);
-        Task<(bool Success, string Message, int Id)> CreateSectionAsync(CreateNpiFormSectionDto dto);
-        Task<(bool Success, string Message)> UpdateSectionAsync(int id, UpdateNpiFormSectionDto dto);
+        Task<List<FormSectionDto>> GetAllSectionsAsync();
+        Task<FormSectionDto?> GetSectionByIdAsync(int id);
+        Task<(bool Success, string Message, int Id)> CreateSectionAsync(CreateFormSectionDto dto);
+        Task<(bool Success, string Message)> UpdateSectionAsync(int id, UpdateFormSectionDto dto);
         Task<(bool Success, string Message)> DeleteSectionAsync(int id);
         Task<(bool Success, string Message)> ToggleSectionStatusAsync(int id);
         Task<(bool Success, string Message)> ReorderSectionsAsync(List<int> orderedIds);
-        Task<List<NpiFormFieldDto>> GetAllFieldsAsync();
-        Task<(bool Success, string Message, int Id)> CreateFieldAsync(UpsertNpiFormFieldDto dto);
-        Task<(bool Success, string Message)> UpdateFieldAsync(int id, UpsertNpiFormFieldDto dto);
+        Task<List<FormFieldDto>> GetAllFieldsAsync();
+        Task<(bool Success, string Message, int Id)> CreateFieldAsync(UpsertFormFieldDto dto);
+        Task<(bool Success, string Message)> UpdateFieldAsync(int id, UpsertFormFieldDto dto);
         Task<(bool Success, string Message)> DeleteFieldAsync(int id);
     }
 
-    public class NpiFormConfigService : INpiFormConfigService
+    public class FormConfigService : IFormConfigService
     {
         private readonly ApplicationDbContext _context;
 
-        public NpiFormConfigService(ApplicationDbContext context)
+        public FormConfigService(ApplicationDbContext context)
         {
             _context = context;
         }
 
         // ── Public config endpoint ────────────────────────────────────────────
 
-        public async Task<NpiFormConfigResponseDto> GetFormConfigAsync()
+        public async Task<FormConfigResponseDto> GetFormConfigAsync()
         {
-            var categories = await _context.NpiCategories
+            var categories = await _context.FormCategories
                 .Where(c => c.is_active)
                 .OrderBy(c => c.display_order)
                 .ThenBy(c => c.category_name)
-                .Select(c => new NpiCategoryDto
+                .Select(c => new FormCategoryDto
                 {
                     category_id = c.category_id,
                     category_name = c.category_name,
@@ -52,13 +52,13 @@ namespace NPI.Server.Services
                 })
                 .ToListAsync();
 
-            var sections = await _context.NpiFormSections
+            var sections = await _context.FormSections
                 .Where(s => s.is_active)
                 .Include(s => s.Fields!.Where(f => f.is_active).OrderBy(f => f.display_order))
                 .OrderBy(s => s.display_order)
                 .ToListAsync();
 
-            return new NpiFormConfigResponseDto
+            return new FormConfigResponseDto
             {
                 categories = categories,
                 sections = sections.Select(MapSectionToDto).ToList()
@@ -67,12 +67,12 @@ namespace NPI.Server.Services
 
         // ── Categories ────────────────────────────────────────────────────────
 
-        public async Task<List<NpiCategoryDto>> GetAllCategoriesAsync()
+        public async Task<List<FormCategoryDto>> GetAllCategoriesAsync()
         {
-            return await _context.NpiCategories
+            return await _context.FormCategories
                 .OrderBy(c => c.display_order)
                 .ThenBy(c => c.category_name)
-                .Select(c => new NpiCategoryDto
+                .Select(c => new FormCategoryDto
                 {
                     category_id = c.category_id,
                     category_name = c.category_name,
@@ -83,14 +83,14 @@ namespace NPI.Server.Services
         }
 
         public async Task<(bool Success, string Message, int Id)>
-            CreateCategoryAsync(UpsertNpiCategoryDto dto)
+            CreateCategoryAsync(UpsertFormCategoryDto dto)
         {
             try
             {
-                if (await _context.NpiCategories.AnyAsync(c => c.category_name == dto.category_name))
+                if (await _context.FormCategories.AnyAsync(c => c.category_name == dto.category_name))
                     return (false, "A category with this name already exists.", 0);
 
-                var cat = new NpiCategory
+                var cat = new FormCategory
                 {
                     category_name = dto.category_name,
                     display_order = dto.display_order,
@@ -98,7 +98,7 @@ namespace NPI.Server.Services
                     created_at = DateTime.Now
                 };
 
-                _context.NpiCategories.Add(cat);
+                _context.FormCategories.Add(cat);
                 await _context.SaveChangesAsync();
                 return (true, "Category created.", cat.category_id);
             }
@@ -109,14 +109,14 @@ namespace NPI.Server.Services
         }
 
         public async Task<(bool Success, string Message)>
-            UpdateCategoryAsync(int id, UpsertNpiCategoryDto dto)
+            UpdateCategoryAsync(int id, UpsertFormCategoryDto dto)
         {
             try
             {
-                var cat = await _context.NpiCategories.FindAsync(id);
+                var cat = await _context.FormCategories.FindAsync(id);
                 if (cat is null) return (false, "Category not found.");
 
-                if (await _context.NpiCategories
+                if (await _context.FormCategories
                         .AnyAsync(c => c.category_name == dto.category_name && c.category_id != id))
                     return (false, "Another category already has this name.");
 
@@ -138,10 +138,9 @@ namespace NPI.Server.Services
         {
             try
             {
-                var cat = await _context.NpiCategories.FindAsync(id);
+                var cat = await _context.FormCategories.FindAsync(id);
                 if (cat is null) return (false, "Category not found.");
 
-                // Soft delete to preserve references in existing enquiries
                 cat.is_active = false;
                 cat.updated_at = DateTime.Now;
                 await _context.SaveChangesAsync();
@@ -155,9 +154,9 @@ namespace NPI.Server.Services
 
         // ── Sections ──────────────────────────────────────────────────────────
 
-        public async Task<List<NpiFormSectionDto>> GetAllSectionsAsync()
+        public async Task<List<FormSectionDto>> GetAllSectionsAsync()
         {
-            var sections = await _context.NpiFormSections
+            var sections = await _context.FormSections
                 .Include(s => s.Fields!.OrderBy(f => f.display_order))
                 .OrderBy(s => s.display_order)
                 .ToListAsync();
@@ -165,9 +164,9 @@ namespace NPI.Server.Services
             return sections.Select(MapSectionToDto).ToList();
         }
 
-        public async Task<NpiFormSectionDto?> GetSectionByIdAsync(int id)
+        public async Task<FormSectionDto?> GetSectionByIdAsync(int id)
         {
-            var section = await _context.NpiFormSections
+            var section = await _context.FormSections
                 .Include(s => s.Fields!.OrderBy(f => f.display_order))
                 .FirstOrDefaultAsync(s => s.section_id == id);
 
@@ -175,15 +174,15 @@ namespace NPI.Server.Services
         }
 
         public async Task<(bool Success, string Message, int Id)>
-            CreateSectionAsync(CreateNpiFormSectionDto dto)
+            CreateSectionAsync(CreateFormSectionDto dto)
         {
             try
             {
-                if (await _context.NpiFormSections
+                if (await _context.FormSections
                         .AnyAsync(s => s.section_key == dto.section_key))
                     return (false, $"Section key '{dto.section_key}' already exists.", 0);
 
-                var section = new NpiFormSection
+                var section = new FormSection
                 {
                     section_key = dto.section_key,
                     section_label = dto.section_label,
@@ -192,7 +191,7 @@ namespace NPI.Server.Services
                     is_active = dto.is_active
                 };
 
-                _context.NpiFormSections.Add(section);
+                _context.FormSections.Add(section);
                 await _context.SaveChangesAsync();
                 return (true, "Section created.", section.section_id);
             }
@@ -203,11 +202,11 @@ namespace NPI.Server.Services
         }
 
         public async Task<(bool Success, string Message)>
-            UpdateSectionAsync(int id, UpdateNpiFormSectionDto dto)
+            UpdateSectionAsync(int id, UpdateFormSectionDto dto)
         {
             try
             {
-                var section = await _context.NpiFormSections.FindAsync(id);
+                var section = await _context.FormSections.FindAsync(id);
                 if (section is null) return (false, "Section not found.");
 
                 // section_key is immutable once created — changing it would
@@ -231,7 +230,7 @@ namespace NPI.Server.Services
         {
             try
             {
-                var section = await _context.NpiFormSections
+                var section = await _context.FormSections
                     .Include(s => s.Fields)
                     .FirstOrDefaultAsync(s => s.section_id == id);
 
@@ -257,7 +256,7 @@ namespace NPI.Server.Services
                 }
 
                 // Safe to hard delete — no answers exist
-                _context.NpiFormSections.Remove(section);
+                _context.FormSections.Remove(section);
                 await _context.SaveChangesAsync();
                 return (true, "Section deleted.");
             }
@@ -271,7 +270,7 @@ namespace NPI.Server.Services
         {
             try
             {
-                var section = await _context.NpiFormSections.FindAsync(id);
+                var section = await _context.FormSections.FindAsync(id);
                 if (section is null) return (false, "Section not found.");
 
                 section.is_active = !section.is_active;
@@ -295,7 +294,7 @@ namespace NPI.Server.Services
         {
             try
             {
-                var sections = await _context.NpiFormSections
+                var sections = await _context.FormSections
                     .Where(s => orderedIds.Contains(s.section_id))
                     .ToListAsync();
 
@@ -320,9 +319,9 @@ namespace NPI.Server.Services
 
         // ── Fields ────────────────────────────────────────────────────────────
 
-        public async Task<List<NpiFormFieldDto>> GetAllFieldsAsync()
+        public async Task<List<FormFieldDto>> GetAllFieldsAsync()
         {
-            var fields = await _context.NpiFormFields
+            var fields = await _context.FormFields
                 .Include(f => f.Section)
                 .OrderBy(f => f.Section!.display_order)
                 .ThenBy(f => f.display_order)
@@ -332,14 +331,14 @@ namespace NPI.Server.Services
         }
 
         public async Task<(bool Success, string Message, int Id)>
-            CreateFieldAsync(UpsertNpiFormFieldDto dto)
+            CreateFieldAsync(UpsertFormFieldDto dto)
         {
             try
             {
-                if (!await _context.NpiFormSections.AnyAsync(s => s.section_id == dto.section_id))
+                if (!await _context.FormSections.AnyAsync(s => s.section_id == dto.section_id))
                     return (false, "Section not found.", 0);
 
-                var field = new NpiFormField
+                var field = new FormField
                 {
                     section_id = dto.section_id,
                     field_key = dto.field_key,
@@ -353,7 +352,7 @@ namespace NPI.Server.Services
                     display_order = dto.display_order
                 };
 
-                _context.NpiFormFields.Add(field);
+                _context.FormFields.Add(field);
                 await _context.SaveChangesAsync();
                 return (true, "Field created.", field.field_id);
             }
@@ -364,14 +363,13 @@ namespace NPI.Server.Services
         }
 
         public async Task<(bool Success, string Message)>
-            UpdateFieldAsync(int id, UpsertNpiFormFieldDto dto)
+            UpdateFieldAsync(int id, UpsertFormFieldDto dto)
         {
             try
             {
-                var field = await _context.NpiFormFields.FindAsync(id);
+                var field = await _context.FormFields.FindAsync(id);
                 if (field is null) return (false, "Field not found.");
 
-                // field_key is immutable — changing it would orphan EnquiryFieldValues rows
                 field.section_id = dto.section_id;
                 field.field_label = dto.field_label;
                 field.field_type = dto.field_type;
@@ -395,7 +393,7 @@ namespace NPI.Server.Services
         {
             try
             {
-                var field = await _context.NpiFormFields
+                var field = await _context.FormFields
                     .Include(f => f.Section)
                     .FirstOrDefaultAsync(f => f.field_id == id);
 
@@ -414,7 +412,7 @@ namespace NPI.Server.Services
                         "Hard delete is not available once answers have been recorded.");
                 }
 
-                _context.NpiFormFields.Remove(field);
+                _context.FormFields.Remove(field);
                 await _context.SaveChangesAsync();
                 return (true, "Field deleted.");
             }
@@ -426,7 +424,7 @@ namespace NPI.Server.Services
 
         // ── Mapping helpers ───────────────────────────────────────────────────
 
-        private static NpiFormSectionDto MapSectionToDto(NpiFormSection s) => new()
+        private static FormSectionDto MapSectionToDto(FormSection s) => new()
         {
             section_id = s.section_id,
             section_key = s.section_key,
@@ -436,12 +434,12 @@ namespace NPI.Server.Services
             is_active = s.is_active,
             created_at = s.created_at,
             updated_at = s.updated_at,
-            fields = (s.Fields ?? Enumerable.Empty<NpiFormField>())
+            fields = (s.Fields ?? Enumerable.Empty<FormField>())
                                    .Select(MapFieldToDto)
                                    .ToList()
         };
 
-        private static NpiFormFieldDto MapFieldToDto(NpiFormField f) => new()
+        private static FormFieldDto MapFieldToDto(FormField f) => new()
         {
             field_id = f.field_id,
             section_id = f.section_id,

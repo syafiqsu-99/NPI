@@ -31,7 +31,11 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var (success, token, user) = await _authService.LoginAsync(request.Username, request.Password);
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var userAgent = Request.Headers.UserAgent.ToString();
+
+        var (success, token, user) = await _authService.LoginAsync(
+            request.Username, request.Password, ipAddress, userAgent);
 
         if (!success)
         {
@@ -49,6 +53,7 @@ public class AuthController : ControllerBase
                 user.full_name,
                 department = user.Department?.dept_name,
                 dept_id = user.dept_id,
+                dept_code = user.Department?.dept_code,
                 role = user.Role?.role_name,
                 role_id = user.role_id
             }
@@ -90,11 +95,39 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Logged out successfully" });
     }
 
+    [HttpGet("sessions")]
+    [Authorize]
+    public async Task<IActionResult> GetActiveSessions()
+    {
+        var userId = GetCurrentUserId();
+        var currentSessionId = User.FindFirst("SessionId")?.Value;
+
+        await _authService.TouchSessionAsync(userId, currentSessionId);
+
+        var sessions = await _authService.GetActiveSessionsAsync(userId, currentSessionId);
+        return Ok(new { success = true, data = sessions });
+    }
+
+    [HttpDelete("sessions/{sessionId}")]
+    [Authorize]
+    public async Task<IActionResult> RevokeSession(string sessionId)
+    {
+        var userId = GetCurrentUserId();
+
+        var (success, message) = await _authService.RevokeSessionAsync(userId, sessionId, "Revoked");
+        return success
+            ? Ok(new { success = true, message })
+            : NotFound(new { success = false, message });
+    }
+
     [HttpGet("me")]
     [Authorize]
     public async Task<IActionResult> GetCurrentUser()
     {
         var userId = GetCurrentUserId();
+
+        await _authService.TouchSessionAsync(userId, User.FindFirst("SessionId")?.Value);
+
         var user = await _authService.GetUserByIdAsync(userId);
 
         if (user == null)

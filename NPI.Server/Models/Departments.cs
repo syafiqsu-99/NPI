@@ -19,9 +19,9 @@ namespace NPI.Server.Models
 
         [StringLength(10)]
         public string? color_hex { get; set; }
+        public bool is_assignable { get; set; } = true;
 
         public virtual ICollection<Users>? Users { get; set; }
-        public virtual ICollection<Milestones>? Milestones { get; set; }
         public virtual ICollection<Files>? Files { get; set; }
         public DateTime created_at { get; internal set; }
         public DateTime updated_at { get; internal set; }

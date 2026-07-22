@@ -226,7 +226,16 @@
   import { useRoute } from 'vue-router'
   import { useSettingsStore } from '@/stores/setting'
   import { api } from '@/utils/api'
-  import { STAGE_COLORS, STAGE_COLORS_HEX, STAGE_SHORT_NAMES, PROJECT_STATUS_COLORS, PRIORITY_COLORS, OPTIONAL_STAGE_FLAGS } from '@/utils/constants'
+  import {
+    STAGE_COLORS,
+    STAGE_COLORS_HEX,
+    STAGE_SHORT_NAMES,
+    PROJECT_STATUS_COLORS,
+    PRIORITY_COLORS,
+    OPTIONAL_STAGE_FLAGS,
+    TASK_STATUS,
+    DEFAULT_COLOR,
+  } from '@/utils/constants'
   import { formatDate, formatDateShort } from '@/utils/formatters'
 
   const route = useRoute()
@@ -280,14 +289,14 @@
   // ── Pipeline ──────────────────────────────────────────────────────────────────
   const projectStages = computed(() => {
     if (!project.value) return []
-    return settingsStore.stages.map(s => s.stage_id).filter(id => {
-      if (settingsStore.stagesById[id]?.is_required) return true
+    return (settingsStore.stages ?? []).map(s => s.stage_id).filter(id => {
+      if (settingsStore.isStageRequired(id)) return true
       const flagKey = OPTIONAL_STAGE_FLAGS[id]
       return flagKey ? !!project.value[flagKey] : false
     }).map(id => {
       const st = tasks.value.filter(t => resolvedStageId(t) === id)
-      const allDone = st.length > 0 && st.every(t => t.status === 'Completed')
-      const anyActive = st.some(t => t.status === 'In Progress')
+      const allDone = st.length > 0 && st.every(t => t.status === TASK_STATUS.COMPLETED)
+      const anyActive = st.some(t => t.status === TASK_STATUS.IN_PROGRESS)
       return {
         id, name: settingsStore.getStageName(id), shortName: STAGE_SHORT_NAMES[id],
         status: allDone ? 'completed' : anyActive ? 'active' : 'pending',
@@ -583,21 +592,32 @@
   }
 
   watch([viewMode, displayRows, showAllStages], () => nextTick(measureOverlay))
-  if (typeof window !== 'undefined') window.addEventListener('resize', measureOverlay)
 
   let resizeObserver = null
 
   onMounted(async () => {
-    await settingsStore.fetchTaskTemplates()
-    await loadProjectData()
-    attachScrollSync()
+    try {
+      const templateResult = await settingsStore.fetchTaskTemplates()
+      if (!templateResult?.success) {
+        showSnack('Warning: could not load stage definitions', 'warning')
+      }
+      await loadProjectData()
+      attachScrollSync()
 
-    resizeObserver = new ResizeObserver(() => measureOverlay())
-    if (ganttWrapper.value) resizeObserver.observe(ganttWrapper.value)
+      window.addEventListener('resize', measureOverlay)
+
+      resizeObserver = new ResizeObserver(() => measureOverlay())
+      if (ganttWrapper.value) resizeObserver.observe(ganttWrapper.value)
+    } catch (err) {
+      console.error('Gantt mount error:', err)
+      showSnack('Failed to initialise the Gantt view', 'error')
+      loading.value = false
+    }
   })
 
   onBeforeUnmount(() => {
     resizeObserver?.disconnect()
+    window.removeEventListener('resize', measureOverlay)
     if (scrollTarget) scrollTarget.removeEventListener('scroll', handleScroll)
   })
 </script>
@@ -620,10 +640,6 @@
     table-layout: fixed;
   }
 
-  /*
-   * Strict cell box-sizing to eliminate alignment drifting.
-   * `box-shadow inset` removes the physical layout height footprint of borders.
-   */
   .gantt-table :deep(th),
   .gantt-table :deep(td) {
     white-space: nowrap;

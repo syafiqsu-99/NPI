@@ -24,12 +24,6 @@ namespace NPI.Server.Models
 
         public bool has_link { get; set; }
 
-        [MaxLength(50)]
-        public string? doc_format { get; set; }
-
-        [MaxLength(50)]
-        public string? role_gated { get; set; }
-
         public int display_order { get; set; }
 
         public bool is_active { get; set; } = true;

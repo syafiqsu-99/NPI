@@ -56,8 +56,6 @@ namespace NPI.Server.Models
         [ForeignKey("assigned_to")]
         public virtual Users? AssignedToUser { get; set; }
 
-        public virtual Milestones? Milestone { get; set; }
-
         [ForeignKey("assigned_by")]
         public virtual Users? AssignedByUser { get; set; }
         public virtual ICollection<Tasks>? SubTasks { get; set; }

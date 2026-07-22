@@ -322,7 +322,7 @@
   async function loadRoles(projId) {
     loadingRoles.value = true
     try {
-      const result = await api.get(`/projectrole/by-project/${projId}`)
+      const result = await api.get(`/projectrole/${projId}/team`)
       const teamData = result?.data ?? []
 
       projectRoles.value = teamData.map(member => {

@@ -17,7 +17,6 @@ namespace NPI.Server.Services
         Task<(bool success, string message, List<string>? folderWarnings)> LaunchProjectAsync(int projectId, LaunchProjectDto dto, int userId);
         Task<(bool success, string message)> UpdateProjectStatusAsync(int projectId, string status, int userId, string userRole);
         Task<List<ProjectResponseDto>> GetProjectsByStatusAsync(string status);
-        Task<List<ProjectResponseDto>> GetProjectsByDepartmentAsync(int deptId);
         Task<List<ProjectResponseDto>> GetProjectsByCustomerAsync(int customerId);
     }
 
@@ -56,10 +55,6 @@ namespace NPI.Server.Services
             proj_name = p.proj_name,
             cust_id = p.cust_id,
             customer_name = p.Customer?.comp_name,
-            dept_id = p.dept_id,
-            dept_name = p.Departments != null
-                                           ? string.Join(", ", p.Departments.Select(d => d.dept_name))
-                                           : null,
             project_start_date = p.project_start_date,
             target_completion_date = p.target_completion_date,
             actual_completion_date = p.actual_completion_date,
@@ -77,7 +72,6 @@ namespace NPI.Server.Services
         {
             var projects = await _context.Projects
                 .Include(p => p.Customer)
-                .Include(p => p.Departments)
                 .OrderByDescending(p => p.created_at)
                 .ToListAsync();
 
@@ -123,7 +117,6 @@ namespace NPI.Server.Services
         {
             var project = await _context.Projects
                 .Include(p => p.Customer)
-                .Include(p => p.Departments)
                 .Include(p => p.ProjectTeams)
                     .ThenInclude(tm => tm.User)
                         .ThenInclude(u => u.Department)
@@ -213,7 +206,6 @@ namespace NPI.Server.Services
 
                 project.proj_name = dto.proj_name;
                 project.description = dto.description;
-                project.dept_id = dto.dept_id;
                 project.priority = dto.priority ?? project.priority;
                 project.status = dto.status ?? project.status;
                 project.project_start_date = dto.project_start_date ?? project.project_start_date;
@@ -250,7 +242,6 @@ namespace NPI.Server.Services
                                 .ThenInclude(st => st.Files)
                         .Include(p => p.Tasks)
                             .ThenInclude(t => t.SubTasks)
-                                .ThenInclude(st => st.Milestone)
                         .Include(p => p.ProjectTeams)
                         .FirstOrDefaultAsync(p => p.proj_id == projectId);
 
@@ -419,7 +410,7 @@ namespace NPI.Server.Services
                     else
                     {
                         var company = enquiry.Customer?.comp_name ?? "New Project";
-                        var category = enquiry.npi_category ?? "";
+                        var category = enquiry.form_category ?? "";
                         projName = string.IsNullOrWhiteSpace(category)
                             ? company
                             : $"{company} - {category}";
@@ -431,7 +422,7 @@ namespace NPI.Server.Services
 
                     var description = !string.IsNullOrWhiteSpace(dto?.description)
                         ? dto!.description
-                        : $"NPI Project for {enquiry.npi_category}";
+                        : $"NPI Project for {enquiry.form_category}";
 
                     DateOnly? targetDate = null;
                     if (dto?.expected_completion != null)
@@ -474,7 +465,6 @@ namespace NPI.Server.Services
                     var projectId = project.proj_id;
 
                     enquiry.proj_id = projectId;
-                    enquiry.status = "Started";
                     enquiry.updated_at = DateTime.Now;
                     enquiry.updated_by = userId;
 
@@ -861,20 +851,7 @@ namespace NPI.Server.Services
         {
             var projects = await _context.Projects
                 .Include(p => p.Customer)
-                .Include(p => p.Departments)
                 .Where(p => p.status == status)
-                .OrderByDescending(p => p.created_at)
-                .ToListAsync();
-
-            return projects.Select(MapToResponseDto).ToList();
-        }
-
-        public async Task<List<ProjectResponseDto>> GetProjectsByDepartmentAsync(int deptId)
-        {
-            var projects = await _context.Projects
-                .Include(p => p.Customer)
-                .Include(p => p.Departments)
-                .Where(p => p.dept_id == deptId)
                 .OrderByDescending(p => p.created_at)
                 .ToListAsync();
 
@@ -885,7 +862,6 @@ namespace NPI.Server.Services
         {
             var projects = await _context.Projects
                 .Include(p => p.Customer)
-                .Include(p => p.Departments)
                 .Where(p => p.cust_id == customerId)
                 .OrderByDescending(p => p.created_at)
                 .ToListAsync();

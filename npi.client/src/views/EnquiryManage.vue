@@ -43,7 +43,7 @@
           </v-col>
           <v-col cols="12" md="12" class="text-body-1">
             <v-icon size="small" color="primary" class="mr-1">mdi-tag</v-icon>
-            <strong>Category:</strong> {{ enquiry.npi_category }}
+            <strong>Category:</strong> {{ enquiry.form_category }}
           </v-col>
           <v-col cols="12" md="12" class="text-body-1">
             <v-icon size="small" color="primary" class="mr-1">mdi-calendar</v-icon>
@@ -117,7 +117,7 @@
                             variant="outlined" density="compact" hide-details="auto" class="mb-3" />
             </v-col>
             <v-col cols="12" sm="6">
-              <v-select v-model="projectData.priority" :items="['Low','Medium','High','Critical']"
+              <v-select v-model="projectData.priority" :items="priorityOptions"
                         label="Priority *" variant="outlined" density="compact" hide-details="auto" class="mb-3" />
             </v-col>
             <v-col cols="12" sm="6">
@@ -158,29 +158,34 @@
   import { useEnquiryStore } from '@/stores/enquiry'
   import { useProjectStore } from '@/stores/project'
   import { useAuthStore } from '@/stores/auth'
-  import { useNpiFormConfigStore } from '@/stores/npiFormConfig'
-  import { ENQUIRY_STATUS_COLORS } from '@/utils/constants'
+  import {
+    ENQUIRY_STATUS_COLORS,
+    PRIORITY_OPTIONS,
+    DEFAULT_PRIORITY,
+    DEFAULT_COLOR,
+  } from '@/utils/constants'
   import { formatDate } from '@/utils/formatters'
 
-  const route        = useRoute()
-  const router       = useRouter()
+  const route = useRoute()
+  const router = useRouter()
   const enquiryStore = useEnquiryStore()
   const projectStore = useProjectStore()
-  const authStore    = useAuthStore()
-  const configStore  = useNpiFormConfigStore()
- 
-  const loading        = ref(false)
+  const authStore = useAuthStore()
+
+  const loading = ref(false)
   const downloadingPDF = ref(false)
-  const enquiry        = ref(null)
- 
+  const enquiry = ref(null)
+
   const showStartProjectDialog = ref(false)
-  const startingProject        = ref(false)
-  const snackbar               = ref(false)
-  const snackbarMessage        = ref('')
-  const snackbarColor          = ref('success')
+  const startingProject = ref(false)
+  const snackbar = ref(false)
+  const snackbarMessage = ref('')
+  const snackbarColor = ref('success')
+
+  const priorityOptions = PRIORITY_OPTIONS
 
   const projectData = ref({
-    project_name: '', priority: 'Medium', expected_completion: '', description: ''
+    project_name: '', priority: DEFAULT_PRIORITY, expected_completion: '', description: ''
   })
 
   // Start project conditional
@@ -190,11 +195,11 @@
 
   // Formatting & Mapping Helpers
   function getSectionLabel(sectionKey) {
-    return configStore.sections.find(s => s.section_key === sectionKey)?.section_label ?? sectionKey
+    return (enquiryStore.sections ?? []).find(s => s.section_key === sectionKey)?.section_label ?? sectionKey
   }
 
   function getFieldLabel(sectionKey, fieldKey) {
-    const section = configStore.sections.find(s => s.section_key === sectionKey)
+    const section = (enquiryStore.sections ?? []).find(s => s.section_key === sectionKey)
     return section?.fields?.find(f => f.field_key === fieldKey)?.field_label ?? fieldKey.replace(/_/g, ' ')
   }
 
@@ -215,8 +220,8 @@
     const reqDate = e?.field_values?.generalInfo?.estimated_required_date ?? ''
 
     projectData.value = {
-      project_name: [company, e?.npi_category].filter(Boolean).join(' - '),
-      priority: 'Medium',
+      project_name: [company, e?.form_category].filter(Boolean).join(' - '),
+      priority: DEFAULT_PRIORITY,
       description: '',
       expected_completion: reqDate
     }
@@ -256,7 +261,7 @@
   // Initialization
   onMounted(async () => {
     loading.value = true
-    await configStore.fetchConfig()
+    await enquiryStore.fetchConfig()
     const result = await enquiryStore.fetchEnquiryById(route.params.id)
     if (result?.success) enquiry.value = result.data
     loading.value = false

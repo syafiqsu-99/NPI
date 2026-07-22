@@ -21,59 +21,12 @@ namespace NPI.Server.Services
     public class EnquiryService : IEnquiryService
     {
         private readonly ApplicationDbContext _context;
-        private readonly AuditLogService _audit;
+        private readonly IAuditLogService _audit;
 
-        public EnquiryService(ApplicationDbContext context, AuditLogService audit)
+        public EnquiryService(ApplicationDbContext context, IAuditLogService audit)
         {
             _context = context;
             _audit = audit;
-        }
-
-        // ── Create ────────────────────────────────────────────────────────────
-        public async Task<(bool Success, string Message, EnquiryResponseDto? Enquiry)> CreateEnquiryAsync(EnquiryCreateDto dto, int userId, string? ipAddress)
-        {
-            await using var tx = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                var customerId = await ResolveCustomerIdAsync(dto);
-                if (customerId == 0)
-                    return (false, "Customer not found or invalid data supplied.", null);
-
-                var enquiry = new Enquiries
-                {
-                    enquiry_no = await GenerateEnquiryNoAsync(),
-                    cust_id = customerId,
-                    npi_category = dto.npi_category,
-                    status = EnquiryStatus.Draft,
-                    created_by = userId,
-                    created_at = DateTime.Now
-                };
-
-                _context.Enquiries.Add(enquiry);
-                await _context.SaveChangesAsync();
-
-                await SaveFieldValuesAsync(enquiry.enquiry_id, dto.field_values);
-                await UpsertCustomerRefAsync(enquiry.enquiry_id, dto.CustomerRef);
-
-                await tx.CommitAsync();
-
-                await _audit.LogAsync(userId, null, "CREATE", "Enquiries", enquiry.enquiry_id,
-                    null,
-                    new { enquiry.enquiry_no, enquiry.cust_id, enquiry.npi_category, enquiry.status },
-                    ipAddress);
-
-                return (true, "Enquiry created successfully.",
-                    await GetEnquiryByIdAsync(enquiry.enquiry_id));
-            }
-            catch (Exception ex)
-            {
-                await tx.RollbackAsync();
-
-                await _audit.LogAsync(userId, null, "CREATE_FAILED", "Enquiries", null,
-                    null, new { error = ex.Message, inner = ex.InnerException?.Message }, ipAddress);
-
-                return (false, "Could not create the enquiry. Please contact IT.", null);
-            }
         }
 
         // ── Read ──────────────────────────────────────────────────────────────
@@ -118,55 +71,151 @@ namespace NPI.Server.Services
             return enquiries.Select(MapToResponseDto).ToList();
         }
 
-        // ── Update ────────────────────────────────────────────────────────────
-        public async Task<(bool Success, string Message)> UpdateEnquiryAsync(int enquiryId, EnquiryCreateDto dto, int userId, string userRole, string? ipAddress)
+        // ── Create ────────────────────────────────────────────────────────────
+        public async Task<(bool Success, string Message, EnquiryResponseDto? Enquiry)> CreateEnquiryAsync(EnquiryCreateDto dto, int userId, string? ipAddress)
         {
-            await using var tx = await _context.Database.BeginTransactionAsync();
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            (bool Success, string Message, int EnquiryId, object? Snapshot) outcome;
+
             try
             {
-                var enquiry = await _context.Enquiries.FindAsync(enquiryId);
-                if (enquiry is null) return (false, "Enquiry not found.");
-
-                if (!CanMutate(enquiry, userId, userRole))
+                outcome = await strategy.ExecuteAsync(async () =>
                 {
-                    await _audit.LogAsync(userId, null, "UPDATE_DENIED", "Enquiries", enquiryId,
-                        null, new { reason = "Not owner and not Admin/Manager" }, ipAddress);
-                    return (false, "You are not authorised to edit this enquiry.");
-                }
+                    _context.ChangeTracker.Clear();
 
-                if (enquiry.status != EnquiryStatus.Draft)
-                    return (false, "Only Draft enquiries can be updated.");
+                    await using var tx = await _context.Database.BeginTransactionAsync();
 
-                var customerId = await ResolveCustomerIdAsync(dto, enquiry);
-                if (customerId == 0) return (false, "Customer not found.");
+                    var customerId = await ResolveCustomerIdAsync(dto);
+                    if (customerId == 0)
+                    {
+                        await tx.RollbackAsync();
+                        return (false, "Customer not found or invalid data supplied.", 0, (object?)null);
+                    }
 
-                var before = new { enquiry.cust_id, enquiry.npi_category };
+                    var enquiry = new Enquiries
+                    {
+                        enquiry_no = await GenerateEnquiryNoAsync(),
+                        cust_id = customerId,
+                        form_category = dto.form_category,
+                        status = EnquiryStatus.Draft,
+                        created_by = userId,
+                        created_at = DateTime.Now
+                    };
 
-                enquiry.cust_id = customerId;
-                enquiry.npi_category = dto.npi_category;
-                enquiry.updated_at = DateTime.Now;
-                enquiry.updated_by = userId;
+                    _context.Enquiries.Add(enquiry);
+                    await _context.SaveChangesAsync();
 
-                await _context.SaveChangesAsync();
-                await SaveFieldValuesAsync(enquiryId, dto.field_values);
-                await UpsertCustomerRefAsync(enquiryId, dto.CustomerRef);
+                    await SaveFieldValuesAsync(enquiry.enquiry_id, dto.field_values);
+                    await UpsertCustomerRefAsync(enquiry.enquiry_id, dto.CustomerRef);
 
-                await tx.CommitAsync();
+                    await tx.CommitAsync();
 
-                await _audit.LogAsync(userId, null, "UPDATE", "Enquiries", enquiryId,
-                    before, new { enquiry.cust_id, enquiry.npi_category }, ipAddress);
-
-                return (true, "Enquiry updated successfully.");
+                    return (true, "Enquiry created successfully.", enquiry.enquiry_id, (object?)new
+                    {
+                        enquiry.enquiry_no,
+                        enquiry.cust_id,
+                        enquiry.form_category,
+                        enquiry.status
+                    });
+                });
             }
             catch (Exception ex)
             {
-                await tx.RollbackAsync();
+                await _audit.LogAsync(userId, null, "CREATE_FAILED", "Enquiries", null,
+                    null, new { error = ex.Message, inner = ex.InnerException?.Message }, ipAddress);
 
+                return (false, "Could not create the enquiry. Please contact IT.", null);
+            }
+
+            if (!outcome.Success)
+                return (false, outcome.Message, null);
+
+            await _audit.LogAsync(userId, null, "CREATE", "Enquiries", outcome.EnquiryId,
+                null, outcome.Snapshot, ipAddress);
+
+            var response = await GetEnquiryByIdAsync(outcome.EnquiryId);
+            return (true, outcome.Message, response);
+        }
+
+        // ── Update ────────────────────────────────────────────────────────────
+        public async Task<(bool Success, string Message)> UpdateEnquiryAsync(int enquiryId, EnquiryCreateDto dto, int userId, string userRole, string? ipAddress)
+        {
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            (bool Success, string Message, bool Denied, object? Before, object? After) outcome;
+
+            try
+            {
+                outcome = await strategy.ExecuteAsync(async () =>
+                {
+                    _context.ChangeTracker.Clear();
+
+                    await using var tx = await _context.Database.BeginTransactionAsync();
+
+                    var enquiry = await _context.Enquiries.FindAsync(enquiryId);
+                    if (enquiry is null)
+                    {
+                        await tx.RollbackAsync();
+                        return (false, "Enquiry not found.", false, (object?)null, (object?)null);
+                    }
+
+                    if (!CanMutate(enquiry, userId, userRole))
+                    {
+                        await tx.RollbackAsync();
+                        return (false, "You are not authorised to edit this enquiry.", true, (object?)null, (object?)null);
+                    }
+
+                    if (enquiry.status != EnquiryStatus.Draft)
+                    {
+                        await tx.RollbackAsync();
+                        return (false, "Only Draft enquiries can be updated.", false, (object?)null, (object?)null);
+                    }
+
+                    var customerId = await ResolveCustomerIdAsync(dto, enquiry);
+                    if (customerId == 0)
+                    {
+                        await tx.RollbackAsync();
+                        return (false, "Customer not found.", false, (object?)null, (object?)null);
+                    }
+
+                    var before = (object?)new { enquiry.cust_id, enquiry.form_category };
+
+                    enquiry.cust_id = customerId;
+                    enquiry.form_category = dto.form_category;
+                    enquiry.updated_at = DateTime.Now;
+                    enquiry.updated_by = userId;
+
+                    await _context.SaveChangesAsync();
+                    await SaveFieldValuesAsync(enquiryId, dto.field_values);
+                    await UpsertCustomerRefAsync(enquiryId, dto.CustomerRef);
+
+                    await tx.CommitAsync();
+
+                    return (true, "Enquiry updated successfully.", false, before,
+                        (object?)new { enquiry.cust_id, enquiry.form_category });
+                });
+            }
+            catch (Exception ex)
+            {
                 await _audit.LogAsync(userId, null, "UPDATE_FAILED", "Enquiries", enquiryId,
                     null, new { error = ex.Message, inner = ex.InnerException?.Message }, ipAddress);
 
                 return (false, "Could not update the enquiry. Please contact IT.");
             }
+
+            if (outcome.Denied)
+            {
+                await _audit.LogAsync(userId, null, "UPDATE_DENIED", "Enquiries", enquiryId,
+                    null, new { reason = "Not owner and not Admin/Manager" }, ipAddress);
+            }
+            else if (outcome.Success)
+            {
+                await _audit.LogAsync(userId, null, "UPDATE", "Enquiries", enquiryId,
+                    outcome.Before, outcome.After, ipAddress);
+            }
+
+            return (outcome.Success, outcome.Message);
         }
 
         // ── Submit ────────────────────────────────────────────────────────────
@@ -233,7 +282,7 @@ namespace NPI.Server.Services
                 {
                     enquiry.enquiry_no,
                     enquiry.cust_id,
-                    enquiry.npi_category,
+                    enquiry.form_category,
                     enquiry.status,
                     enquiry.created_by
                 };
@@ -333,10 +382,6 @@ namespace NPI.Server.Services
                 var newCustomer = new Customers
                 {
                     comp_name = dto.new_customer.comp_name,
-                    cust_addr = dto.new_customer.cust_addr,
-                    contact_name = dto.new_customer.contact_name,
-                    contact_email = dto.new_customer.contact_email,
-                    contact_phone = dto.new_customer.contact_phone,
                     created_at = DateTime.Now,
                     is_active = true
                 };
@@ -379,7 +424,7 @@ namespace NPI.Server.Services
                 proj_id = e.proj_id,
                 cust_id = e.cust_id,
                 customer_name = e.Customer?.comp_name,
-                npi_category = e.npi_category,
+                form_category = e.form_category,
                 status = e.status,
                 created_by = e.created_by,
                 username = e.CreatedByUser?.username ?? "Unknown",

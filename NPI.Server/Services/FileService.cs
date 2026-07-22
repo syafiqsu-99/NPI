@@ -448,7 +448,6 @@ namespace NPI.Server.Services
                 .FirstOrDefaultAsync(u => u.user_id == userId);
 
             bool isManagerOrAdmin = user?.Role?.role_name == "Admin" || user?.Role?.role_name == "Manager";
-            int? userDeptId = user?.dept_id;
 
             var assignedProjectIds = await _context.ProjectTeams
                 .Where(pr => pr.user_id == userId)
@@ -487,10 +486,6 @@ namespace NPI.Server.Services
                     var project = allProjects.FirstOrDefault(p => SanitizeFolderName(p.proj_name) == dirName || p.proj_name == dirName);
 
                     bool canEditProject = isManagerOrAdmin;
-                    if (!canEditProject && project != null)
-                    {
-                        canEditProject = assignedProjectIds.Contains(project.proj_id) && project.dept_id == userDeptId;
-                    }
 
                     var pNode = BuildPhysicalNode(projDir, canEditProject, fileMap, "project");
                     projectsNode.children.Add(pNode);

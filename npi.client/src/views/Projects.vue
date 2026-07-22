@@ -209,43 +209,54 @@
   import { useSettingsStore } from '@/stores/setting'
   import { api } from '@/utils/api'
   import { openProjectStatusEmail } from '@/utils/mailtoHelper'
-  import { PROJECT_STATUSES, PROJECT_STATUS_COLORS, PRIORITY_OPTIONS, PRIORITY_COLORS, STAGE_COLORS, STAGE_COLORS_HEX, STAGE_SHORT_NAMES, OPTIONAL_STAGE_FLAGS } from '@/utils/constants'
+  import {
+    PROJECT_STATUSES,
+    PROJECT_STATUS_COLORS,
+    PROJECT_NOTIFY_STATUSES,
+    PRIORITY_OPTIONS,
+    PRIORITY_COLORS,
+    STAGE_COLORS,
+    STAGE_COLORS_HEX,
+    STAGE_SHORT_NAMES,
+    OPTIONAL_STAGE_FLAGS,
+    DEFAULT_COLOR,
+  } from '@/utils/constants'
   import { formatDate } from '@/utils/formatters'
 
   import ProjectDetailDialog from '@/components/projects/ProjectDetailDialog.vue'
   import DeleteProjectDialog from '@/components/projects/DeleteProjectDialog.vue'
 
-  const router       = useRouter()
+  const router = useRouter()
   const projectStore = useProjectStore()
-  const authStore    = useAuthStore()
+  const authStore = useAuthStore()
   const settingsStore = useSettingsStore()
- 
-  const statusFilter     = ref('all')
-  const search           = ref('')
+
+  const statusFilter = ref('all')
+  const search = ref('')
   const showDetailDialog = ref(false)
-  const selectedProject  = ref(null)
- 
+  const selectedProject = ref(null)
+
   const projectTeamMembers = ref([])
-  const projectRevisions   = ref([])
- 
+  const projectRevisions = ref([])
+
   const deleteProjectDialog = ref(false)
   const deleteProjectTarget = ref(null)
-  const deletingProject     = ref(false)
- 
-  const snackbar        = ref(false)
-  const snackbarMessage = ref('')
-  const snackbarColor   = ref('success')
+  const deletingProject = ref(false)
 
-   const headers = [
-    { title: 'Project No',    key: 'proj_no',                   sortable: true },
-    { title: 'Project Name',  key: 'proj_name',                 sortable: true },
-    { title: 'Customer',      key: 'customer_name',             sortable: true },
-    { title: 'NPI Stages',    key: 'stages',                    sortable: false, width: '220px' },
-    { title: 'Priority',      key: 'priority',                  sortable: true },
-    { title: 'Status',        key: 'status',                    sortable: true },
-    { title: 'Start Date',    key: 'project_start_date',        sortable: true },
-    { title: 'Target Date',   key: 'target_completion_date',    sortable: true },
-    { title: 'Actions',       key: 'actions',                   sortable: false, align: 'center', width: '150px' },
+  const snackbar = ref(false)
+  const snackbarMessage = ref('')
+  const snackbarColor = ref('success')
+
+  const headers = [
+    { title: 'Project No', key: 'proj_no', sortable: true },
+    { title: 'Project Name', key: 'proj_name', sortable: true },
+    { title: 'Customer', key: 'customer_name', sortable: true },
+    { title: 'NPI Stages', key: 'stages', sortable: false, width: '220px' },
+    { title: 'Priority', key: 'priority', sortable: true },
+    { title: 'Status', key: 'status', sortable: true },
+    { title: 'Start Date', key: 'project_start_date', sortable: true },
+    { title: 'Target Date', key: 'target_completion_date', sortable: true },
+    { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '150px' },
   ]
 
   const filteredProjects = computed(() => {
@@ -261,13 +272,12 @@
     try {
       const result = await api.put(`/project/${project.proj_id}/status`, { status: newStatus })
       if (result?.success || result?.data?.success) {
-        project.status        = newStatus
+        project.status = newStatus
         snackbarMessage.value = `Status updated to "${newStatus}"`
-        snackbarColor.value   = 'success'
-        snackbar.value        = true
- 
-        const notifyOn = ['In Progress', 'On Hold', 'Completed', 'Cancelled']
-        if (notifyOn.includes(newStatus)) {
+        snackbarColor.value = 'success'
+        snackbar.value = true
+
+        if (PROJECT_NOTIFY_STATUSES.includes(newStatus)) {
           let fullProject = project
           if (!project.team_members?.some(m => m.email)) {
             try {
@@ -279,13 +289,13 @@
         }
       } else {
         snackbarMessage.value = result?.message ?? 'Failed to update status'
-        snackbarColor.value   = 'error'
-        snackbar.value        = true
+        snackbarColor.value = 'error'
+        snackbar.value = true
       }
     } catch (err) {
       snackbarMessage.value = 'An error occurred'
-      snackbarColor.value   = 'error'
-      snackbar.value        = true
+      snackbarColor.value = 'error'
+      snackbar.value = true
     }
   }
 
@@ -293,33 +303,33 @@
     if (project.priority === newPriority) return
     try {
       const payload = {
-        proj_name:               project.proj_name,
-        description:             project.description,
-        dept_id:                 project.dept_id,
-        priority:                newPriority,
-        status:                  project.status,
-        project_start_date:      project.project_start_date,
-        target_completion_date:  project.target_completion_date,
+        proj_name: project.proj_name,
+        description: project.description,
+        dept_id: project.dept_id,
+        priority: newPriority,
+        status: project.status,
+        project_start_date: project.project_start_date,
+        target_completion_date: project.target_completion_date,
       }
       const result = await api.put(`/project/${project.proj_id}`, payload)
       if (result?.success || result?.data?.success) {
-        project.priority      = newPriority
+        project.priority = newPriority
         snackbarMessage.value = 'Project priority updated'
-        snackbarColor.value   = 'success'
+        snackbarColor.value = 'success'
       } else {
         snackbarMessage.value = result?.message || 'Failed to update priority'
-        snackbarColor.value   = 'error'
+        snackbarColor.value = 'error'
       }
     } catch (err) {
       snackbarMessage.value = err?.response?.data?.message || 'Unauthorized or server error'
-      snackbarColor.value   = 'error'
+      snackbarColor.value = 'error'
     }
     snackbar.value = true
   }
 
   function getProjectStages(project) {
-    const stageIds = settingsStore.stages.map(s => s.stage_id).filter(id => {
-      if (settingsStore.stagesById[id]?.is_required) return true
+    const stageIds = (settingsStore.stages ?? []).map(s => s.stage_id).filter(id => {
+      if (settingsStore.isStageRequired(id)) return true
       const flagKey = OPTIONAL_STAGE_FLAGS[id]
       return flagKey ? !!project[flagKey] : false
     })
@@ -344,12 +354,12 @@
     if (stage.status === 'skipped') return '#BDBDBD'
     return '#E0E0E0'
   }
- 
-  function getStatusColor(status)  { return PROJECT_STATUS_COLORS[status] || 'grey' }
-  function getPriorityColor(p)     { return PRIORITY_COLORS[p] || 'grey' }
- 
+
+  function getStatusColor(status) { return PROJECT_STATUS_COLORS[status] || 'grey' }
+  function getPriorityColor(p) { return PRIORITY_COLORS[p] || 'grey' }
+
   function manageProject(projId) { router.push(`/projects/${projId}/setup`) }
-  function viewGantt(projId)     { router.push(`/projects/${projId}/gantt`) }
+  function viewGantt(projId) { router.push(`/projects/${projId}/gantt`) }
 
   async function loadProjectDetails(projectId) {
     try {
@@ -357,13 +367,13 @@
       if (result?.success && result.data) {
         const project = result.data
         projectTeamMembers.value = project.team_members || []
-        projectRevisions.value   = (project.revisions || [])
+        projectRevisions.value = (project.revisions || [])
           .sort((a, b) => new Date(b.revision_date) - new Date(a.revision_date))
       }
     } catch {
       snackbarMessage.value = 'Failed to load project details'
-      snackbarColor.value   = 'error'
-      snackbar.value        = true
+      snackbarColor.value = 'error'
+      snackbar.value = true
     }
   }
 
@@ -382,26 +392,40 @@
     if (!deleteProjectTarget.value) return
     deletingProject.value = true
     const result = await projectStore.deleteProject(deleteProjectTarget.value.proj_id)
-    deletingProject.value     = false
+    deletingProject.value = false
     deleteProjectDialog.value = false
-    snackbarMessage.value     = result.success ? 'Project deleted successfully' : `Error: ${result.message}`
-    snackbarColor.value       = result.success ? 'success' : 'error'
-    snackbar.value            = true
+    snackbarMessage.value = result.success ? 'Project deleted successfully' : `Error: ${result.message}`
+    snackbarColor.value = result.success ? 'success' : 'error'
+    snackbar.value = true
     deleteProjectTarget.value = null
   }
- 
+
   onMounted(async () => {
-    await settingsStore.fetchTaskTemplates()
-    const result = await projectStore.fetchProjects()
-    if (!result.success) {
-      snackbarMessage.value = result.message || 'Failed to load projects'
-      snackbarColor.value   = 'error'
-      snackbar.value        = true
-      return
+    try {
+      const templateResult = await settingsStore.fetchTaskTemplates()
+      if (!templateResult?.success) {
+        snackbarMessage.value = 'Warning: could not load stage definitions'
+        snackbarColor.value = 'warning'
+        snackbar.value = true
+      }
+
+      const result = await projectStore.fetchProjects()
+      if (!result?.success) {
+        snackbarMessage.value = result?.message || 'Failed to load projects'
+        snackbarColor.value = 'error'
+        snackbar.value = true
+        return
+      }
+
+      await Promise.all(
+        projectStore.projects.map(p => authStore.fetchProjectRole(p.proj_id))
+      )
+    } catch (err) {
+      console.error('Projects mount error:', err)
+      snackbarMessage.value = 'Failed to load projects'
+      snackbarColor.value = 'error'
+      snackbar.value = true
     }
-    await Promise.all(
-      projectStore.projects.map(p => authStore.fetchProjectRole(p.proj_id))
-    )
   })
 </script>
 

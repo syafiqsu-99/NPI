@@ -419,13 +419,14 @@
   import { api } from '@/utils/api'
   import { useAuthStore } from '@/stores/auth'
   import { useCustomerStore } from '@/stores/customer'
-  import { formatSize, formatDate } from '@/utils/formatters'
+  import { EXTERNAL_APP_HINTS, DEFAULT_COLOR } from '@/utils/constants'
+  import { formatSize, formatDate, getPreviewType } from '@/utils/formatters'
 
   const authStore = useAuthStore()
   const customerStore = useCustomerStore()
 
   // ── Access control ────────────────────────────────────────────────────────────
-  const canManageFiles = computed(() => authStore.isAdmin || authStore.isManager)
+  const canManageFiles = computed(() => authStore.canManageFiles)
 
   // ── Tab state ─────────────────────────────────────────────────────────────────
   const activeTab = ref('files')
@@ -459,24 +460,6 @@
   })
 
   const sortOptions = ['Name (A-Z)', 'Name (Z-A)', 'Newest', 'Oldest', 'Size (Large)', 'Size (Small)']
-
-  const PREVIEWABLE_TYPES = {
-    pdf: ['pdf'],
-    image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'],
-    text: ['txt', 'csv', 'log', 'md']
-  }
-
-  const EXTERNAL_HINTS = {
-    doc: { icon: 'mdi-microsoft-word', color: '#2B579A', app: 'Microsoft Word' },
-    docx: { icon: 'mdi-microsoft-word', color: '#2B579A', app: 'Microsoft Word' },
-    xls: { icon: 'mdi-microsoft-excel', color: '#217346', app: 'Microsoft Excel' },
-    xlsx: { icon: 'mdi-microsoft-excel', color: '#217346', app: 'Microsoft Excel' },
-    ppt: { icon: 'mdi-microsoft-powerpoint', color: '#D24726', app: 'PowerPoint' },
-    pptx: { icon: 'mdi-microsoft-powerpoint', color: '#D24726', app: 'PowerPoint' },
-    dwg: { icon: 'mdi-drawing', color: '#E34C26', app: 'AutoCAD' },
-    step: { icon: 'mdi-cube-outline', color: '#607D8B', app: 'CAD software' },
-    stp: { icon: 'mdi-cube-outline', color: '#607D8B', app: 'CAD software' },
-  }
 
   // ── Customers tab state ───────────────────────────────────────────────────────
   const customersLoading = ref(false)
@@ -609,12 +592,6 @@
     return (item.name || '').split('.').pop().toLowerCase()
   }
 
-  function resolvePreviewType(ext) {
-    for (const [type, exts] of Object.entries(PREVIEWABLE_TYPES)) {
-      if (exts.includes(ext)) return type
-    }
-    return null
-  }
 
   function fileApiPath(item, inline = false) {
     const path = item.file_id
@@ -632,12 +609,12 @@
 
   async function handlePreview(item) {
     const ext = getFileExt(item)
-    const type = resolvePreviewType(ext)
+    const type = getPreviewType(item.name)
 
     if (previewItem.value?.id === item.id) { closePreview(); return }
 
     if (!type) {
-      const hint = EXTERNAL_HINTS[ext] ?? { icon: 'mdi-file-outline', color: 'grey', app: 'an external application' }
+      const hint = EXTERNAL_APP_HINTS[ext] ?? { icon: 'mdi-file-outline', color: DEFAULT_COLOR, app: 'an external application' }
       externalPrompt.value = {
         show: true, item,
         title: `"${item.name}" cannot be previewed`,
@@ -677,22 +654,13 @@
   }
 
   function previewIconFor(item) {
-    const type = resolvePreviewType(getFileExt(item))
+    const type = getPreviewType(item.name)
     if (type === 'pdf') return 'mdi-file-pdf-box'
     if (type === 'image') return 'mdi-image-outline'
     if (type === 'text') return 'mdi-file-document-outline'
     return 'mdi-file-outline'
   }
 
-  function mimeForExt(ext) {
-    const map = {
-      pdf: 'application/pdf',
-      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-      gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml',
-      txt: 'text/plain', csv: 'text/csv', md: 'text/plain', log: 'text/plain',
-    }
-    return map[ext] ?? 'application/octet-stream'
-  }
 
   onBeforeUnmount(() => { revokeBlobUrl() })
 

@@ -1,7 +1,6 @@
 <template>
   <div class="settings-root d-flex flex-column">
 
-    <!-- Settings header + tabs -->
     <v-card elevation="2" class="flex-shrink-0">
       <v-card-title class="bg-primary text-white d-flex align-center pa-3">
         <v-icon class="mr-2">mdi-cog</v-icon>
@@ -35,8 +34,8 @@
         </v-tab>
 
         <v-tab value="taskTemplate">
-          <v-icon start size="18">mdi-cog-outline</v-icon>
-          System
+          <v-icon start size="18">mdi-clipboard-list-outline</v-icon>
+          Task Template
         </v-tab>
       </v-tabs>
     </v-card>
@@ -60,7 +59,7 @@
       </v-window-item>
 
       <v-window-item value="npiConfig" class="fill-height">
-        <NpiFormConfig />
+        <FormConfig />
       </v-window-item>
 
       <v-window-item value="taskTemplate" class="fill-height">
@@ -79,14 +78,13 @@
   import ProjectRoleManagement from '@/components/settings/ProjectRoleManagement.vue'
   import DepartmentManagement from '@/components/settings/DepartmentManagement.vue'
   import SystemSettings from '@/components/settings/SystemSettings.vue'
-  import NpiFormConfig from '@/components/settings/NpiFormConfig.vue'
+  import FormConfig from '@/components/settings/FormConfig.vue'
   import TaskTemplate from '@/components/settings/TaskTemplateManagement.vue'
 
   const authStore = useAuthStore()
   const activeTab = ref('users')
 
   const isAdmin = computed(() => authStore.isAdmin)
-  const isManager = computed(() => authStore.isManager)
 </script>
 
 <style scoped>
@@ -107,6 +105,7 @@
 
   .fill-height {
     height: 100%;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 </style>

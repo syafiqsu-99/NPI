@@ -50,15 +50,11 @@ namespace NPI.Server.Models
 
         public virtual ICollection<ProjectTeams>? ProjectTeams { get; set; }
         public virtual ICollection<ProjectRevisions>? ProjectRevisions { get; set; }
-        public virtual ICollection<Milestones>? Milestones { get; set; }
         public virtual ICollection<Tasks>? Tasks { get; set; }
         public virtual ICollection<Files>? Files { get; set; }
-        public virtual ICollection<Departments>? Departments { get; set; }
         public virtual ICollection<Notifications>? Notifications { get; set; }
         public virtual ICollection<AuditLogs>? AuditLogs { get; set; }
-        public virtual ICollection<ProjectStatusHistory>? ProjectStatusHistories { get; set; }
         public bool pilot_mould_required { get; set; } = false;
         public bool machine_purchase_required { get; set; } = false;
-        public int dept_id { get; internal set; }
     }
 }

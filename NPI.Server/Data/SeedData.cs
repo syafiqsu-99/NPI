@@ -15,12 +15,12 @@ namespace NPI.Server.Data
             {
                 var departments = new[]
                 {
-                    new Departments { dept_name = "Sales",      dept_code = "SLS", description = "Sales & Customer Service", color_hex = "#2196F3" },
-                    new Departments { dept_name = "Technical",  dept_code = "TEC", description = "Technical & Engineering" , color_hex = "#4CAF50"},
-                    new Departments { dept_name = "Purchaser",  dept_code = "PUR", description = "Purchasing Department"   , color_hex = "#FF9800"},
-                    new Departments { dept_name = "Production", dept_code = "PRD", description = "Production Department"   , color_hex = "#F44336"},
-                    new Departments { dept_name = "QA",         dept_code = "QA",  description = "Quality Assurance"       , color_hex = "#9C27B0"},
-                    new Departments { dept_name = "Management", dept_code = "MGT", description = "Management"              , color_hex = "#607D8B"}
+                    new Departments { dept_name = "Sales",      dept_code = "SLS", description = "Sales & Customer Service", color_hex = "#2196F3", is_assignable = true},
+                    new Departments { dept_name = "Technical",  dept_code = "TEC", description = "Technical & Engineering" , color_hex = "#4CAF50", is_assignable = true},
+                    new Departments { dept_name = "Purchaser",  dept_code = "PUR", description = "Purchasing Department"   , color_hex = "#FF9800", is_assignable = true},
+                    new Departments { dept_name = "Production", dept_code = "PRD", description = "Production Department"   , color_hex = "#F44336", is_assignable = true},
+                    new Departments { dept_name = "QA",         dept_code = "QA",  description = "Quality Assurance"       , color_hex = "#9C27B0", is_assignable = true},
+                    new Departments { dept_name = "Management", dept_code = "MGT", description = "Management"              , color_hex = "#607D8B", is_assignable = false}
                 };
                 await context.Departments.AddRangeAsync(departments);
                 await context.SaveChangesAsync();
@@ -91,35 +91,35 @@ namespace NPI.Server.Data
             }
 
             // ── NPI Categories ────────────────────────────────────────────────
-            if (!await context.NpiCategories.AnyAsync())
+            if (!await context.FormCategories.AnyAsync())
             {
                 var cats = new[]
                 {
-                    new NpiCategory { category_name = "New Design - Bottle/ Jar/ Tub/ Container", display_order = 1 },
-                    new NpiCategory { category_name = "Duplication - Bottle/ Jar/ Tub Container",  display_order = 2 },
-                    new NpiCategory { category_name = "New Design - Cap/ Lid",                      display_order = 3 },
-                    new NpiCategory { category_name = "Duplication - Cap/ Lid",                     display_order = 4 },
-                    new NpiCategory { category_name = "Label",                                      display_order = 5 },
-                    new NpiCategory { category_name = "Wadding/ Seal",                              display_order = 6 },
-                    new NpiCategory { category_name = "New Material/New Color to Existing Product", display_order = 7 },
+                    new FormCategory { category_name = "New Design - Bottle/ Jar/ Tub/ Container", display_order = 1 },
+                    new FormCategory { category_name = "Duplication - Bottle/ Jar/ Tub Container",  display_order = 2 },
+                    new FormCategory { category_name = "New Design - Cap/ Lid",                      display_order = 3 },
+                    new FormCategory { category_name = "Duplication - Cap/ Lid",                     display_order = 4 },
+                    new FormCategory { category_name = "Label",                                      display_order = 5 },
+                    new FormCategory { category_name = "Wadding/ Seal",                              display_order = 6 },
+                    new FormCategory { category_name = "New Material/New Color to Existing Product", display_order = 7 },
                 };
-                await context.NpiCategories.AddRangeAsync(cats);
+                await context.FormCategories.AddRangeAsync(cats);
                 await context.SaveChangesAsync();
             }
 
             // ── NPI Form Sections ─────────────────────────────────────────────
-            if (!await context.NpiFormSections.AnyAsync())
+            if (!await context.FormSections.AnyAsync())
             {
                 var sections = new[]
                 {
-                    new NpiFormSection
+                    new FormSection
                     {
                         section_key      = "generalInfo",
                         section_label    = "General Information - Cap/ Lid",
                         trigger_keywords = "bottle,jar,tub,container,cap,lid,label,new material,new color",
                         display_order    = 1
                     },
-                    new NpiFormSection
+                    new FormSection
                     {
                         section_key      = "sealInfo",
                         section_label    = "Seal/ Wadding/ Gasket",
@@ -127,17 +127,17 @@ namespace NPI.Server.Data
                         display_order    = 2
                     }
                 };
-                await context.NpiFormSections.AddRangeAsync(sections);
+                await context.FormSections.AddRangeAsync(sections);
                 await context.SaveChangesAsync();
             }
 
             // ── NPI Form Fields ───────────────────────────────────────────────
-            if (!await context.NpiFormFields.AnyAsync())
+            if (!await context.FormFields.AnyAsync())
             {
-                var genSection = await context.NpiFormSections.FirstAsync(s => s.section_key == "generalInfo");
-                var sealSection = await context.NpiFormSections.FirstAsync(s => s.section_key == "sealInfo");
+                var genSection = await context.FormSections.FirstAsync(s => s.section_key == "generalInfo");
+                var sealSection = await context.FormSections.FirstAsync(s => s.section_key == "sealInfo");
 
-                var fields = new List<NpiFormField>
+                var fields = new List<FormField>
                 {
                     // General Info
                     new() { section_id = genSection.section_id,  field_key = "company_name",          field_label = "Company Name",                        field_type = "text",   is_required = true,  display_order = 1 },
@@ -164,63 +164,7 @@ namespace NPI.Server.Data
                     new() { section_id = sealSection.section_id, field_key = "other_requirements",      field_label = "Others Requirements",                 field_type = "text",   is_required = false, display_order = 6 },
                 };
 
-                await context.NpiFormFields.AddRangeAsync(fields);
-                await context.SaveChangesAsync();
-            }
-
-            // ── Role Permissions ──────────────────────────────────────────────
-            if (!await context.RolePermissions.AnyAsync())
-            {
-                var adminRole = await context.Roles.FirstAsync(r => r.role_name == "Admin");
-                var managerRole = await context.Roles.FirstAsync(r => r.role_name == "Manager");
-                var memberRole = await context.Roles.FirstAsync(r => r.role_name == "Member");
-
-                var resources = new[] { "projects", "tasks", "files", "approvals", "users", "departments" };
-                var permissions = new List<RolePermissions>();
-
-                foreach (var resource in resources)
-                {
-                    permissions.Add(new RolePermissions
-                    {
-                        role_id = adminRole.role_id,
-                        resource = resource,
-                        can_create = true,
-                        can_read = true,
-                        can_update = true,
-                        can_delete = true,
-                        can_approve = true
-                    });
-                }
-
-                foreach (var resource in resources.Where(r => r != "users" && r != "departments"))
-                {
-                    permissions.Add(new RolePermissions
-                    {
-                        role_id = managerRole.role_id,
-                        resource = resource,
-                        can_create = true,
-                        can_read = true,
-                        can_update = true,
-                        can_delete = false,
-                        can_approve = true
-                    });
-                }
-
-                foreach (var resource in new[] { "projects", "tasks", "files" })
-                {
-                    permissions.Add(new RolePermissions
-                    {
-                        role_id = memberRole.role_id,
-                        resource = resource,
-                        can_create = true,
-                        can_read = true,
-                        can_update = true,
-                        can_delete = false,
-                        can_approve = false
-                    });
-                }
-
-                await context.RolePermissions.AddRangeAsync(permissions);
+                await context.FormFields.AddRangeAsync(fields);
                 await context.SaveChangesAsync();
             }
 
@@ -294,16 +238,16 @@ namespace NPI.Server.Data
                     new() { stage_id = "4.0", task_code = "4.11", title = "Customer approval",                         dept_id = sls, default_duration = 5, has_link = true,  display_order = 11 },
 
                     // ── 5.0 Trial Run at JJ ───────────────────────────────────
-                    new() { stage_id = "5.0", task_code = "5.1",  title = "Planning for trial",                        dept_id = prd, default_duration = 5, has_link = true,  doc_format = "Excel", display_order = 1 },
+                    new() { stage_id = "5.0", task_code = "5.1",  title = "Planning for trial",                        dept_id = prd, default_duration = 5, has_link = true,  display_order = 1 },
                     new() { stage_id = "5.0", task_code = "5.2",  title = "Mould trial, T0",                           dept_id = prd, default_duration = 5, has_link = false, display_order = 2 },
-                    new() { stage_id = "5.0", task_code = "5.3",  title = "Trial sample verification",                 dept_id = tec, default_duration = 5, has_link = true,  doc_format = "Excel", display_order = 3 },
+                    new() { stage_id = "5.0", task_code = "5.3",  title = "Trial sample verification",                 dept_id = tec, default_duration = 5, has_link = true,  display_order = 3 },
                     new() { stage_id = "5.0", task_code = "5.4",  title = "Mold modification (if any)",                dept_id = tec, default_duration = 5, has_link = false, display_order = 4 },
                     new() { stage_id = "5.0", task_code = "5.5",  title = "Mould trial, T1",                           dept_id = tec, default_duration = 5, has_link = false, display_order = 5 },
-                    new() { stage_id = "5.0", task_code = "5.6",  title = "Blue Card",                                 dept_id = tec, default_duration = 5, has_link = true,  doc_format = "Excel", display_order = 6 },
-                    new() { stage_id = "5.0", task_code = "5.7",  title = "Trial sample verification",                 dept_id = tec, default_duration = 5, has_link = true,  doc_format = "Excel", display_order = 7 },
-                    new() { stage_id = "5.0", task_code = "5.8",  title = "FAI",                                       dept_id = qa,  default_duration = 5, has_link = true,  doc_format = "Excel", role_gated = "QA", display_order = 8 },
+                    new() { stage_id = "5.0", task_code = "5.6",  title = "Blue Card",                                 dept_id = tec, default_duration = 5, has_link = true, display_order = 6 },
+                    new() { stage_id = "5.0", task_code = "5.7",  title = "Trial sample verification",                 dept_id = tec, default_duration = 5, has_link = true, display_order = 7 },
+                    new() { stage_id = "5.0", task_code = "5.8",  title = "FAI",                                       dept_id = qa,  default_duration = 5, has_link = true,  display_order = 8 },
                     new() { stage_id = "5.0", task_code = "5.9",  title = "Samples submission to customer",            dept_id = sls, default_duration = 5, has_link = false, display_order = 9 },
-                    new() { stage_id = "5.0", task_code = "5.10", title = "Customer approval",                         dept_id = sls, default_duration = 5, has_link = true,  doc_format = "Excel/Email/PDF", display_order = 10 },
+                    new() { stage_id = "5.0", task_code = "5.10", title = "Customer approval",                         dept_id = sls, default_duration = 5, has_link = true, display_order = 10 },
                 };
 
                 foreach (var t in templates)

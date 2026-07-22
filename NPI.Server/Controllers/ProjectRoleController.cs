@@ -18,10 +18,6 @@ namespace NPI.Server.Controllers
             _projectRoleService = projectRoleService;
         }
 
-        /// <summary>
-        /// Get all project-scoped roles for a project.
-        /// Accessible by Team Lead or above.
-        /// </summary>
         [HttpGet("{projectId}/roles")]
         public async Task<IActionResult> GetProjectRoles(int projectId)
         {
@@ -35,10 +31,6 @@ namespace NPI.Server.Controllers
             return Ok(new { success = true, data = roles });
         }
 
-        /// <summary>
-        /// Returns the current user's project role.
-        /// Used by the frontend auth store to cache permissions.
-        /// </summary>
         [HttpGet("{projectId}/my-role")]
         public async Task<IActionResult> GetMyRole(int projectId)
         {
@@ -55,10 +47,6 @@ namespace NPI.Server.Controllers
             return Ok(new { success = true, data = new { role_name = role ?? "Viewer" } });
         }
 
-        /// <summary>
-        /// Assign or update a user's project-scoped role.
-        /// Only Team Lead (and above) on the project can do this.
-        /// </summary>
         [HttpPost("{projectId}/roles")]
         public async Task<IActionResult> UpsertRole(int projectId, [FromBody] UpsertProjectRoleDto dto)
         {

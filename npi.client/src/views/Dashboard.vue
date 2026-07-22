@@ -48,6 +48,7 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { api } from '@/utils/api'
+  import { PROJECT_STATUS } from '@/utils/constants'
 
   import CalendarCard from '@/components/dashboards/CalendarCard.vue'
   import OverdueTasksCard from '@/components/dashboards/OverdueTasksCard.vue'
@@ -63,9 +64,21 @@
 
   // ── KPIs ──────────────────────────────────────────────────────────────────────
   const kpis = computed(() => [
-    { title: 'In Progress', value: projects.value.filter(p => p.status === 'In Progress').length, color: 'blue' },
-    { title: 'On Hold', value: projects.value.filter(p => p.status === 'On Hold').length, color: 'orange' },
-    { title: 'Completed', value: projects.value.filter(p => p.status === 'Completed').length, color: 'green' },
+    {
+      title: PROJECT_STATUS.IN_PROGRESS,
+      value: projects.value.filter(p => p.status === PROJECT_STATUS.IN_PROGRESS).length,
+      color: 'blue',
+    },
+    {
+      title: PROJECT_STATUS.ON_HOLD,
+      value: projects.value.filter(p => p.status === PROJECT_STATUS.ON_HOLD).length,
+      color: 'orange',
+    },
+    {
+      title: PROJECT_STATUS.COMPLETED,
+      value: projects.value.filter(p => p.status === PROJECT_STATUS.COMPLETED).length,
+      color: 'green',
+    },
     { title: 'Total Projects', value: projects.value.length, color: 'primary' },
   ])
 

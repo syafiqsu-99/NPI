@@ -1,3 +1,5 @@
+import { PROJECT_ROLES } from '@/utils/constants.js'
+
 export function openMailClient({ to = '', cc = [], subject = '', body = '' }) {
   const encodedSubject = encodeURIComponent(subject)
   const encodedBody = encodeURIComponent(body).replace(/%0A/gi, '%0D%0A')
@@ -35,9 +37,9 @@ export function openProjectStatusEmail(project, newStatus, currentUser) {
   const members = project.team_members ?? []
   const hasEmail = m => typeof m.email === 'string' && m.email.trim().length > 0
 
-  const teamLeads = members.filter(m => m.role === 'Team Lead' && hasEmail(m))
-  const regularMembers = members.filter(m => m.role === 'Member' && hasEmail(m))
-  const viewers = members.filter(m => m.role === 'Viewer' && hasEmail(m))
+  const teamLeads = members.filter(m => m.role === PROJECT_ROLES.TEAM_LEAD && hasEmail(m))
+  const regularMembers = members.filter(m => m.role === PROJECT_ROLES.MEMBER && hasEmail(m))
+  const viewers = members.filter(m => m.role === PROJECT_ROLES.VIEWER && hasEmail(m))
 
   const toEmails = [...new Set([...teamLeads, ...regularMembers].map(m => m.email))]
   const ccEmails = [...new Set(viewers.map(m => m.email))].filter(e => !toEmails.includes(e))

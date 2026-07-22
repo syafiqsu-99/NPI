@@ -13,18 +13,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ── Database ───────────────────────────────────────────────────────────────
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException(
-        "Connection string 'DefaultConnection' is not configured.");
-
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(
-        maxRetryCount: 3,
-        maxRetryDelay: TimeSpan.FromSeconds(5),
-        errorNumbersToAdd: null)));
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString),
-    lifetime: ServiceLifetime.Scoped);
+    options.UseSqlServer(connectionString, sql => {
+        sql.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
+    }));
+
+builder.Services.AddScoped(sp =>
+    sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
 
 // ── JWT Authentication ─────────────────────────────────────────────────────
 var jwtKey = builder.Configuration["Jwt:Key"]
@@ -71,16 +68,15 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<IEnquiryService, EnquiryService>();
-builder.Services.AddScoped<INpiFormConfigService, NpiFormConfigService>();
+builder.Services.AddScoped<IFormConfigService, FormConfigService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddScoped<IGanttService, GanttService>();
-builder.Services.AddScoped<IMilestoneService, MilestoneService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IProjectRoleService, ProjectRoleService>();
-builder.Services.AddScoped<AuditLogService, AuditLogService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<ITaskTemplateService, TaskTemplateService>();
 
 // ── Background services ────────────────────────────────────────────────────

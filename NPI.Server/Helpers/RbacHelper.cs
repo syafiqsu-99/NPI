@@ -42,20 +42,21 @@ namespace NPI.Server.Helpers
         public static string GetDepartmentName(ClaimsPrincipal user)
         => user.FindFirst("DepartmentName")?.Value ?? string.Empty;
 
+        public static string GetDepartmentCode(ClaimsPrincipal user)
+            => user.FindFirst("DepartmentCode")?.Value ?? string.Empty;
+
         public static bool IsSalesUser(ClaimsPrincipal user)
-            => string.Equals(GetDepartmentName(user), "Sales", StringComparison.OrdinalIgnoreCase);
+            => string.Equals(GetDepartmentCode(user), DeptCodes.Sales, StringComparison.OrdinalIgnoreCase);
 
         public static bool CanCreateEnquiry(ClaimsPrincipal user)
-        {
-            var role = GetSystemRole(user);
-            return role is "Admin" or "Manager" || IsSalesUser(user);
-        }
+            => IsAdminOrManager(user) || IsSalesUser(user);
 
         public static bool CanDeleteEnquiry(ClaimsPrincipal user, string status, int createdBy)
         {
-            var role = GetSystemRole(user);
-            if (role is "Admin" or "Manager") return true;
-            return IsSalesUser(user) && status == EnquiryStatus.Draft && createdBy == GetUserId(user);
+            if (IsAdminOrManager(user)) return true;
+            return IsSalesUser(user)
+                && status == EnquiryStatus.Draft
+                && createdBy == GetUserId(user);
         }
     }
 }

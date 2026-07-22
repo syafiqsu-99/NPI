@@ -39,43 +39,46 @@
                   <v-card flat>
                     <v-card-text>
                       <h3 class="text-h6 mb-4">Project Information</h3>
-                      <v-row>
-                        <v-col cols="12" md="6">
-                          <!-- FIX: was readonly, now editable -->
+                      <v-row dense>
+                        <v-col cols="12" md="6" class="py-1">
                           <v-text-field v-model="project.proj_name"
                                         label="Project Name"
                                         variant="outlined"
+                                        density="compact"
+                                        hide-details
                                         :rules="[v => !!v || 'Project name is required']" />
                         </v-col>
-                        <v-col cols="12" md="6">
+                        <v-col cols="12" md="6" class="py-1">
                           <v-text-field v-model="project.proj_no"
                                         label="Project Number"
                                         readonly
                                         variant="outlined"
-                                        hint="Auto-generated, read-only"
-                                        persistent-hint />
+                                        density="compact"
+                                        hide-details />
                         </v-col>
-                        <v-col cols="12" md="6">
+                        <v-col cols="12" md="6" class="py-1">
                           <v-select v-model="project.priority"
-                                    :items="['Low', 'Medium', 'High', 'Critical']"
+                                    :items="priorityOptions"
                                     label="Priority"
-                                    variant="outlined" />
+                                    variant="outlined"
+                                    density="compact"
+                                    hide-details />
                         </v-col>
-                        <v-col cols="12" md="6">
-                          <!-- FIX: was readonly. Status shown but can be changed by manager -->
+                        <v-col cols="12" md="6" class="py-1">
                           <v-text-field v-model="project.status"
                                         label="Status"
                                         readonly
                                         variant="outlined"
-                                        hint="Status changes on launch"
-                                        persistent-hint />
+                                        density="compact"
+                                        hide-details />
                         </v-col>
-                        <v-col cols="12">
-                          <!-- FIX: was missing v-model properly -->
+                        <v-col cols="12" class="py-1">
                           <v-textarea v-model="project.description"
                                       label="Description"
                                       rows="3"
-                                      variant="outlined" />
+                                      variant="outlined"
+                                      density="compact"
+                                      hide-details />
                         </v-col>
                       </v-row>
                     </v-card-text>
@@ -105,54 +108,55 @@
                       <v-table v-else density="compact" class="team-inline-table">
                         <thead>
                           <tr>
-                            <th>Department</th>
-                            <th>User</th>
-                            <th>Project Role</th>
-                            <th style="width:48px;"></th>
+                            <th class="team-col-dept">Department</th>
+                            <th class="team-col-user">User</th>
+                            <th class="team-col-role">Project Role</th>
+                            <th class="team-col-del"></th>
                           </tr>
                         </thead>
                         <tbody>
                           <tr v-for="(member, idx) in teamMembers" :key="member._rowId">
                             <!-- Department selector -->
                             <td>
-                              <select v-model="member.dept_id"
-                                      class="inline-select"
-                                      @change="onTeamDeptChange(member)">
-                                <option value="">— Dept —</option>
-                                <option v-for="d in departments" :key="d.dept_id" :value="d.dept_id">
-                                  {{ d.dept_name }}
-                                </option>
-                              </select>
+                              <v-select v-model="member.dept_id"
+                                        :items="departments"
+                                        item-title="dept_name"
+                                        item-value="dept_id"
+                                        placeholder="Select department"
+                                        variant="outlined"
+                                        density="compact"
+                                        hide-details
+                                        @update:model-value="onTeamDeptChange(member)" />
                             </td>
 
                             <!-- User selector (filtered by dept) -->
                             <td>
-                              <select v-model="member.user_id"
-                                      class="inline-select"
-                                      :disabled="!member.dept_id"
-                                      @change="onTeamUserChange(member)">
-                                <option value="">— User —</option>
-                                <option v-for="u in getUsersForDept(member.dept_id)"
-                                        :key="u.user_id"
-                                        :value="u.user_id">
-                                  {{ u.username }}
-                                </option>
-                              </select>
+                              <v-select v-model="member.user_id"
+                                        :items="getUsersForDept(member.dept_id)"
+                                        item-title="username"
+                                        item-value="user_id"
+                                        placeholder="Select user"
+                                        variant="outlined"
+                                        density="compact"
+                                        hide-details
+                                        :disabled="!member.dept_id"
+                                        @update:model-value="onTeamUserChange(member)" />
                             </td>
 
                             <!-- Project role selector -->
                             <td>
-                              <select v-model="member.role_in_project" class="inline-select">
-                                <option value="Member">Member</option>
-                                <option value="Team Lead">Team Lead</option>
-                                <option value="Viewer">Viewer</option>
-                              </select>
+                              <v-select v-model="member.role_in_project"
+                                        :items="projectRoleOptions"
+                                        placeholder="Role"
+                                        variant="outlined"
+                                        density="compact"
+                                        hide-details />
                             </td>
 
                             <!-- Remove row -->
                             <td class="text-center">
                               <v-btn icon size="x-small" variant="text" color="error"
-                                     @click="removeTeamMember(member.user_id)">
+                                     @click="removeTeamMember(member._rowId)">
                                 <v-icon size="15">mdi-delete</v-icon>
                               </v-btn>
                             </td>
@@ -175,44 +179,12 @@
                           <v-icon size="small" class="mr-1">mdi-tune</v-icon>
                           Optional Stages
                         </div>
-                        <v-row>
-                          <v-col cols="12" md="6">
-                            <div class="d-flex align-center justify-space-between pa-3 border rounded">
-                              <div>
-                                <div class="font-weight-medium">
-                                  <v-chip size="x-small" color="purple" variant="tonal" class="mr-2">2.0</v-chip>
-                                  Pilot Mould Fabrication
-                                </div>
-                                <div class="text-caption text-grey mt-1">
-                                  11 tasks incl. FAI &amp; iteration loops
-                                </div>
-                              </div>
-                              <v-switch v-model="stageFlags.pilot_mould_required"
-                                        color="purple"
-                                        hide-details
-                                        density="compact"
-                                        @update:model-value="onStageToggle('2.0', $event)" />
-                            </div>
-                          </v-col>
-                          <v-col cols="12" md="6">
-                            <div class="d-flex align-center justify-space-between pa-3 border rounded">
-                              <div>
-                                <div class="font-weight-medium">
-                                  <v-chip size="x-small" color="teal" variant="tonal" class="mr-2">3.0</v-chip>
-                                  New Machine Purchase
-                                </div>
-                                <div class="text-caption text-grey mt-1">
-                                  4 tasks, Technical PIC only
-                                </div>
-                              </div>
-                              <v-switch v-model="stageFlags.machine_purchase_required"
-                                        color="teal"
-                                        hide-details
-                                        density="compact"
-                                        @update:model-value="onStageToggle('3.0', $event)" />
-                            </div>
-                          </v-col>
-                        </v-row>
+                        <v-switch v-for="s in optionalStages"
+                                  :key="s.stage_id"
+                                  v-model="stageFlags[getStageFlagKey(s.stage_id)]"
+                                  :label="s.stage_name"
+                                  :color="getStageColor(s.stage_id)"
+                                  @update:model-value="val => onStageToggle(s.stage_id, val)" />
                       </v-card>
 
                       <v-alert type="info" variant="tonal" class="mb-4">
@@ -293,44 +265,48 @@
 
                                     <!-- Title -->
                                     <td>
-                                      <!-- FIX: only disable for DB stage-0 tasks, not new ones -->
-                                      <input v-model="task.title"
-                                             class="inline-input"
-                                             placeholder="Task name…"
-                                             :disabled="isStage0DbTask(task)" />
+                                      <v-text-field v-model="task.title"
+                                                    placeholder="Task name…"
+                                                    variant="outlined"
+                                                    density="compact"
+                                                    hide-details
+                                                    :disabled="isStage0DbTask(task)" />
                                     </td>
 
                                     <!-- Department -->
                                     <td>
-                                      <select v-model="task.department"
-                                              class="inline-select"
-                                              :disabled="isStage0DbTask(task)">
-                                        <option value="">— Select —</option>
-                                        <option v-for="d in departments"
-                                                :key="d.dept_id"
-                                                :value="d.dept_name">
-                                          {{ d.dept_name }}
-                                        </option>
-                                      </select>
+                                      <v-select v-model="task.dept_id"
+                                                :items="departments"
+                                                item-title="dept_name"
+                                                item-value="dept_id"
+                                                placeholder="Select"
+                                                variant="outlined"
+                                                density="compact"
+                                                hide-details
+                                                :disabled="isStage0DbTask(task)" />
                                     </td>
 
                                     <!-- Start Date -->
                                     <td>
-                                      <input v-model="task.start_date"
-                                             type="date"
-                                             class="inline-input inline-input--date"
-                                             :disabled="isStage0DbTask(task)"
-                                             @change="onStartDateChange(task)" />
+                                      <v-text-field v-model="task.start_date"
+                                                    type="date"
+                                                    variant="outlined"
+                                                    density="compact"
+                                                    hide-details
+                                                    :disabled="isStage0DbTask(task)"
+                                                    @update:model-value="onStartDateChange(task)" />
                                     </td>
 
                                     <!-- Working Days -->
                                     <td>
-                                      <input v-model.number="task.working_days"
-                                             type="number"
-                                             min="1"
-                                             class="inline-input inline-input--num"
-                                             :disabled="isStage0DbTask(task)"
-                                             @input="onWorkingDaysChange(task)" />
+                                      <v-text-field v-model.number="task.working_days"
+                                                    type="number"
+                                                    min="1"
+                                                    variant="outlined"
+                                                    density="compact"
+                                                    hide-details
+                                                    :disabled="isStage0DbTask(task)"
+                                                    @update:model-value="onWorkingDaysChange(task)" />
                                     </td>
 
                                     <!-- End Date (computed) -->
@@ -348,10 +324,12 @@
 
                                     <!-- Revision Note (edit mode only) -->
                                     <td v-if="!isFirstLaunch">
-                                      <input v-model="task.revision_note"
-                                             class="inline-input"
-                                             placeholder="Why changed?"
-                                             :disabled="!task.task_id || !task.has_date_change" />
+                                      <v-text-field v-model="task.revision_note"
+                                                    placeholder="Why changed?"
+                                                    variant="outlined"
+                                                    density="compact"
+                                                    hide-details
+                                                    :disabled="!task.task_id || !task.has_date_change" />
                                     </td>
 
                                     <!-- Delete row -->
@@ -458,18 +436,18 @@
                               </div>
                               <v-list density="compact" class="folder-preview pl-4">
                                 <v-list-item v-for="dept in folderPreviewDepts"
-                                             :key="dept"
+                                             :key="dept.dept_id"
                                              density="compact">
                                   <template #prepend>
                                     <v-icon size="16" color="amber-darken-2">mdi-folder</v-icon>
                                   </template>
                                   <v-list-item-title class="text-body-2">
-                                    {{ sanitizeFolderName(dept) }}/
+                                    {{ sanitizeFolderName(dept.dept_name) }}/
                                   </v-list-item-title>
                                   <template #append>
                                     <span class="text-caption text-medium-emphasis">
-                                      {{ deptTaskCount(dept) }}
-                                      task{{ deptTaskCount(dept) !== 1 ? 's' : '' }}
+                                      {{ deptTaskCount(dept.dept_id) }}
+                                      task{{ deptTaskCount(dept.dept_id) !== 1 ? 's' : '' }}
                                     </span>
                                   </template>
                                 </v-list-item>
@@ -485,7 +463,6 @@
                         </v-col>
                       </v-row>
 
-                      <!-- FIX: second row also equal height -->
                       <v-row dense>
                         <v-col cols="12" md="6" class="d-flex">
                           <v-card variant="outlined" class="w-100 d-flex flex-column">
@@ -509,7 +486,7 @@
                           <v-card variant="outlined" class="w-100 d-flex flex-column">
                             <v-card-title class="text-subtitle-1">
                               <v-icon start>mdi-clipboard-list</v-icon>
-                              Tasks & Milestones Summary
+                              Tasks Summary
                             </v-card-title>
                             <v-card-text class="flex-grow-1">
                               <div>
@@ -518,9 +495,6 @@
                               <div><strong>Active Stages:</strong> {{ activeStageIds.length }}</div>
                               <div>
                                 <strong>Est. Duration:</strong> {{ totalDuration }} working days
-                              </div>
-                              <div class="mt-2 text-caption text-medium-emphasis">
-                                NPI stages serve as project milestones.
                               </div>
                             </v-card-text>
                           </v-card>
@@ -581,7 +555,7 @@
     </v-snackbar>
   </v-container>
 
-  <!-- ── FIX: Sticky Footer Navigation ──────────────────────────────────────── -->
+  <!-- ── Sticky Footer Navigation ──────────────────────────────────────── -->
   <div class="sticky-nav-footer">
     <v-card elevation="4" class="rounded-0">
       <v-card-text class="pa-3">
@@ -594,7 +568,7 @@
             <v-icon start>mdi-arrow-left</v-icon>
             Previous
           </v-btn>
-          <div v-else /> 
+          <div v-else />
           <!-- Right: Next / Launch -->
           <div class="d-flex ga-2">
             <v-btn v-if="step < 4"
@@ -627,13 +601,30 @@
   import { useProjectStore } from '@/stores/project'
   import { useSettingsStore } from '@/stores/setting'
   import { api } from '@/utils/api'
+  import {
+    PRIORITY_OPTIONS,
+    PROJECT_ROLE_OPTIONS,
+    PROJECT_STATUS,
+    PROJECT_ROLES,
+    STAGE_COLORS,
+    OPTIONAL_STAGE_FLAGS,
+    DEFAULT_PRIORITY,
+    DEFAULT_WORKING_DAYS,
+    DEFAULT_STAGE_ID,
+    DEFAULT_COLOR,
+    REDIRECT_DELAY_MS,
+  } from '@/utils/constants'
+  import {
+    formatDateShort,
+    formatDateForInput,
+    sanitizeFolderName,
+  } from '@/utils/formatters'
 
   const router = useRouter()
   const route = useRoute()
   const projectStore = useProjectStore()
   const settingsStore = useSettingsStore()
 
-  // ── State ─────────────────────────────────────────────────────────────────────
   const loading = ref(false)
   const launching = ref(false)
   const step = ref(1)
@@ -642,23 +633,15 @@
     proj_id: null,
     proj_no: '',
     proj_name: '',
-    priority: 'Medium',
-    status: 'Planning',
+    priority: DEFAULT_PRIORITY,
+    status: PROJECT_STATUS.PLANNING,
     description: ''
   })
-  
+
   const teamMembers = ref([])
-
-  const stageFlags = ref({
-    pilot_mould_required: false,
-    machine_purchase_required: false
-  })
-
+  const stageFlags = ref({})
   const tasksByStage = ref({})
   const originalTaskDates = ref(new Map())
-
-  const departments = ref([])
-  const users = ref([])
 
   const showFolderWarningDialog = ref(false)
   const folderWarnings = ref([])
@@ -667,57 +650,41 @@
   const snackbarMessage = ref('')
   const snackbarColor = ref('success')
 
-  const newMember = ref({ dept_id: null, user_id: null, role_in_project: 'Member' })
-  const openPanels = ref([0, 1, 2, 3, 4, 5])
-
   const holidayCache = {}
 
-  const STAGE_COLORS = {
-    '0.0': 'blue-grey',
-    '1.0': 'indigo',
-    '2.0': 'purple',
-    '3.0': 'teal',
-    '4.0': 'orange',
-    '5.0': 'green'
-  }
+  const priorityOptions = PRIORITY_OPTIONS
+  const projectRoleOptions = PROJECT_ROLE_OPTIONS
 
-  const OPTIONAL_STAGE_FLAGS = {
-    '2.0': 'pilot_mould_required',
-    '3.0': 'machine_purchase_required'
-  }
+  const departments = computed(() => settingsStore.assignableDepartments ?? [])
+  const users = computed(() => settingsStore.users ?? [])
+  const stages = computed(() => settingsStore.stages ?? [])
 
-  function getStageColor(stageId) {
-    return STAGE_COLORS[stageId] || 'grey'
-  }
+  const allStageIds = computed(() => stages.value.map(s => s.stage_id))
 
-  function getStageName(stageId) {
-    return settingsStore.getStageName(stageId)
-  }
+  const openPanels = computed(() => allStageIds.value.map((_, i) => i))
 
-  function isStageRequired(stageId) {
-    return !!settingsStore.stagesById[stageId]?.is_required
-  }
-
-  function isAutoCompleteStage(stageId) {
-    return settingsStore.isAutoCompleteStage(stageId)
-  }
+  const getStageColor = stageId => STAGE_COLORS[stageId] ?? DEFAULT_COLOR
+  const getStageName = stageId => settingsStore.getStageName(stageId)
+  const getStageFlagKey = stageId => OPTIONAL_STAGE_FLAGS[stageId] ?? null
+  const isAutoCompleteStage = stageId => settingsStore.isAutoCompleteStage(stageId)
+  const isStageRequired = stageId => settingsStore.isStageRequired(stageId)
 
   function isStage0DbTask(task) {
     return isAutoCompleteStage(task.stage_id) && !!task.task_id
   }
 
-  const isFirstLaunch = computed(() => project.value.status === 'Planning')
-
-  const allStageIds = computed(() =>
-    settingsStore.stages.map(s => s.stage_id)
-  )
+  const isFirstLaunch = computed(() => project.value.status === PROJECT_STATUS.PLANNING)
 
   const activeStageIds = computed(() =>
-    allStageIds.value.filter(id => {
-      if (isStageRequired(id)) return true
-      const flagKey = OPTIONAL_STAGE_FLAGS[id]
+    allStageIds.value.filter(stageId => {
+      if (isStageRequired(stageId)) return true
+      const flagKey = getStageFlagKey(stageId)
       return flagKey ? !!stageFlags.value[flagKey] : false
     })
+  )
+
+  const optionalStages = computed(() =>
+    stages.value.filter(s => !!OPTIONAL_STAGE_FLAGS[s.stage_id])
   )
 
   const allTasks = computed(() =>
@@ -725,21 +692,32 @@
   )
 
   const totalDuration = computed(() =>
-    allTasks.value.reduce((s, t) => s + (Number(t.working_days) || 0), 0)
+    allTasks.value.reduce((sum, t) => sum + (Number(t.working_days) || 0), 0)
   )
 
-  const folderPreviewDepts = computed(() => {
-    const depts = new Set(
-      allTasks.value
-        .filter(t => !isAutoCompleteStage(t.stage_id) && t.department)
-        .map(t => t.department)
+  function resolveDeptIdByName(deptName) {
+    if (!deptName) return null
+    const match = (settingsStore.departments ?? []).find(
+      d => d.dept_name?.toLowerCase() === deptName.toLowerCase()
     )
-    return [...depts].sort((a, b) => a.localeCompare(b))
+    return match?.dept_id ?? null
+  }
+
+  const folderPreviewDepts = computed(() => {
+    const ids = new Set(
+      allTasks.value
+        .filter(t => !isAutoCompleteStage(t.stage_id) && t.dept_id)
+        .map(t => t.dept_id)
+    )
+    return [...ids]
+      .map(id => ({ dept_id: id, dept_name: settingsStore.getDeptName(id) }))
+      .filter(d => d.dept_name)
+      .sort((a, b) => a.dept_name.localeCompare(b.dept_name))
   })
 
-  function deptTaskCount(dept) {
+  function deptTaskCount(deptId) {
     return allTasks.value.filter(
-      t => t.department === dept && !isAutoCompleteStage(t.stage_id)
+      t => t.dept_id === deptId && !isAutoCompleteStage(t.stage_id)
     ).length
   }
 
@@ -752,7 +730,7 @@
   }
 
   function getNextTaskCode(stageId) {
-    const stagePrefix = stageId.split('.')[0] // e.g. "1" from "1.0"
+    const stagePrefix = stageId.split('.')[0]
     const existing = (tasksByStage.value[stageId] || [])
       .map(t => t.task_code)
       .filter(Boolean)
@@ -766,7 +744,6 @@
     return `${stagePrefix}.${max + 1}`
   }
 
-  // ── Stage management ──────────────────────────────────────────────────────────
   function onStageToggle(stageId, enabled) {
     if (enabled) {
       seedStage(stageId)
@@ -774,7 +751,7 @@
       const hasSaved = (tasksByStage.value[stageId] || []).some(t => t.task_id)
       if (hasSaved) {
         showSnack(`Stage ${stageId} has saved tasks — cannot be removed once launched`, 'warning')
-        const flagKey = OPTIONAL_STAGE_FLAGS[stageId]
+        const flagKey = getStageFlagKey(stageId)
         if (flagKey) stageFlags.value[flagKey] = true
         return
       }
@@ -785,7 +762,6 @@
   function seedStage(stageId) {
     if (tasksByStage.value[stageId]?.length) return
     const today = new Date().toISOString().split('T')[0]
-
     const templates = settingsStore.getTemplatesForStage(stageId)
 
     tasksByStage.value[stageId] = templates.map((t, idx) => ({
@@ -795,16 +771,14 @@
       task_code: t.task_code,
       order: idx + 1,
       title: t.title,
-      department: t.dept_name,
+      dept_id: t.dept_id ?? resolveDeptIdByName(t.dept_name),
       start_date: today,
-      working_days: t.default_duration || 5,
+      working_days: t.default_duration || DEFAULT_WORKING_DAYS,
       end_date: null,
       computing: false,
       revision_note: '',
       has_date_change: false,
       has_link: t.has_link || false,
-      doc_format: t.doc_format || null,
-      role_gated: t.role_gated || null
     }))
   }
 
@@ -821,16 +795,14 @@
       task_code: newCode,
       order: tasksByStage.value[stageId].length + 1,
       title: '',
-      department: '',
+      dept_id: null,
       start_date: today,
-      working_days: 5,
+      working_days: DEFAULT_WORKING_DAYS,
       end_date: null,
       computing: false,
       revision_note: '',
       has_date_change: false,
       has_link: false,
-      doc_format: null,
-      role_gated: null
     })
   }
 
@@ -840,43 +812,23 @@
 
   function nextStep() {
     if (step.value === 2) {
+      if (teamMembers.value.length === 0) {
+        showSnack('Add at least one team member before continuing', 'warning')
+        return
+      }
       const incomplete = teamMembers.value.filter(m => !m.user_id || !m.dept_id)
       if (incomplete.length > 0) {
         showSnack('All team rows must have a department and user selected', 'warning')
-        return
-      }
-      if (teamMembers.value.length === 0) {
-        showSnack('Add at least one team member before continuing', 'warning')
         return
       }
     }
     step.value++
   }
 
-  function removeTeamMember(userId) {
-    teamMembers.value = teamMembers.value.filter(m => m.user_id !== userId)
+  function removeTeamMember(rowId) {
+    teamMembers.value = teamMembers.value.filter(m => m._rowId !== rowId)
   }
 
-  // ── Display helpers ───────────────────────────────────────────────────────────
-  function initials(name) {
-    if (!name) return '?'
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .substring(0, 2)
-      .toUpperCase()
-  }
-
-  function avatarColor(name) {
-    const colors = ['primary', 'secondary', 'success', 'info', 'warning', 'purple', 'teal', 'indigo']
-    if (!name) return 'grey'
-    let hash = 0
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
-    return colors[Math.abs(hash) % colors.length]
-  }
-
-  // ── Date calculation ──────────────────────────────────────────────────────────
   async function onStartDateChange(task) {
     if (task.start_date && task.working_days) {
       task.computing = true
@@ -958,28 +910,28 @@
     return holidayCache[year]
   }
 
-  // ── Team row management (inline table) ────────────────────────────────────────
+  let teamRowSeq = 0
 
   function addTeamRow() {
     teamMembers.value.push({
-      _rowId: Date.now(),
+      _rowId: `row_${Date.now()}_${teamRowSeq++}`,
       user_id: null,
       dept_id: null,
       user_name: '',
       dept_name: '',
-      role_in_project: 'Member'
+      role_in_project: PROJECT_ROLES.MEMBER
     })
   }
 
   function getUsersForDept(deptId) {
     if (!deptId) return []
-    return users.value.filter(u => u.dept_id === deptId)
+    return users.value.filter(u => Number(u.dept_id) === Number(deptId))
   }
 
   function onTeamDeptChange(member) {
     member.user_id = null
     member.user_name = ''
-    member.dept_name = departments.value.find(d => d.dept_id === member.dept_id)?.dept_name ?? ''
+    member.dept_name = departments.value.find(d => Number(d.dept_id) === Number(member.dept_id))?.dept_name ?? ''
   }
 
   function onTeamUserChange(member) {
@@ -987,25 +939,6 @@
     member.user_name = u?.username ?? ''
   }
 
-  // ── Formatting ────────────────────────────────────────────────────────────────
-  function sanitizeFolderName(name) {
-    if (!name) return ''
-    return name.replace(/[ /]/g, '_').replace(/[<>:"\\|?*\x00-\x1F]/g, '_')
-  }
-
-  function formatDateShort(date) {
-    if (!date) return '—'
-    const d = new Date(date.replace(/-/g, '/'))
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-  }
-
-  function formatDateForInput(date) {
-    if (!date) return null
-    const d = new Date(date)
-    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-  }
-
-  // ── Launch ────────────────────────────────────────────────────────────────────
   async function launchProject() {
     if (teamMembers.value.length === 0) {
       showSnack('Add at least one team member', 'warning')
@@ -1017,7 +950,7 @@
     }
     for (const task of allTasks.value) {
       if (isStage0DbTask(task)) continue
-      if (!task.title || !task.department || !task.start_date || !task.end_date) {
+      if (!task.title || !task.dept_id || !task.start_date || !task.end_date) {
         showSnack(
           `Task "${task.task_code || task.title}" is missing required fields`,
           'warning'
@@ -1034,14 +967,13 @@
         task_code: task.task_code,
         order: idx + 1,
         title: task.title,
-        dept_name: task.department,
+        dept_id: task.dept_id ?? null,
+        dept_name: settingsStore.getDeptName(task.dept_id) || null,
         start_date: formatDateForInput(task.start_date),
         end_date: formatDateForInput(task.end_date),
         duration: parseFloat(task.working_days) || 0,
         revision_note: task.revision_note || null,
         has_link: task.has_link,
-        doc_format: task.doc_format,
-        role_gated: task.role_gated
       }))
 
       const payload = {
@@ -1097,12 +1029,40 @@
     snackbar.value = true
   }
 
-  // ── Mount ─────────────────────────────────────────────────────────────────────
   onMounted(async () => {
-    await settingsStore.fetchTaskTemplates()
-
     loading.value = true
     try {
+      const [templateResult, deptResult, userResult] = await Promise.allSettled([
+        settingsStore.fetchTaskTemplates(),
+        settingsStore.fetchDepartments(),
+        settingsStore.fetchUsers()
+      ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : null))
+
+      const failed = []
+      const empty = []
+
+      if (!templateResult?.success) failed.push('stage templates')
+      if (!deptResult?.success) failed.push('departments')
+      else if (departments.value.length === 0) empty.push('departments')
+      if (!userResult?.success) failed.push('users')
+      else if (users.value.length === 0) empty.push('users')
+
+      if (failed.length > 0) {
+        showSnack(
+          `Could not load ${failed.join(', ')}. You may not have permission — contact an Admin.`,
+          'error'
+        )
+      } else if (empty.length > 0) {
+        showSnack(
+          `No ${empty.join(' or ')} found. Add them under Settings before continuing.`,
+          'warning'
+        )
+      }
+
+      stageFlags.value = Object.fromEntries(
+        optionalStages.value.map(s => [getStageFlagKey(s.stage_id), false])
+      )
+
       const pr = await projectStore.fetchProjectById(route.params.id)
       if (pr?.success && pr?.data) {
         const d = pr.data
@@ -1110,20 +1070,24 @@
           proj_id: d.proj_id,
           proj_no: d.proj_no || '',
           proj_name: d.proj_name || '',
-          priority: d.priority || 'Medium',
-          status: d.status || 'Planning',
+          priority: d.priority || DEFAULT_PRIORITY,
+          status: d.status || PROJECT_STATUS.PLANNING,
           description: d.description || ''
         }
-        stageFlags.value.pilot_mould_required = !!d.pilot_mould_required
-        stageFlags.value.machine_purchase_required = !!d.machine_purchase_required
+
+        optionalStages.value.forEach(s => {
+          const flagKey = getStageFlagKey(s.stage_id)
+          if (flagKey) stageFlags.value[flagKey] = !!d[flagKey]
+        })
 
         if (d.team_members) {
-          teamMembers.value = d.team_members.map(m => ({
+          teamMembers.value = d.team_members.map((m, i) => ({
+            _rowId: `db_${m.user_id}_${i}`,
             user_id: m.user_id,
             dept_id: m.dept_id,
             user_name: m.username || m.user_name,
             dept_name: m.dept_name,
-            role_in_project: m.role || m.role_in_project || 'Member'
+            role_in_project: m.role || m.role_in_project || PROJECT_ROLES.MEMBER
           }))
         }
       }
@@ -1131,82 +1095,58 @@
       allStageIds.value.forEach(id => {
         if (isStageRequired(id)) seedStage(id)
       })
-      Object.entries(OPTIONAL_STAGE_FLAGS).forEach(([stageId, flagKey]) => {
-        if (stageFlags.value[flagKey]) seedStage(stageId)
+      optionalStages.value.forEach(s => {
+        const flagKey = getStageFlagKey(s.stage_id)
+        if (flagKey && stageFlags.value[flagKey]) seedStage(s.stage_id)
       })
 
-      const deptResult = await settingsStore.fetchDepartments()
-      if (deptResult?.success) {
-        departments.value = settingsStore.departments.filter(
-          dept => dept.dept_name?.toLowerCase() !== 'management'
-        )
-      } else {
-        showSnack('Warning: Could not load departments', 'warning')
-      }
-
-      try {
-        const ur = await api.get('/user')
-        users.value = ur?.data || ur || []
-      } catch {
-        showSnack('Warning: Could not load users', 'warning')
-      }
-
-      // Load existing tasks from DB
-      try {
-        const tr = await api.get(`/project/${route.params.id}/tasks`)
-        const tasksData = tr?.data || tr || []
-        if (tasksData.length > 0) {
-          const stageGroups = {}
-          tasksData.forEach(task => {
-            const sid = task.stage_id || '1.0'
-            if (!stageGroups[sid]) stageGroups[sid] = []
-            const startDate = formatDateForInput(task.planned_start_date)
-            const endDate = formatDateForInput(task.planned_end_date)
-            if (task.task_id) {
-              originalTaskDates.value.set(task.task_id, { start_date: startDate, end_date: endDate })
-            }
-            stageGroups[sid].push({
-              _localId: `${sid}_${task.task_id}_db`,
-              task_id: task.task_id,
-              stage_id: sid,
-              task_code: task.task_code || '',
-              order: task.order || 1,
-              title: task.title || '',
-              department: task.dept_name || '',
-              start_date: startDate,
-              working_days: task.duration || 1,
-              end_date: endDate,
-              computing: false,
-              revision_note: '',
-              has_date_change: false,
-              has_link: task.has_link || false,
-              doc_format: task.doc_format || null,
-              role_gated: task.role_gated || null
-            })
-          })
-          // Override seeded tasks with DB tasks
-          Object.keys(stageGroups).forEach(sid => {
-            tasksByStage.value[sid] = stageGroups[sid]
-          })
-
-          // Calculate end dates for tasks that don't have one
-          const tasksNeedingEndDate = Object.values(tasksByStage.value)
-            .flat()
-            .filter(t => t.start_date && t.working_days && !t.end_date)
-          if (tasksNeedingEndDate.length > 0) {
-            await Promise.all(
-              tasksNeedingEndDate.map(async t => {
-                t.end_date = await calculateEndDate(t.start_date, t.working_days)
-              })
-            )
+      const tr = await api.get(`/project/${route.params.id}/tasks`)
+      const tasksData = tr?.data || tr || []
+      if (tasksData.length > 0) {
+        const stageGroups = {}
+        tasksData.forEach(task => {
+          const sid = task.stage_id || DEFAULT_STAGE_ID
+          if (!stageGroups[sid]) stageGroups[sid] = []
+          const startDate = formatDateForInput(task.planned_start_date)
+          const endDate = formatDateForInput(task.planned_end_date)
+          if (task.task_id) {
+            originalTaskDates.value.set(task.task_id, { start_date: startDate, end_date: endDate })
           }
+          stageGroups[sid].push({
+            _localId: `${sid}_${task.task_id}_db`,
+            task_id: task.task_id,
+            stage_id: sid,
+            task_code: task.task_code || '',
+            order: task.order || 1,
+            title: task.title || '',
+            dept_id: task.dept_id ?? null,
+            start_date: startDate,
+            working_days: task.duration || 1,
+            end_date: endDate,
+            computing: false,
+            revision_note: '',
+            has_date_change: false,
+            has_link: task.has_link || false,
+          })
+        })
+        Object.keys(stageGroups).forEach(sid => {
+          tasksByStage.value[sid] = stageGroups[sid]
+        })
+
+        const tasksNeedingEndDate = Object.values(tasksByStage.value)
+          .flat()
+          .filter(t => t.start_date && t.working_days && !t.end_date)
+        if (tasksNeedingEndDate.length > 0) {
+          await Promise.all(
+            tasksNeedingEndDate.map(async t => {
+              t.end_date = await calculateEndDate(t.start_date, t.working_days)
+            })
+          )
         }
-      } catch (err) {
-        console.error('Tasks load error:', err)
       }
     } catch (err) {
-      console.error('Mount error:', err)
-      showSnack('Error loading project setup', 'error')
+      console.error('ProjectSetup mount error:', err)
+      showSnack(err?.message || 'Error loading project setup', 'error')
     } finally {
       loading.value = false
     }
@@ -1214,7 +1154,6 @@
 </script>
 
 <style scoped>
-  /* ── Sticky Footer Nav ──────────────────────────────────────────────────────── */
   .sticky-nav-footer {
     position: fixed;
     bottom: 0;
@@ -1224,7 +1163,6 @@
     padding-left: 56px;
   }
 
-  /* ── Task Table ──────────────────────────────────────────────────────────────── */
   .tasks-table {
     width: 100%;
     border-collapse: collapse;
@@ -1233,78 +1171,59 @@
 
     .tasks-table :deep(th),
     .tasks-table :deep(td) {
-      padding: 6px 8px;
+      padding: 2px 4px;
       border: 1px solid rgba(0, 0, 0, 0.08);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      vertical-align: middle;
+      white-space: normal;
+      word-break: break-word;
+      font-size: 12px;
     }
 
     .tasks-table :deep(th) {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.4px;
       color: rgba(0, 0, 0, 0.5);
       background: #fafbfc;
+      white-space: nowrap;
+    }
+
+    .tasks-table :deep(.v-field) {
+      font-size: 12px;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .tasks-table :deep(.v-field__outline) {
+      display: none;
+    }
+
+    .tasks-table :deep(.v-field__input) {
+      padding: 4px 6px;
+      min-height: 28px;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    .tasks-table :deep(.v-input__details) {
+      display: none;
+    }
+
+    .tasks-table :deep(.v-field--disabled) {
+      opacity: 0.55;
+    }
+
+    .tasks-table :deep(.v-select__selection-text) {
+      white-space: normal;
+      word-break: break-word;
+      line-height: 1.25;
     }
 
   .task-row--stage0 :deep(td) {
     background: rgba(0, 0, 0, 0.02);
     color: rgba(0, 0, 0, 0.45);
   }
-
-  .inline-input {
-    width: 100%;
-    border: none;
-    outline: none;
-    background: transparent;
-    font-size: 13px;
-    padding: 4px;
-    border-radius: 4px;
-    color: inherit;
-    font-family: inherit;
-    transition: background 0.15s;
-  }
-
-    .inline-input:focus {
-      background: rgba(var(--v-theme-primary), 0.06);
-    }
-
-    .inline-input:disabled {
-      color: rgba(0, 0, 0, 0.35);
-      cursor: not-allowed;
-    }
-
-  .inline-input--date {
-    min-width: 120px;
-  }
-
-  .inline-input--num {
-    width: 60px;
-    text-align: center;
-  }
-
-  .inline-select {
-    width: 100%;
-    border: none;
-    outline: none;
-    background: transparent;
-    font-size: 13px;
-    padding: 4px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-    .inline-select:focus {
-      background: rgba(var(--v-theme-primary), 0.06);
-    }
-
-    .inline-select:disabled {
-      color: rgba(0, 0, 0, 0.35);
-      cursor: not-allowed;
-    }
 
   .end-date-value {
     font-size: 12px;
@@ -1317,38 +1236,38 @@
   }
 
   .col-code {
-    width: 64px;
+    width: 7%;
     text-align: center;
   }
 
   .col-task {
-    width: 200px;
+    width: 30%;
   }
 
   .col-dept {
-    width: 130px;
+    width: 16%;
   }
 
   .col-date {
-    width: 130px;
+    width: 14%;
   }
 
   .col-days {
-    width: 80px;
+    width: 9%;
     text-align: center;
   }
 
   .col-enddate {
-    width: 105px;
+    width: 11%;
     text-align: center;
   }
 
   .col-note {
-    width: 150px;
+    width: 17%;
   }
 
   .col-del {
-    width: 40px;
+    width: 5%;
     text-align: center;
   }
 
@@ -1363,18 +1282,63 @@
     padding: 2px 0;
   }
 
-  .team-inline-table :deep(th) {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    color: rgba(0,0,0,0.5);
-    background: #fafbfc;
-    padding: 6px 8px !important;
+  .team-inline-table {
+    width: 100%;
+    table-layout: fixed;
   }
 
-  .team-inline-table :deep(td) {
-    padding: 4px 8px !important;
-    vertical-align: middle;
+    .team-inline-table :deep(th) {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: rgba(0,0,0,0.5);
+      background: #fafbfc;
+      padding: 6px 8px !important;
+      white-space: nowrap;
+    }
+
+    .team-inline-table :deep(td) {
+      padding: 2px 4px !important;
+      vertical-align: middle;
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    .team-inline-table :deep(.v-field) {
+      font-size: 12px;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .team-inline-table :deep(.v-field__outline) {
+      display: none;
+    }
+
+    .team-inline-table :deep(.v-field__input) {
+      padding: 4px 6px;
+      min-height: 30px;
+      font-size: 12px;
+    }
+
+    .team-inline-table :deep(.v-input__details) {
+      display: none;
+    }
+
+  .team-col-dept {
+    width: 30%;
+  }
+
+  .team-col-user {
+    width: 32%;
+  }
+
+  .team-col-role {
+    width: 30%;
+  }
+
+  .team-col-del {
+    width: 8%;
+    text-align: center;
   }
 </style>
