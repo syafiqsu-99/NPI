@@ -3,6 +3,7 @@ using NPI.Server.Data;
 using NPI.Server.DTOs;
 using NPI.Server.Helpers;
 using NPI.Server.Models;
+using System.Text.RegularExpressions;
 
 namespace NPI.Server.Services
 {
@@ -23,6 +24,10 @@ namespace NPI.Server.Services
         Task<string?> GetTaskFolderPathAsync(int taskId);
         string GetTaskFolderPath(string projName, string? deptName);
         Task<List<TaskResponseDto>> GetTasksByProjectTeamsAsync(int userId, string userRole);
+        Task<List<TaskCommentResponseDto>> GetTaskCommentsAsync(int taskId);
+        Task<List<object>> GetMentionableUsersAsync(int taskId);
+        Task<(bool success, string message, TaskCommentResponseDto? comment)> AddTaskCommentAsync(int taskId, string body, int userId);
+        Task<(bool success, string message)> DeleteTaskCommentAsync(int commentId, int userId, string userRole);
     }
 
     public class TaskService : ITaskService
@@ -42,9 +47,6 @@ namespace NPI.Server.Services
             _notificationService = notificationService;
         }
 
-        /// <summary>
-        /// Validates if the requesting user has write access to a task.
-        /// </summary>
         public async Task<(bool authorized, string message)> ValidateTaskWriteAccessAsync(int taskId, int userId, string userRole, int userDeptId)
         {
             var task = await _context.Tasks
@@ -55,13 +57,11 @@ namespace NPI.Server.Services
             if (task == null)
                 return (false, "Task not found");
 
-            // 1. Requirement: System Admins & Managers bypass all rules (Full access to uploads/status)
             if (RbacHelper.IsAdminOrManager(userRole))
             {
                 return (true, string.Empty);
             }
 
-            // 2. Requirement: Verify user assignments for the Member role via ProjectTeams (ProjectRoles table)
             var projectTeamRole = await _context.ProjectTeams
                 .Where(pt => pt.proj_id == task.proj_id && pt.user_id == userId)
                 .FirstOrDefaultAsync();
@@ -71,17 +71,14 @@ namespace NPI.Server.Services
                 return (false, "Unauthorized: You are not a member of this project team.");
             }
 
-            // 3. Restrict Project-level "Viewer" immediately
             if (string.Equals(projectTeamRole.role, "Viewer", StringComparison.OrdinalIgnoreCase))
             {
                 return (false, "Unauthorized: You have 'Viewer' access on this project and cannot modify tasks.");
             }
 
-            // Team Lead: full write access to any task in the project
             if (string.Equals(projectTeamRole.role, "Team Lead", StringComparison.OrdinalIgnoreCase))
                 return (true, string.Empty);
 
-            // Member: only tasks belonging to their own department
             if (task.dept_id != userDeptId)
                 return (false, "Unauthorized: You can only modify tasks assigned to your department.");
 
@@ -95,8 +92,6 @@ namespace NPI.Server.Services
                 result = result.Replace(c, '_');
             return result;
         }
-
-        // ── Folder path: basePath/projects/proj_name/dept_name/ ──────────────
 
         public async Task<string?> GetTaskFolderPathAsync(int taskId)
         {
@@ -116,8 +111,6 @@ namespace NPI.Server.Services
             return Path.Combine(_basePath, "projects", projectFolder, deptFolder);
         }
 
-        // Synchronous overload used internally (no extra DB call needed when
-        // caller already has the names in memory).
         public string GetTaskFolderPath(string projName, string? deptName)
         {
             var projectFolder = SanitizeFolderName(projName);
@@ -126,8 +119,6 @@ namespace NPI.Server.Services
                                     : "General";
             return Path.Combine(_basePath, "projects", projectFolder, deptFolder);
         }
-
-        // ── Queries ───────────────────────────────────────────────────────────
 
         public async Task<List<TaskResponseDto>> GetAllTasksAsync()
         {
@@ -171,9 +162,6 @@ namespace NPI.Server.Services
             return tasks.Select(MapToResponseDto).ToList();
         }
 
-        /// <summary>
-        /// Returns tasks. Admins/Managers fetch everything. Members fetch specific to their assignments.
-        /// </summary>
         public async Task<List<TaskResponseDto>> GetTasksByProjectTeamsAsync(int userId, string userRole)
         {
             IQueryable<Tasks> query = _context.Tasks
@@ -183,12 +171,10 @@ namespace NPI.Server.Services
                 .Include(t => t.AssignedByUser)
                 .Include(t => t.TaskRevisions);
 
-            // Requirement 1: Admin & Manager Roles must fetch ALL tasks
             bool hasGlobalAccess = RbacHelper.IsAdminOrManager(userRole); ;
 
             if (!hasGlobalAccess)
             {
-                // Requirement 2: Member Role must fetch ONLY tasks belonging to projects assigned to them
                 var projectIds = _context.ProjectTeams
                     .Where(pt => pt.user_id == userId)
                     .Select(pt => pt.proj_id)
@@ -201,8 +187,6 @@ namespace NPI.Server.Services
 
             return tasks.Select(MapToResponseDto).ToList();
         }
-
-        // ── CRUD ──────────────────────────────────────────────────────────────
 
         public async Task<(bool success, string message, int taskId)> CreateTaskAsync(CreateTaskDto dto, int userId)
         {
@@ -231,7 +215,6 @@ namespace NPI.Server.Services
                 _context.Tasks.Add(task);
                 await _context.SaveChangesAsync();
 
-                // N9: Task assignment notification
                 if (dto.assigned_to.HasValue)
                     await _notificationService.OnTaskAssignedAsync(task.task_id, task.proj_id, dto.assigned_to.Value);
 
@@ -327,8 +310,6 @@ namespace NPI.Server.Services
             }
         }
 
-        // ── Status / progress / dates ─────────────────────────────────────────
-
         public async Task<(bool success, string message)> UpdatePlannedDatesAsync(int taskId, DateOnly? new_start_date, DateOnly? new_end_date, string? note, int userId, string userRole, int userDeptId)
         {
             var (authorized, authMessage) = await ValidateTaskWriteAccessAsync(taskId, userId, userRole, userDeptId);
@@ -359,7 +340,6 @@ namespace NPI.Server.Services
 
             await _context.SaveChangesAsync();
 
-            // N7: Date revision notification
             await _notificationService.OnTaskDatesRevisedAsync(
                 taskId, task.proj_id,
                 task.planned_start_date, task.planned_end_date,
@@ -368,10 +348,6 @@ namespace NPI.Server.Services
             return (true, "Planned dates updated with revision history");
         }
 
-        /// <summary>
-        /// Task-level status update. Does NOT trigger project-level status changes.
-        /// Tasks remain independent from project lifecycle management.
-        /// </summary>
         public async Task<(bool success, string message)> UpdateTaskStatusAsync(int taskId, string status, int userId, string userRole, int userDeptId)
         {
             try
@@ -440,9 +416,6 @@ namespace NPI.Server.Services
                         if (stageComplete)
                             await _notificationService.OnStageCompletedAsync(task.proj_id, task.stage_id);
                     }
-
-                    if (task.task_code == "5.8")
-                        await _notificationService.OnFaiCompletedAsync(task.proj_id, taskId);
                 }
 
                 return (true, "Task status updated successfully");
@@ -476,7 +449,6 @@ namespace NPI.Server.Services
                 task.per_complete = progress;
                 task.updated_at = DateTime.Now;
 
-                // Auto-update status based on progress
                 if (progress == 100 && task.status != "Completed")
                 {
                     task.status = "Completed";
@@ -503,8 +475,6 @@ namespace NPI.Server.Services
                 return (false, $"Error updating task progress: {ex.Message}");
             }
         }
-
-        // ── Legacy user / dept filters (kept for other callers) ───────────────
 
         public async Task<List<TaskResponseDto>> GetTasksByUserAsync(int userId)
         {
@@ -535,8 +505,6 @@ namespace NPI.Server.Services
 
             return tasks.Select(MapToResponseDto).ToList();
         }
-
-        // ── Mapper ────────────────────────────────────────────────────────────
 
         private static TaskResponseDto MapToResponseDto(Tasks task) => new()
         {
@@ -582,5 +550,147 @@ namespace NPI.Server.Services
                     revised_on = r.revised_on
                 }).ToList() ?? new List<TaskRevisionDto>()
         };
+
+        public async Task<List<TaskCommentResponseDto>> GetTaskCommentsAsync(int taskId)
+        {
+            return await _context.TaskComments
+                .Where(c => c.task_id == taskId && !c.is_deleted)
+                .OrderBy(c => c.created_at)
+                .Select(c => new TaskCommentResponseDto
+                {
+                    comment_id = c.comment_id,
+                    task_id = c.task_id,
+                    user_id = c.user_id,
+                    username = c.User!.username,
+                    full_name = c.User!.full_name,
+                    body = c.body,
+                    created_at = c.created_at
+                })
+                .ToListAsync();
+        }
+
+        public async Task<List<object>> GetMentionableUsersAsync(int taskId)
+        {
+            var projId = await _context.Tasks
+                .Where(t => t.task_id == taskId)
+                .Select(t => t.proj_id)
+                .FirstOrDefaultAsync();
+
+            var teamUsers = await _context.ProjectTeams
+                .Where(pt => pt.proj_id == projId)
+                .Select(pt => new { pt.User!.username, pt.User!.full_name })
+                .Distinct()
+                .OrderBy(u => u.username)
+                .ToListAsync();
+
+            var result = new List<object>
+            {
+                new { username = "all", full_name = "Everyone on this project" }
+            };
+            result.AddRange(teamUsers);
+            return result;
+        }
+
+        public async Task<(bool success, string message, TaskCommentResponseDto? comment)>
+            AddTaskCommentAsync(int taskId, string body, int userId)
+        {
+            var task = await _context.Tasks.FindAsync(taskId);
+            if (task is null)
+                return (false, "Task not found", null);
+
+            var trimmed = body?.Trim() ?? string.Empty;
+            if (trimmed.Length == 0)
+                return (false, "Comment cannot be empty", null);
+
+            var comment = new TaskComments
+            {
+                task_id = taskId,
+                user_id = userId,
+                body = trimmed,
+                created_at = DateTime.Now
+            };
+
+            _context.TaskComments.Add(comment);
+            await _context.SaveChangesAsync();
+
+            await NotifyMentionsAsync(trimmed, taskId, task.proj_id, userId);
+
+            var author = await _context.Users.FindAsync(userId);
+            return (true, "Comment added", new TaskCommentResponseDto
+            {
+                comment_id = comment.comment_id,
+                task_id = taskId,
+                user_id = userId,
+                username = author?.username,
+                full_name = author?.full_name,
+                body = comment.body,
+                created_at = comment.created_at
+            });
+        }
+
+        public async Task<(bool success, string message)>
+            DeleteTaskCommentAsync(int commentId, int userId, string userRole)
+        {
+            var comment = await _context.TaskComments.FindAsync(commentId);
+            if (comment is null || comment.is_deleted)
+                return (false, "Comment not found");
+
+            if (comment.user_id != userId && !RbacHelper.IsAdminOrManager(userRole))
+                return (false, "You are not authorised to delete this comment");
+
+            comment.is_deleted = true;
+            comment.deleted_by = userId;
+            comment.deleted_at = DateTime.Now;
+            await _context.SaveChangesAsync();
+
+            return (true, "Comment deleted");
+        }
+
+        private async Task NotifyMentionsAsync(string body, int taskId, int projId, int authorId)
+        {
+            var handles = Regex.Matches(body, @"@([A-Za-z0-9._-]+)")
+                .Select(m => m.Groups[1].Value)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (handles.Count == 0) return;
+
+            var author = await _context.Users.FindAsync(authorId);
+            var mentionsAll = handles.Any(h => h.Equals("all", StringComparison.OrdinalIgnoreCase));
+
+            List<int> mentionedIds;
+
+            if (mentionsAll)
+            {
+                mentionedIds = await _context.ProjectTeams
+                    .Where(pt => pt.proj_id == projId && pt.user_id != authorId)
+                    .Select(pt => pt.user_id)
+                    .Distinct()
+                    .ToListAsync();
+            }
+            else
+            {
+                mentionedIds = await _context.Users
+                    .Where(u => u.is_active
+                        && u.user_id != authorId
+                        && handles.Contains(u.username))
+                    .Select(u => u.user_id)
+                    .ToListAsync();
+            }
+
+            if (mentionedIds.Count == 0) return;
+
+            var title = mentionsAll
+                ? "The whole team was mentioned in a task comment"
+                : "You were mentioned in a task comment";
+
+            await _notificationService.NotifyManyAsync(
+                mentionedIds,
+                NotificationTypes.TaskComment,
+                title,
+                $"{author?.username ?? "Someone"} mentioned you.",
+                projId,
+                taskId);
+        }
     }
 }

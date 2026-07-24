@@ -8,7 +8,7 @@ namespace NPI.Server.Services
 {
     public interface IFileService
     {
-        Task<(bool success, string message, Files? file)> UploadFileAsync(IFormFile file, int? proj_id, int? task_id, int user_id, int? dept_id, int? enquiry_id = null, string? customer_name = null);
+        Task<(bool success, string message, Files? file)> UploadFileAsync(IFormFile file, int? proj_id, int? task_id, int user_id, int? dept_id, int? enquiry_id = null, string? customer_name = null, string? description = null);
         Task<(bool success, string message, Files? file)> UploadCustomerFileAsync(IFormFile file, int enquiry_id, int user_id, string comp_name);
         Task<(bool success, byte[]? fileData, string? contentType)> DownloadFileAsync(int file_id);
         Task<bool> DeleteFileAsync(int file_id);
@@ -31,20 +31,16 @@ namespace NPI.Server.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ITaskService _taskService;
-        private readonly INotificationService _notificationService;
         private readonly string _basePath;
 
-        public FileService(ApplicationDbContext context, ITaskService taskService, IConfiguration configuration, INotificationService notificationService)
+        public FileService(ApplicationDbContext context, ITaskService taskService, IConfiguration configuration)
         {
             _context = context;
             _taskService = taskService;
-            _notificationService = notificationService;
             _basePath = configuration["FileStorage:BasePath"]
                         ?? throw new InvalidOperationException(
                             "FileStorage:BasePath not configured.");
         }
-
-        // ── Upload: multiple task files ───────────────────────────────────────
 
         public async Task<(bool success, string message, List<int> fileIds)> UploadFilesAsync(
             List<IFormFile> files, int projId, int taskId,
@@ -84,6 +80,7 @@ namespace NPI.Server.Services
                         file_name = file.FileName,
                         file_path = destPath,
                         file_size = file.Length,
+                        description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
                         content_type = file.ContentType,
                         status = FileStatus.Active,
                         is_latest = true,
@@ -98,9 +95,6 @@ namespace NPI.Server.Services
                     uploadedIds.AddRange(records.Select(r => r.file_id));
                 }
 
-                if (uploadedIds.Count > 0)
-                    await _notificationService.OnFileUploadedAsync(projId, userId);
-
                 return (true, $"{uploadedIds.Count} file(s) uploaded", uploadedIds);
             }
             catch (Exception ex)
@@ -109,9 +103,7 @@ namespace NPI.Server.Services
             }
         }
 
-        // ── Upload: single file (task, project, or enquiry/customer) ─────────
-
-        public async Task<(bool success, string message, Files? file)> UploadFileAsync(IFormFile file, int? projId, int? taskId, int uploadBy, int? deptId, int? enquiryId = null, string? customerName = null)
+        public async Task<(bool success, string message, Files? file)> UploadFileAsync(IFormFile file, int? projId, int? taskId, int uploadBy, int? deptId, int? enquiryId = null, string? customerName = null, string? description = null)
         {
             try
             {
@@ -131,17 +123,18 @@ namespace NPI.Server.Services
                 }
                 else if (enquiryId.HasValue)
                 {
-                    if (string.IsNullOrWhiteSpace(customerName))
-                    {
-                        customerName = await _context.Enquiries
-                            .Where(e => e.enquiry_id == enquiryId.Value)
-                            .Select(e => e.Customer!.comp_name)
-                            .FirstOrDefaultAsync()
-                            ?? $"Enquiry_{enquiryId.Value}";
-                    }
+                    var cust = await _context.Enquiries
+                        .Where(e => e.enquiry_id == enquiryId.Value)
+                        .Select(e => new { e.cust_id, name = e.Customer!.comp_name })
+                        .FirstOrDefaultAsync();
+
+                    var custId = cust?.cust_id ?? 0;
+                    var custName = !string.IsNullOrWhiteSpace(customerName)
+                        ? customerName
+                        : cust?.name ?? $"Enquiry_{enquiryId.Value}";
 
                     var enquiryPath = Path.Combine(
-                        _basePath, "customers", SanitizeFolderName(customerName));
+                        _basePath, "customers", CustomerFolderName(custId, custName));
                     Directory.CreateDirectory(enquiryPath);
                     filePath = BuildUniqueFilePath(enquiryPath, file.FileName);
                 }
@@ -174,6 +167,7 @@ namespace NPI.Server.Services
                     file_name = file.FileName,
                     file_path = filePath,
                     file_size = file.Length,
+                    description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
                     content_type = file.ContentType,
                     status = FileStatus.Active,
                     is_latest = true,
@@ -190,8 +184,6 @@ namespace NPI.Server.Services
             }
         }
 
-        // ── Upload: customer file (enquiry attachment) ────────────────────────
-
         public async Task<(bool success, string message, Files? file)> UploadCustomerFileAsync(
             IFormFile file, int enquiryId, int uploadBy, string compName)
         {
@@ -200,8 +192,13 @@ namespace NPI.Server.Services
 
             try
             {
-                var safeName = SanitizeFolderName(
-                    string.IsNullOrWhiteSpace(compName) ? "UnknownCustomer" : compName);
+                var custId = await _context.Enquiries
+                    .Where(e => e.enquiry_id == enquiryId)
+                    .Select(e => e.cust_id)
+                    .FirstOrDefaultAsync();
+
+                var safeName = CustomerFolderName(
+                    custId, string.IsNullOrWhiteSpace(compName) ? "UnknownCustomer" : compName);
 
                 var folder = Path.Combine(_basePath, "customers", safeName);
                 Directory.CreateDirectory(folder);
@@ -235,8 +232,6 @@ namespace NPI.Server.Services
                 return (false, $"Error uploading: {ex.Message}", null);
             }
         }
-
-        // ── Queries ───────────────────────────────────────────────────────────
 
         public async Task<List<FileResponseDto>> GetFilesByTaskAsync(int taskId)
         {
@@ -290,8 +285,6 @@ namespace NPI.Server.Services
                 return dto;
             }).ToList();
         }
-
-        // ── Download / Delete ─────────────────────────────────────────────────
 
         public async Task<(bool success, byte[]? fileData, string? contentType)> DownloadFileAsync(int fileId)
         {
@@ -439,8 +432,6 @@ namespace NPI.Server.Services
             return path;
         }
 
-        // ── Physical Structure Access ───────────────────────────────────────
-
         public async Task<List<DirectoryNodeDto>> GetPhysicalFolderStructureAsync(int userId)
         {
             var user = await _context.Users
@@ -467,7 +458,6 @@ namespace NPI.Server.Services
 
             var rootNodes = new List<DirectoryNodeDto>();
 
-            // --- A. Scan "Projects" ---
             var projectsPath = Path.Combine(_basePath, "projects");
             var projectsNode = new DirectoryNodeDto
             {
@@ -493,7 +483,6 @@ namespace NPI.Server.Services
             }
             rootNodes.Add(projectsNode);
 
-            // --- B. Scan "Customers" ---
             var customersPath = Path.Combine(_basePath, "customers");
             var customersNode = new DirectoryNodeDto
             {
@@ -518,7 +507,7 @@ namespace NPI.Server.Services
         }
 
         private DirectoryNodeDto BuildPhysicalNode(
-    string path, bool canEdit, Dictionary<string, Files> fileMap, string defaultType = "folder")
+            string path, bool canEdit, Dictionary<string, Files> fileMap, string defaultType = "folder")
         {
             var node = new DirectoryNodeDto
             {
@@ -559,7 +548,7 @@ namespace NPI.Server.Services
                     node.children.Add(fNode);
                 }
             }
-            catch (Exception) { /* skip inaccessible folders */ }
+            catch (Exception) { }
 
             return node;
         }
@@ -574,7 +563,6 @@ namespace NPI.Server.Services
                 if (!basePath.EndsWith(Path.DirectorySeparatorChar.ToString()))
                     basePath += Path.DirectorySeparatorChar;
 
-                // Strict directory constraints handling preventing path traversal payload
                 if (!fullPath.StartsWith(basePath))
                     return (false, "Invalid Path Security");
 
@@ -598,8 +586,6 @@ namespace NPI.Server.Services
                 return (false, $"Delete failed: {ex.Message}");
             }
         }
-
-        // ── Static helpers ────────────────────────────────────────────────────
 
         private static string BuildUniqueFilePath(string folder, string originalName)
         {
@@ -651,6 +637,11 @@ namespace NPI.Server.Services
             return result;
         }
 
+        private static string CustomerFolderName(int custId, string custName)
+            => custId > 0
+                ? $"{custId}_{SanitizeFolderName(custName)}"
+                : SanitizeFolderName(custName);
+
         private static FileResponseDto MapToDto(Files f) => new()
         {
             file_id = f.file_id,
@@ -663,6 +654,7 @@ namespace NPI.Server.Services
             file_path = f.file_path,
             file_size = f.file_size,
             file_type = f.content_type,
+            description = f.description,
             uploaded_by = f.upload_by,
             uploaded_by_name = f.UploadByUser?.username,
             uploaded_at = f.created_at,

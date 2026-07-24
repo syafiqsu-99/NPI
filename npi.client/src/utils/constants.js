@@ -8,7 +8,6 @@ export const SYSTEM_ROLES = Object.freeze({
   MEMBER: 'Member',
 })
 
-/** Convenience array for v-select / filter lists */
 export const SYSTEM_ROLE_NAMES = Object.freeze([
   SYSTEM_ROLES.ADMIN,
   SYSTEM_ROLES.MANAGER,
@@ -28,15 +27,12 @@ export const DEPT_CODES = Object.freeze({
   MANAGEMENT: 'MGT',
 })
 
-/** Department codes permitted to create/edit enquiries. */
 export const ENQUIRY_ALLOWED_DEPT_CODES = Object.freeze([
   DEPT_CODES.SALES,
 ])
 
-/** Fallback colour for a department with no color_hex set. */
 export const DEFAULT_DEPT_COLOR = '#9E9E9E'
 
-/** Fallback icon for a department with no icon mapping. */
 export const DEFAULT_DEPT_ICON = 'mdi-domain'
 
 export const DEPT_ICON_HINTS = Object.freeze({
@@ -59,14 +55,12 @@ export const PROJECT_ROLES = Object.freeze({
   VIEWER: 'Viewer',
 })
 
-/** Ordered array used by the role-hierarchy comparator in authStore */
 export const PROJECT_ROLE_HIERARCHY = Object.freeze([
   PROJECT_ROLES.TEAM_LEAD,
   PROJECT_ROLES.MEMBER,
   PROJECT_ROLES.VIEWER,
 ])
 
-/** For v-select dropdowns in assignment dialogs */
 export const PROJECT_ROLE_OPTIONS = Object.freeze([
   PROJECT_ROLES.TEAM_LEAD,
   PROJECT_ROLES.MEMBER,
@@ -86,7 +80,6 @@ export const TASK_STATUS = Object.freeze({
   CANCELLED: 'Cancelled',
 })
 
-/** Ordered list for v-select / filter dropdowns */
 export const TASK_STATUSES = Object.freeze([
   TASK_STATUS.NOT_STARTED,
   TASK_STATUS.IN_PROGRESS,
@@ -95,13 +88,11 @@ export const TASK_STATUSES = Object.freeze([
   TASK_STATUS.CANCELLED,
 ])
 
-/** Statuses that mean a task is closed and no longer actionable */
 export const TASK_CLOSED_STATUSES = Object.freeze([
   TASK_STATUS.COMPLETED,
   TASK_STATUS.CANCELLED,
 ])
 
-/** Map task status → Vuetify colour name */
 export const TASK_STATUS_COLORS = Object.freeze({
   'Not Started': 'grey',
   'In Progress': 'blue',
@@ -110,7 +101,6 @@ export const TASK_STATUS_COLORS = Object.freeze({
   'Cancelled': 'red',
 })
 
-/** Map task status → MDI icon name */
 export const TASK_STATUS_ICONS = Object.freeze({
   'Not Started': 'mdi-circle-outline',
   'In Progress': 'mdi-play-circle',
@@ -133,7 +123,6 @@ export const PROJECT_STATUS = Object.freeze({
   CANCELLED: 'Cancelled',
 })
 
-/** Ordered list for v-select / filter dropdowns */
 export const PROJECT_STATUSES = Object.freeze([
   PROJECT_STATUS.PLANNING,
   PROJECT_STATUS.NOT_STARTED,
@@ -143,7 +132,6 @@ export const PROJECT_STATUSES = Object.freeze([
   PROJECT_STATUS.CANCELLED,
 ])
 
-/** Status transitions that trigger a team notification email */
 export const PROJECT_NOTIFY_STATUSES = Object.freeze([
   PROJECT_STATUS.IN_PROGRESS,
   PROJECT_STATUS.ON_HOLD,
@@ -151,7 +139,6 @@ export const PROJECT_NOTIFY_STATUSES = Object.freeze([
   PROJECT_STATUS.CANCELLED,
 ])
 
-/** Map project status → Vuetify colour name */
 export const PROJECT_STATUS_COLORS = Object.freeze({
   'Planning': 'info',
   'Not Started': 'grey',
@@ -173,7 +160,6 @@ export const PRIORITY = Object.freeze({
   CRITICAL: 'Critical',
 })
 
-/** Ordered list for v-select / filter dropdowns */
 export const PRIORITY_OPTIONS = Object.freeze([
   PRIORITY.LOW,
   PRIORITY.MEDIUM,
@@ -183,7 +169,6 @@ export const PRIORITY_OPTIONS = Object.freeze([
 
 export const DEFAULT_PRIORITY = PRIORITY.MEDIUM
 
-/** Map priority → Vuetify colour name */
 export const PRIORITY_COLORS = Object.freeze({
   Low: 'grey',
   Medium: 'blue',
@@ -199,12 +184,15 @@ export const PRIORITY_COLORS = Object.freeze({
 export const ENQUIRY_STATUS = Object.freeze({
   DRAFT: 'Draft',
   SUBMITTED: 'Submitted',
+  NEEDS_REWORK: 'Needs Rework',
+  NOT_FEASIBLE: 'Not Feasible',
 })
 
-/** Map enquiry status → Vuetify colour name */
 export const ENQUIRY_STATUS_COLORS = Object.freeze({
   [ENQUIRY_STATUS.DRAFT]: 'warning',
-  [ENQUIRY_STATUS.SUBMITTED]: 'info',
+  [ENQUIRY_STATUS.SUBMITTED]: 'success',
+  [ENQUIRY_STATUS.NEEDS_REWORK]: 'orange',
+  [ENQUIRY_STATUS.NOT_FEASIBLE]: 'error',
 })
 
 
@@ -212,22 +200,11 @@ export const ENQUIRY_STATUS_COLORS = Object.freeze({
 // SHARED UI DEFAULTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Sentinel value for "no filter applied" in v-select filter dropdowns */
 export const FILTER_ALL = 'All'
-
-/** Default working days applied to a newly added task row */
 export const DEFAULT_WORKING_DAYS = 5
-
-/** Fallback stage id when a task row has no stage_id */
 export const DEFAULT_STAGE_ID = '1.0'
-
-/** Fallback Vuetify colour when a lookup map misses */
 export const DEFAULT_COLOR = 'grey'
-
-/** Snackbar auto-dismiss (ms) */
 export const SNACKBAR_TIMEOUT = 3000
-
-/** Delay before redirecting after a success message (ms) */
 export const REDIRECT_DELAY_MS = 1500
 
 
@@ -277,7 +254,6 @@ export const OPTIONAL_STAGE_FLAGS = Object.freeze({
 
 export const PREVIEWABLE_EXTENSIONS = Object.freeze(['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'])
 
-/** Map file extension → MDI icon name */
 export const FILE_ICONS = Object.freeze({
   pdf: 'mdi-file-pdf-box',
   doc: 'mdi-file-word',
@@ -289,7 +265,6 @@ export const FILE_ICONS = Object.freeze({
   jpeg: 'mdi-file-image',
 })
 
-/** Map file extension → Vuetify colour name */
 export const FILE_ICON_COLORS = Object.freeze({
   pdf: 'red',
   doc: 'blue',
@@ -301,14 +276,12 @@ export const FILE_ICON_COLORS = Object.freeze({
   jpeg: 'purple',
 })
 
-/** Extensions that are previewable inline in the file explorer */
 export const PREVIEWABLE_TYPES = Object.freeze({
   pdf: ['pdf'],
   image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'],
   text: ['txt', 'csv', 'log', 'md'],
 })
 
-/** Extensions that require an external application to open */
 export const EXTERNAL_APP_HINTS = Object.freeze({
   doc: { icon: 'mdi-microsoft-word', color: '#2B579A', app: 'Microsoft Word' },
   docx: { icon: 'mdi-microsoft-word', color: '#2B579A', app: 'Microsoft Word' },
@@ -325,7 +298,6 @@ export const EXTERNAL_APP_HINTS = Object.freeze({
 // SYSTEM ROLE UI METADATA
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Map system role_name → Vuetify colour name */
 export const SYSTEM_ROLE_COLORS = Object.freeze({
   Admin: 'error',
   Manager: 'primary',
@@ -333,7 +305,6 @@ export const SYSTEM_ROLE_COLORS = Object.freeze({
   Member: 'info',
 })
 
-/** Map system role_name → MDI icon name */
 export const SYSTEM_ROLE_ICONS = Object.freeze({
   Admin: 'mdi-shield-crown',
   Manager: 'mdi-account-tie',
@@ -346,38 +317,74 @@ export const SYSTEM_ROLE_ICONS = Object.freeze({
 // NOTIFICATION TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Map notification type string → Vuetify colour name */
+export const NOTIFICATION_TYPES = Object.freeze({
+  // Task-scoped
+  HANDOVER: 'handover',
+  TASK_ASSIGNED: 'task_assigned',
+  TASK_COMMENT: 'task_comment',
+  DATE_REVISED: 'date_revised',
+  OVERDUE: 'overdue',
+  DUE_SOON: 'due_soon',
+  APPROVAL_STALLED: 'approval_stalled',
+
+  // Project-scoped
+  STAGE_COMPLETE: 'stage_complete',
+  PROJECT_LAUNCH: 'project_launch',
+  PLANNING_STUCK: 'planning_stuck',
+  PROJECT_PLANNING: 'project_planning',
+  PROJECT_ACTIVE: 'project_active',
+  PROJECT_ON_HOLD: 'project_on_hold',
+  PROJECT_COMPLETE: 'project_complete',
+  PROJECT_CANCELLED: 'project_cancelled',
+  PROJECT_STATUS_CHANGED: 'project_status_changed',
+
+  // Enquiry-scoped
+  ENQUIRY_REVIEW: 'enquiry_review',
+  ENQUIRY_SUBMITTED: 'enquiry_submitted',
+})
+
 export const NOTIFICATION_COLORS = Object.freeze({
   handover: 'blue',
-  stage_complete: 'success',
-  overdue: 'error',
-  planning_stuck: 'warning',
-  project_launch: 'primary',
-  fai_complete: 'success',
-  date_revised: 'warning',
-  file_milestone: 'info',
   task_assigned: 'primary',
+  task_comment: 'indigo',
+  date_revised: 'warning',
+  overdue: 'error',
+  due_soon: 'warning',
   approval_stalled: 'error',
+
+  stage_complete: 'success',
+  project_launch: 'primary',
+  planning_stuck: 'warning',
+  project_planning: 'info',
   project_active: 'primary',
   project_on_hold: 'warning',
   project_complete: 'success',
   project_cancelled: 'error',
+  project_status_changed: 'info',
+
+  enquiry_review: 'orange',
+  enquiry_submitted: 'info',
 })
 
-/** Map notification type string → MDI icon name */
 export const NOTIFICATION_ICONS = Object.freeze({
   handover: 'mdi-hand-pointing-right',
-  stage_complete: 'mdi-check-all',
-  overdue: 'mdi-alert-circle',
-  planning_stuck: 'mdi-clock-alert',
-  project_launch: 'mdi-rocket-launch',
-  fai_complete: 'mdi-flask-check',
-  date_revised: 'mdi-calendar-edit',
-  file_milestone: 'mdi-file-multiple',
   task_assigned: 'mdi-clipboard-account',
+  task_comment: 'mdi-comment-text-outline',
+  date_revised: 'mdi-calendar-edit',
+  overdue: 'mdi-alert-circle',
+  due_soon: 'mdi-clock-alert-outline',
   approval_stalled: 'mdi-timer-alert',
+
+  stage_complete: 'mdi-check-all',
+  project_launch: 'mdi-rocket-launch',
+  planning_stuck: 'mdi-clock-alert',
+  project_planning: 'mdi-clipboard-text-clock',
   project_active: 'mdi-play-circle',
   project_on_hold: 'mdi-pause-circle',
   project_complete: 'mdi-check-circle',
   project_cancelled: 'mdi-close-circle',
+  project_status_changed: 'mdi-information',
+
+  enquiry_review: 'mdi-file-document-edit',
+  enquiry_submitted: 'mdi-file-send',
 })

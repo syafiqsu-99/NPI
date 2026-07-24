@@ -21,7 +21,7 @@ namespace NPI.Server.Models
 
         [StringLength(50)]
         public string status { get; set; } = "Draft";
-
+        public int revision_no { get; set; } = 1;
         public int created_by { get; set; }
         public DateTime created_at { get; set; } = DateTime.Now;
         public DateTime? updated_at { get; set; }
@@ -42,6 +42,8 @@ namespace NPI.Server.Models
         public virtual EnquiryCustomerRef? CustomerRef { get; set; }
 
         public virtual ICollection<Files>? Files { get; set; }
+        public virtual ICollection<EnquiryReviews>? Reviews { get; set; }
+        public virtual ICollection<EnquiryRevisionSnapshots>? RevisionSnapshots { get; set; }
     }
 
     public class EnquiryCustomerRef

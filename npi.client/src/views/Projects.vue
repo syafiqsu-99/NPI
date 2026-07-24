@@ -265,8 +265,6 @@
     return list
   })
 
-  // ── Status & priority updates ─────────────────────────────────────────────────
-
   async function updateStatus(project, newStatus) {
     if (project.status === newStatus) return
     try {
@@ -420,6 +418,7 @@
       await Promise.all(
         projectStore.projects.map(p => authStore.fetchProjectRole(p.proj_id))
       )
+
     } catch (err) {
       console.error('Projects mount error:', err)
       snackbarMessage.value = 'Failed to load projects'
@@ -430,6 +429,20 @@
 </script>
 
 <style scoped>
+  @keyframes row-flash {
+    0% {
+      background-color: rgba(25, 118, 210, 0.28);
+    }
+
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  .row-highlight {
+    animation: row-flash 2.5s ease-out;
+  }
+
   .stage-pipeline {
     flex-wrap: nowrap;
   }

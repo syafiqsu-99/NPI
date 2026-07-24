@@ -14,6 +14,8 @@ namespace NPI.Server.Models
 
         public int? task_id { get; set; }
 
+        public int? enquiry_id { get; set; }
+
         [StringLength(50)]
         public string? notif_type { get; set; }
 
@@ -38,5 +40,8 @@ namespace NPI.Server.Models
 
         [ForeignKey("task_id")]
         public virtual Tasks? Task { get; set; }
+
+        [ForeignKey("enquiry_id")]
+        public virtual Enquiries? Enquiry { get; set; }
     }
 }

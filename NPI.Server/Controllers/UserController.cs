@@ -174,6 +174,11 @@ namespace NPI.Server.Controllers
         {
             try
             {
+                var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
+
+                if (id != currentUserId && !User.IsInRole("Admin"))
+                    return Forbid();
+
                 var (success, message) = await _userService.ChangePasswordAsync(id, dto);
                 if (!success)
                     return BadRequest(new { success = false, message });

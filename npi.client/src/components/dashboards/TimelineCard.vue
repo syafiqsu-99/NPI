@@ -66,154 +66,154 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
-import { useRouter } from 'vue-router'
+  import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+  import { useRouter } from 'vue-router'
 
-const props = defineProps({
-  projects: { type: Array, required: true },
-  myTasks: { type: Array, required: true }
-})
-defineEmits(['refresh'])
-
-const router = useRouter()
-const timelineWrapper = ref(null)
-const tlBarOverlay = ref(null)
-const tlOverlayLeft = ref(0)
-const tlOverlayWidth = ref(0)
-const tlRowHeight = ref(52)
-const tlHeaderHeight = ref(36)
-const TL_FIXED_COLS = 1
-
-const goToProject = id => router.push(`/projects/${id}/gantt`)
-
-function formatDate(d) {
-  if (!d) return 'N/A'
-  return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-function toMs(d) { return d ? new Date(d).getTime() : NaN }
-function statusColor(s) {
-  return { Completed: 'success', 'In Progress': 'primary', 'On Hold': 'warning', Planning: 'grey', Cancelled: 'error' }[s] ?? 'grey'
-}
-
-const tlFirstMonday = computed(() => {
-  const d = new Date(); d.setHours(0, 0, 0, 0)
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 28)
-  return d
-})
-
-const timelineWeeks = computed(() => {
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  return Array.from({ length: 24 }, (_, i) => {
-    const ws = new Date(tlFirstMonday.value); ws.setDate(ws.getDate() + i * 7)
-    const we = new Date(ws); we.setDate(we.getDate() + 6); we.setHours(23, 59, 59, 999)
-    return {
-      title: ws.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-      value: `tlw_${i}`, width: '72px', align: 'center', sortable: false, date: ws, endDate: we, isToday: today >= ws && today <= we,
-    }
+  const props = defineProps({
+    projects: { type: Array, required: true },
+    myTasks: { type: Array, required: true }
   })
-})
+  defineEmits(['refresh'])
 
-const tlHeaders = computed(() => [
-  { title: 'Project', value: 'proj_name', width: '220px', sortable: false, fixed: true },
-  ...timelineWeeks.value,
-])
+  const router = useRouter()
+  const timelineWrapper = ref(null)
+  const tlBarOverlay = ref(null)
+  const tlOverlayLeft = ref(0)
+  const tlOverlayWidth = ref(0)
+  const tlRowHeight = ref(52)
+  const tlHeaderHeight = ref(36)
+  const TL_FIXED_COLS = 1
 
-const tlStart = computed(() => tlFirstMonday.value)
-const tlEnd = computed(() => { const e = new Date(tlFirstMonday.value); e.setDate(e.getDate() + 24 * 7); return e })
-const tlMs = computed(() => tlEnd.value - tlStart.value)
+  const goToProject = id => router.push(`/projects/${id}/gantt`)
 
-const projectTimeline = computed(() =>
-  props.projects.map(p => {
-    const pt = props.myTasks.filter(t => t.proj_id === p.proj_id)
-    const progress = pt.length ? Math.round(pt.reduce((s, t) => s + (t.per_complete || 0), 0) / pt.length) : 0
-    return { ...p, progress }
+  function formatDate(d) {
+    if (!d) return 'N/A'
+    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+  function toMs(d) { return d ? new Date(d).getTime() : NaN }
+  function statusColor(s) {
+    return { Completed: 'success', 'In Progress': 'primary', 'On Hold': 'warning', Planning: 'grey', Cancelled: 'error' }[s] ?? 'grey'
+  }
+
+  const tlFirstMonday = computed(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 28)
+    return d
   })
-)
 
-function measureTlOverlay() {
-  nextTick(() => {
-    const wrapper = timelineWrapper.value
-    if (!wrapper) return
-    const table = wrapper.querySelector('table')
-    if (!table) return
-
-    const allTh = Array.from(table.querySelectorAll('thead tr th'))
-    if (allTh.length <= TL_FIXED_COLS) return
-
-    const wrapperRect = wrapper.getBoundingClientRect()
-    const scrollable = wrapper.querySelector('.v-table__wrapper')
-
-    const firstDateTh = allTh[TL_FIXED_COLS]
-    const lastDateTh = allTh[allTh.length - 1]
-
-    tlOverlayLeft.value = firstDateTh.getBoundingClientRect().left - wrapperRect.left + (scrollable?.scrollLeft ?? 0)
-    tlOverlayWidth.value = lastDateTh.getBoundingClientRect().right - firstDateTh.getBoundingClientRect().left
-
-    const firstTr = table.querySelector('tbody tr')
-    if (firstTr) tlRowHeight.value = firstTr.getBoundingClientRect().height || 52
-
-    const headerTr = table.querySelector('thead tr')
-    if (headerTr) tlHeaderHeight.value = headerTr.getBoundingClientRect().height || 36
-  })
-}
-
-const tlBarLayout = computed(() => {
-  if (!tlOverlayWidth.value || !tlMs.value) return []
-  const tsMs = tlStart.value.getTime()
-  const totMs = tlMs.value
-  const barH = Math.max(8, Math.floor(tlRowHeight.value * 0.42))
-
-  return projectTimeline.value.flatMap((p, idx) => {
-    if (!p.project_start_date || !p.target_completion_date) return []
-    const sMs = toMs(p.project_start_date)
-    const eMs = toMs(p.target_completion_date) + 86400000
-
-    if (isNaN(sMs) || isNaN(eMs) || eMs <= sMs) return []
-
-    const leftPct = Math.max(0, (sMs - tsMs) / totMs) * 100
-    const widthPct = Math.min(100 - leftPct, ((eMs - sMs) / totMs) * 100)
-    if (widthPct <= 0) return []
-
-    const topOffset = idx * tlRowHeight.value + Math.floor(tlRowHeight.value * 0.28)
-    const slug = (p.status ?? 'planning').toLowerCase().replace(/\s+/g, '-')
-
-    return [{
-      proj_id: p.proj_id, proj_name: p.proj_name, status: p.status, start: p.project_start_date,
-      end: p.target_completion_date, progress: p.progress, cssClass: `tl-bar tl-bar-${slug}`,
-      label: widthPct > 5 ? p.proj_name : '',
-      style: { top: `${topOffset}px`, left: `${leftPct}%`, width: `${widthPct}%`, height: `${barH}px`, '--tl-progress': `${p.progress}%` },
-    }]
-  })
-})
-
-const tlOverlayStyle = computed(() => ({
-  position: 'absolute', top: `${tlHeaderHeight.value}px`, left: `${tlOverlayLeft.value}px`,
-  width: `${tlOverlayWidth.value}px`, pointerEvents: 'none', overflow: 'visible', zIndex: 5,
-}))
-
-const tlTodayLineStyle = computed(() => {
-  if (!tlOverlayWidth.value || !tlMs.value) return { display: 'none' }
-  const pct = ((new Date().setHours(0, 0, 0, 0) - tlStart.value.getTime()) / tlMs.value) * 100
-  if (pct < 0 || pct > 100) return { display: 'none' }
-  return { display: 'block', left: `${pct}%`, top: '0', height: '100%' }
-})
-
-function attachScrollSync() {
-  nextTick(() => {
-    const tw = timelineWrapper.value?.querySelector('.v-table__wrapper')
-    const ov = tlBarOverlay.value
-    if (!tw || !ov) return
-    tw.addEventListener('scroll', () => {
-      ov.style.left = `${tlOverlayLeft.value - tw.scrollLeft}px`
-      ov.style.top = `${tlHeaderHeight.value - tw.scrollTop}px`
+  const timelineWeeks = computed(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    return Array.from({ length: 24 }, (_, i) => {
+      const ws = new Date(tlFirstMonday.value); ws.setDate(ws.getDate() + i * 7)
+      const we = new Date(ws); we.setDate(we.getDate() + 6); we.setHours(23, 59, 59, 999)
+      return {
+        title: ws.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+        value: `tlw_${i}`, width: '72px', align: 'center', sortable: false, date: ws, endDate: we, isToday: today >= ws && today <= we,
+      }
     })
   })
-}
 
-watch(projectTimeline, () => nextTick(measureTlOverlay))
+  const tlHeaders = computed(() => [
+    { title: 'Project', value: 'proj_name', width: 220, sortable: false, fixed: true },
+    ...timelineWeeks.value,
+  ])
 
-onMounted(() => { window.addEventListener('resize', measureTlOverlay); measureTlOverlay(); attachScrollSync() })
-onBeforeUnmount(() => { window.removeEventListener('resize', measureTlOverlay) })
+  const tlStart = computed(() => tlFirstMonday.value)
+  const tlEnd = computed(() => { const e = new Date(tlFirstMonday.value); e.setDate(e.getDate() + 24 * 7); return e })
+  const tlMs = computed(() => tlEnd.value - tlStart.value)
+
+  const projectTimeline = computed(() =>
+    props.projects.map(p => {
+      const pt = props.myTasks.filter(t => t.proj_id === p.proj_id)
+      const progress = pt.length ? Math.round(pt.reduce((s, t) => s + (t.per_complete || 0), 0) / pt.length) : 0
+      return { ...p, progress }
+    })
+  )
+
+  function measureTlOverlay() {
+    nextTick(() => {
+      const wrapper = timelineWrapper.value
+      if (!wrapper) return
+      const table = wrapper.querySelector('table')
+      if (!table) return
+
+      const allTh = Array.from(table.querySelectorAll('thead tr th'))
+      if (allTh.length <= TL_FIXED_COLS) return
+
+      const wrapperRect = wrapper.getBoundingClientRect()
+      const scrollable = wrapper.querySelector('.v-table__wrapper')
+
+      const firstDateTh = allTh[TL_FIXED_COLS]
+      const lastDateTh = allTh[allTh.length - 1]
+
+      tlOverlayLeft.value = firstDateTh.getBoundingClientRect().left - wrapperRect.left + (scrollable?.scrollLeft ?? 0)
+      tlOverlayWidth.value = lastDateTh.getBoundingClientRect().right - firstDateTh.getBoundingClientRect().left
+
+      const firstTr = table.querySelector('tbody tr')
+      if (firstTr) tlRowHeight.value = firstTr.getBoundingClientRect().height || 52
+
+      const headerTr = table.querySelector('thead tr')
+      if (headerTr) tlHeaderHeight.value = headerTr.getBoundingClientRect().height || 36
+    })
+  }
+
+  const tlBarLayout = computed(() => {
+    if (!tlOverlayWidth.value || !tlMs.value) return []
+    const tsMs = tlStart.value.getTime()
+    const totMs = tlMs.value
+    const barH = Math.max(8, Math.floor(tlRowHeight.value * 0.42))
+
+    return projectTimeline.value.flatMap((p, idx) => {
+      if (!p.project_start_date || !p.target_completion_date) return []
+      const sMs = toMs(p.project_start_date)
+      const eMs = toMs(p.target_completion_date) + 86400000
+
+      if (isNaN(sMs) || isNaN(eMs) || eMs <= sMs) return []
+
+      const leftPct = Math.max(0, (sMs - tsMs) / totMs) * 100
+      const widthPct = Math.min(100 - leftPct, ((eMs - sMs) / totMs) * 100)
+      if (widthPct <= 0) return []
+
+      const topOffset = idx * tlRowHeight.value + Math.floor(tlRowHeight.value * 0.28)
+      const slug = (p.status ?? 'planning').toLowerCase().replace(/\s+/g, '-')
+
+      return [{
+        proj_id: p.proj_id, proj_name: p.proj_name, status: p.status, start: p.project_start_date,
+        end: p.target_completion_date, progress: p.progress, cssClass: `tl-bar tl-bar-${slug}`,
+        label: widthPct > 5 ? p.proj_name : '',
+        style: { top: `${topOffset}px`, left: `${leftPct}%`, width: `${widthPct}%`, height: `${barH}px`, '--tl-progress': `${p.progress}%` },
+      }]
+    })
+  })
+
+  const tlOverlayStyle = computed(() => ({
+    position: 'absolute', top: `${tlHeaderHeight.value}px`, left: `${tlOverlayLeft.value}px`,
+    width: `${tlOverlayWidth.value}px`, pointerEvents: 'none', overflow: 'visible', zIndex: 5,
+  }))
+
+  const tlTodayLineStyle = computed(() => {
+    if (!tlOverlayWidth.value || !tlMs.value) return { display: 'none' }
+    const pct = ((new Date().setHours(0, 0, 0, 0) - tlStart.value.getTime()) / tlMs.value) * 100
+    if (pct < 0 || pct > 100) return { display: 'none' }
+    return { display: 'block', left: `${pct}%`, top: '0', height: '100%' }
+  })
+
+  function attachScrollSync() {
+    nextTick(() => {
+      const tw = timelineWrapper.value?.querySelector('.v-table__wrapper')
+      const ov = tlBarOverlay.value
+      if (!tw || !ov) return
+      tw.addEventListener('scroll', () => {
+        ov.style.left = `${tlOverlayLeft.value - tw.scrollLeft}px`
+        ov.style.top = `${tlHeaderHeight.value - tw.scrollTop}px`
+      })
+    })
+  }
+
+  watch(projectTimeline, () => nextTick(measureTlOverlay))
+
+  onMounted(() => { window.addEventListener('resize', measureTlOverlay); measureTlOverlay(); attachScrollSync() })
+  onBeforeUnmount(() => { window.removeEventListener('resize', measureTlOverlay) })
 </script>
 
 <style scoped>

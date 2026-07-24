@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NPI.Server.DTOs;
 using NPI.Server.Models;
 using NPI.Server.Services;
 using System.Security.Claims;
@@ -11,10 +12,12 @@ namespace NPI.Server.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IUserService _userService;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IUserService userService)
     {
         _authService = authService;
+        _userService = userService;
     }
 
     protected int GetCurrentUserId()
@@ -146,6 +149,58 @@ public class AuthController : ControllerBase
             role = user.Role?.role_name,
             role_id = user.role_id
         });
+    }
+
+    [HttpGet("my-profile")]
+    [Authorize]
+    public async Task<IActionResult> GetMyProfile()
+    {
+        var userId = GetCurrentUserId();
+        var user = await _userService.GetUserByIdAsync(userId);
+
+        if (user is null)
+            return NotFound(new { success = false, message = "User not found" });
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                user.user_id,
+                user.username,
+                user.full_name,
+                user.email,
+                user.dept_id,
+                user.dept_name,
+                user.role_name
+            }
+        });
+    }
+
+    [HttpPut("my-profile")]
+    [Authorize]
+    public async Task<IActionResult> UpdateMyProfile([FromBody] UpdateMyProfileDto dto)
+    {
+        var userId = GetCurrentUserId();
+
+        var (success, message) = await _userService.UpdateOwnProfileAsync(userId, dto);
+
+        return success
+            ? Ok(new { success = true, message })
+            : BadRequest(new { success = false, message });
+    }
+
+    [HttpPut("my-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangeMyPassword([FromBody] ChangePasswordDto dto)
+    {
+        var userId = GetCurrentUserId();
+
+        var (success, message) = await _userService.ChangePasswordAsync(userId, dto);
+
+        return success
+            ? Ok(new { success = true, message })
+            : BadRequest(new { success = false, message });
     }
 }
 

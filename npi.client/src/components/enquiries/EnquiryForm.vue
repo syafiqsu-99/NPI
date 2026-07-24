@@ -28,6 +28,11 @@
     <div class="flex-grow-1 overflow-y-auto form-body pa-6">
       <v-container fluid class="pa-0 mx-auto" style="max-width:1000px">
 
+        <v-alert v-if="latestReworkRemark" type="warning" variant="tonal"
+                 class="mb-4" density="compact">
+          <strong>NPI Manager requested changes:</strong> {{ latestReworkRemark }}
+        </v-alert>
+
         <!-- 1. NPI Category -->
         <v-card class="mb-5 form-card" elevation="0" border>
           <v-card-title class="bg-grey-lighten-4 text-subtitle-1 font-weight-bold pa-3 d-flex align-center">
@@ -123,7 +128,7 @@
           <v-card-text class="pa-4">
             <v-row dense>
               <v-col cols="12" md="6">
-                <v-select v-model="formData.CustomerRef.mould_ownership"
+                <v-select v-model="formData.customer_ref.mould_ownership"
                           label="Mould Ownership"
                           :items="['Customer', 'J&J', 'N/A']"
                           density="compact" variant="outlined" />
@@ -190,16 +195,16 @@
   const selectedFiles = ref([])
   const uploadedFiles = ref([])
   const customOthers = ref({})
+  const latestReworkRemark = ref('')
 
   const formData = ref({
     cust_id: null,
     form_category: '',
     status: ENQUIRY_STATUS.DRAFT,
     field_values: {},
-    CustomerRef: { mould_ownership: '' }
+    customer_ref: { mould_ownership: '' }
   })
 
-  // Compute sections based on category
   const activeSections = computed(() => {
     if (!formData.value.form_category) return []
     const cat = formData.value.form_category.toLowerCase()
@@ -209,7 +214,6 @@
     })
   })
 
-  // Initialize field values
   watch(() => enquiryStore.sections, (sections) => {
     sections.forEach(s => {
       if (!formData.value.field_values[s.section_key]) {
@@ -266,7 +270,7 @@
     const payload = {
       form_category: formData.value.form_category,
       field_values: payloadFieldValues,
-      CustomerRef: { mould_ownership: formData.value.CustomerRef.mould_ownership }
+      customer_ref: { mould_ownership: formData.value.customer_ref.mould_ownership }
     }
 
     if (formData.value.cust_id) {
@@ -284,15 +288,22 @@
     return payload
   }
 
+  function resolveCompName() {
+    for (const section of activeSections.value) {
+      for (const field of (section.fields || [])) {
+        if (field.field_key === 'company_name' || field.field_key === 'customer_name') {
+          const val = formData.value.field_values[section.section_key]?.[field.field_key]
+          if (val && String(val).trim()) return String(val).trim()
+        }
+      }
+    }
+    return 'Unknown'
+  }
+
   async function uploadPendingFiles(enquiryId) {
     if (!selectedFiles.value.length) return
 
-    let compName = 'Unknown'
-    if (customerType.value === 'existing' && selectedCustomerInfo.value) {
-      compName = selectedCustomerInfo.value.comp_name
-    } else if (customerType.value === 'new') {
-      compName = formData.value.new_customer.comp_name
-    }
+    const compName = resolveCompName()
 
     const failed = []
 
@@ -378,7 +389,6 @@
   onMounted(async () => {
     await enquiryStore.fetchConfig()
 
-    // Restore existing data in edit mode
     if (route.params.id) {
       isEdit.value = true
       const result = await enquiryStore.fetchEnquiryById(route.params.id)
@@ -413,11 +423,16 @@
           })
         }
 
-        if (enq.CustomerRef) {
-          formData.value.CustomerRef.mould_ownership = enq.CustomerRef.mould_ownership ?? ''
+        if (enq.customer_ref) {
+          formData.value.customer_ref.mould_ownership = enq.customer_ref.mould_ownership ?? ''
         }
 
-        if (Array.isArray(enq.Files)) uploadedFiles.value = enq.Files
+        if (enq.status === ENQUIRY_STATUS.NEEDS_REWORK) {
+          const revs = await enquiryStore.fetchReviews(route.params.id)
+          latestReworkRemark.value = revs.find(r => r.decision === 'NeedsRework')?.remark ?? ''
+        }
+
+        if (Array.isArray(enq.files)) uploadedFiles.value = enq.files
       }
     }
   })

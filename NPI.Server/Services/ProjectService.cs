@@ -397,7 +397,7 @@ namespace NPI.Server.Services
                         return (false, "Enquiry not found", 0);
 
                     if (enquiry.status != EnquiryStatus.Submitted)
-                        return (false, "Projects can only be created from a Submitted enquiry.", 0);
+                        return (false, "Only submitted enquiries can be launched as projects.", 0);
 
                     if (enquiry.proj_id.HasValue)
                         return (false, $"This enquiry is already linked to project #{enquiry.proj_id}.", 0);

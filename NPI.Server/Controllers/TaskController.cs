@@ -278,5 +278,49 @@ namespace NPI.Server.Controllers
                 return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
+
+        [HttpGet("{taskId}/comments")]
+        public async Task<IActionResult> GetTaskComments(int taskId)
+        {
+            var comments = await _taskService.GetTaskCommentsAsync(taskId);
+            return Ok(new { success = true, data = comments });
+        }
+
+        [HttpGet("{taskId}/mentionable-users")]
+        public async Task<IActionResult> GetMentionableUsers(int taskId)
+        {
+            var users = await _taskService.GetMentionableUsersAsync(taskId);
+            return Ok(new { success = true, data = users });
+        }
+
+        [HttpPost("{taskId}/comments")]
+        public async Task<IActionResult> AddTaskComment(int taskId, [FromBody] CreateTaskCommentDto dto)
+        {
+            var userId = RbacHelper.GetUserId(User);
+            if (userId == 0)
+                return Unauthorized(new { success = false, message = "Invalid user identity." });
+
+            var (success, message, comment) =
+                await _taskService.AddTaskCommentAsync(taskId, dto.body, userId);
+
+            return success
+                ? Ok(new { success = true, message, data = comment })
+                : BadRequest(new { success = false, message });
+        }
+
+        [HttpDelete("comments/{commentId}")]
+        public async Task<IActionResult> DeleteTaskComment(int commentId)
+        {
+            var userId = RbacHelper.GetUserId(User);
+            if (userId == 0)
+                return Unauthorized(new { success = false, message = "Invalid user identity." });
+
+            var (success, message) = await _taskService.DeleteTaskCommentAsync(
+                commentId, userId, RbacHelper.GetSystemRole(User));
+
+            return success
+                ? Ok(new { success = true, message })
+                : BadRequest(new { success = false, message });
+        }
     }
 }

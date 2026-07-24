@@ -132,8 +132,12 @@
                                         density="compact"
                                         hide-default-footer
                                         :items-per-page="-1"
-                                        class="tasks-table"
-                                        height="auto">
+                                        class="tasks-table clickable-rows"
+                                        height="auto"
+                                        @click:row="(_, { item }) => openDetails(item, project)"
+                                        :row-props="({ item }) => ({
+                                          class: item.task_id === highlightTaskId ? 'row-highlight' : ''
+                                        })">
 
                     <template #item.task_code="{ item }">
                       <v-chip :color="getStageColor(item.stage_id)" size="x-small" variant="tonal"
@@ -189,7 +193,7 @@
                     </template>
 
                     <template #item.actions="{ item }">
-                      <div class="d-flex ga-1">
+                      <div class="d-flex ga-1" @click.stop>
                         <v-tooltip v-if="canEditTaskItem(item, project.proj_id)"
                                    text="Upload Files" location="top">
                           <template #activator="{ props }">
@@ -199,22 +203,15 @@
                           </template>
                         </v-tooltip>
 
-                        <v-tooltip text="Documents" location="top">
+                        <v-tooltip text="Open task" location="top">
                           <template #activator="{ props }">
-                            <v-badge :content="item.document_count"
-                                     :model-value="item.document_count > 0" color="success">
-                              <v-btn icon="mdi-file-document-multiple" size="small" density="compact"
-                                     variant="text" color="info" v-bind="props"
-                                     @click="openDocs(item, project)" />
+                            <v-badge :content="commentCounts[item.task_id]"
+                                     :model-value="(commentCounts[item.task_id] || 0) > 0"
+                                     color="primary">
+                              <v-btn icon="mdi-comment-text-outline" size="small" density="compact"
+                                     variant="text" v-bind="props"
+                                     @click="openDetails(item, project)" />
                             </v-badge>
-                          </template>
-                        </v-tooltip>
-
-                        <v-tooltip text="Details" location="top">
-                          <template #activator="{ props }">
-                            <v-btn icon="mdi-eye" size="small" density="compact"
-                                   variant="text" v-bind="props"
-                                   @click="openDetails(item, project)" />
                           </template>
                         </v-tooltip>
                       </div>
@@ -230,7 +227,7 @@
     </div>
 
     <!-- Upload Dialog -->
-    <v-dialog v-model="uploadDialog" max-width="560" persistent>
+    <v-dialog v-model="uploadDialog" max-width="560">
       <v-card>
         <v-card-title class="bg-primary text-white">
           <v-icon class="mr-2">mdi-file-upload</v-icon>
@@ -260,7 +257,7 @@
     </v-dialog>
 
     <!-- Documents Dialog -->
-    <v-dialog v-model="docsDialog" max-width="600" persistent>
+    <v-dialog v-model="docsDialog" max-width="600">
       <v-card>
         <v-card-title class="bg-primary text-white d-flex align-center justify-space-between">
           <span>
@@ -305,7 +302,7 @@
     </v-dialog>
 
     <!-- Task Details Dialog -->
-    <v-dialog v-model="detailsDialog" max-width="640" persistent>
+    <v-dialog v-model="detailsDialog" max-width="640">
       <v-card v-if="selectedTask">
         <v-card-title class="bg-primary text-white d-flex align-center justify-space-between">
           <span>
@@ -362,6 +359,121 @@
               </v-card>
             </v-col>
           </v-row>
+          <v-row>
+            <v-col cols="12">
+              <v-card variant="outlined">
+                <v-card-title class="text-subtitle-1 pb-1 d-flex align-center">
+                  <v-icon size="18" class="mr-2">mdi-file-document-multiple-outline</v-icon>
+                  Documents
+                </v-card-title>
+                <v-card-text>
+                  <v-list v-if="detailDocs.length" density="compact">
+                    <v-list-item v-for="doc in detailDocs" :key="doc.file_id" class="px-0">
+                      <template #prepend>
+                        <v-icon :color="getFileIconColor(doc.file_name)">{{ getFileIcon(doc.file_name) }}</v-icon>
+                      </template>
+                      <v-list-item-title class="text-body-2">{{ doc.file_name }}</v-list-item-title>
+                      <div v-if="doc.description" class="text-caption text-grey-darken-1 doc-description">
+                        {{ doc.description }}
+                      </div>
+                      <div class="text-caption text-grey">
+                        {{ formatSize(doc.file_size) }}
+                        <span v-if="doc.uploaded_by_name"> · {{ doc.uploaded_by_name }}</span>
+                        <span v-if="doc.uploaded_at"> · {{ formatDate(doc.uploaded_at) }}</span>
+                      </div>
+                      <template #append>
+                        <v-btn icon="mdi-download" size="x-small" variant="text"
+                               @click="downloadDoc(doc)" />
+                      </template>
+                    </v-list-item>
+                  </v-list>
+                  <div v-else class="text-caption text-grey py-2">No documents uploaded.</div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col cols="12">
+              <v-card variant="outlined">
+                <v-card-title class="text-subtitle-1 pb-1 d-flex align-center">
+                  <v-icon size="18" class="mr-2">mdi-comment-text-multiple-outline</v-icon>
+                  Comments
+                  <v-chip v-if="comments.length" size="x-small" class="ml-2" variant="tonal">
+                    {{ comments.length }}
+                  </v-chip>
+                </v-card-title>
+
+                <v-card-text>
+                  <div v-if="loadingComments" class="text-center py-4">
+                    <v-progress-circular indeterminate size="22" color="primary" />
+                  </div>
+
+                  <div v-else-if="comments.length === 0" class="text-caption text-grey py-2">
+                    No comments yet. Use @username to mention someone.
+                  </div>
+
+                  <div v-else class="comments-scroll">
+                    <div v-for="c in comments" :key="c.comment_id" class="comment-row py-2">
+                      <div class="d-flex align-center mb-1">
+                        <v-avatar size="24" color="primary" class="mr-2">
+                          <span class="text-caption">{{ initials(c.full_name || c.username) }}</span>
+                        </v-avatar>
+                        <span class="text-body-2 font-weight-medium">{{ c.full_name || c.username }}</span>
+                        <span class="text-caption text-grey ml-2">{{ formatDateTime(c.created_at) }}</span>
+                        <v-spacer />
+                        <v-btn v-if="canDeleteComment(c)"
+                               icon="mdi-delete" size="x-small" variant="text" color="error"
+                               @click="removeComment(c)" />
+                      </div>
+                      <div class="text-body-2 comment-body">
+                        <template v-for="(seg, i) in renderSegments(c.body)" :key="i">
+                          <span v-if="seg.mention" class="mention">{{ seg.text }}</span>
+                          <span v-else>{{ seg.text }}</span>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+
+                  <v-divider class="my-3" />
+
+                  <div class="mention-wrap">
+                    <v-textarea v-model="newComment"
+                                label="Add a comment  (type @ to mention)"
+                                variant="outlined" rows="2" auto-grow density="compact"
+                                hide-details maxlength="2000" counter
+                                @update:model-value="onCommentInput"
+                                @blur="closeMentionSoon"
+                                @keydown.down.prevent="moveMention(1)"
+                                @keydown.up.prevent="moveMention(-1)"
+                                @keydown.enter="onMentionEnter"
+                                @keydown.tab="onMentionEnter"
+                                @keydown.esc="mentionOpen = false" />
+
+                    <v-sheet v-if="mentionOpen && mentionMatches.length"
+                             class="mention-list" elevation="6" rounded>
+                      <v-list density="compact" max-height="220">
+                        <v-list-item v-for="(u, i) in mentionMatches" :key="u.username"
+                                     :active="i === mentionIndex"
+                                     @mousedown.prevent="applyMention(u.username)">
+                          <template #prepend>
+                            <v-icon size="18">{{ u.username === 'all' ? 'mdi-account-group' : 'mdi-account' }}</v-icon>
+                          </template>
+                          <v-list-item-title>@{{ u.username }}</v-list-item-title>
+                          <v-list-item-subtitle v-if="u.full_name">{{ u.full_name }}</v-list-item-subtitle>
+                        </v-list-item>
+                      </v-list>
+                    </v-sheet>
+                  </div>
+                  <div class="d-flex justify-end mt-2">
+                    <v-btn color="primary" size="small" :loading="postingComment"
+                           :disabled="!newComment.trim()" @click="postComment">
+                      <v-icon start>mdi-send</v-icon> Post
+                    </v-btn>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -371,7 +483,7 @@
     </v-dialog>
 
     <!-- Delete Document Confirm -->
-    <v-dialog v-model="deleteDialog" max-width="420" persistent>
+    <v-dialog v-model="deleteDialog" max-width="420">
       <v-card>
         <v-card-title class="bg-error text-white">Confirm Delete</v-card-title>
         <v-card-text class="pt-4">
@@ -396,6 +508,7 @@
 
 <script setup>
   import { ref, computed, onMounted } from 'vue'
+  import { useRoute } from 'vue-router'
   import { useAuthStore } from '@/stores/auth'
   import { useSettingsStore } from '@/stores/setting'
   import { api } from '@/utils/api'
@@ -423,7 +536,6 @@
   const canEditTaskItem = (task, projId) => authStore.canEditTaskItem(task, projId)
   const isViewerOnProject = (projId) => authStore.isViewerOnProject(projId)
 
-  // ── State ─────────────────────────────────────────────────────────────────────
   const loading = ref(false)
   const uploading = ref(false)
   const deleting = ref(false)
@@ -438,6 +550,7 @@
   const selectedTask = ref(null)
   const selectedProject = ref(null)
   const taskDocs = ref([])
+  const detailDocs = ref([])
   const docToDelete = ref(null)
 
   const uploadFiles = ref([])
@@ -453,6 +566,20 @@
   const snackbar = ref(false)
   const snackbarMsg = ref('')
   const snackbarColor = ref('success')
+
+  const comments = ref([])
+  const loadingComments = ref(false)
+  const newComment = ref('')
+  const postingComment = ref(false)
+  const commentCounts = ref({})
+
+  const mentionableUsers = ref([])
+  const mentionOpen = ref(false)
+  const mentionIndex = ref(0)
+  const mentionQuery = ref('')
+
+  const route = useRoute()
+  const highlightTaskId = ref(null)
 
   const taskStatuses = TASK_STATUSES
   const priorityOptions = PRIORITY_OPTIONS
@@ -545,7 +672,172 @@
     return [...map.values()].sort((a, b) => a.proj_name.localeCompare(b.proj_name))
   })
 
-  // ── Helpers ───────────────────────────────────────────────────────────────────
+  async function loadCommentCounts(tasks) {
+    await Promise.all(tasks.map(async t => {
+      try {
+        const res = await api.get(`/task/${t.task_id}/comments`)
+        const list = res?.data ?? []
+        if (list.length) commentCounts.value[t.task_id] = list.length
+        else delete commentCounts.value[t.task_id]
+      } catch { /* ignore */ }
+    }))
+  }
+
+  async function applyHighlight() {
+    const taskId = Number(route.query.highlight)
+    const projId = Number(route.query.proj)
+    if (!taskId) return
+
+    const task = allTasks.value.find(t => t.task_id === taskId)
+    const targetProj = projId || task?.proj_id
+    if (!targetProj) return
+
+    showAllStages.value = true
+
+    const proj = allProjectsBase.value.find(p => p.proj_id === targetProj)
+    if (proj?.isCompleted) showCompletedProjects.value = true
+
+    if (!expandedProjects.value.includes(targetProj)) {
+      expandedProjects.value.push(targetProj)
+    }
+
+    highlightTaskId.value = taskId
+
+    await nextTick()
+    setTimeout(() => {
+      document.querySelector('.row-highlight')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 350)
+
+    setTimeout(() => { highlightTaskId.value = null }, 4000)
+  }
+
+  async function loadComments(taskId) {
+    loadingComments.value = true
+    try {
+      const res = await api.get(`/task/${taskId}/comments`)
+      comments.value = res?.data ?? (Array.isArray(res) ? res : [])
+      if (comments.value.length) commentCounts.value[taskId] = comments.value.length
+      else delete commentCounts.value[taskId]
+    } catch {
+      comments.value = []
+    } finally {
+      loadingComments.value = false
+    }
+  }
+
+  async function postComment() {
+    const body = newComment.value.trim()
+    if (!body || !selectedTask.value) return
+    postingComment.value = true
+    try {
+      const taskId = selectedTask.value.task_id
+      const res = await api.post(`/task/${taskId}/comments`, { body })
+      if (res?.success && res.data) {
+        comments.value.push(res.data)
+        commentCounts.value[taskId] = comments.value.length
+        newComment.value = ''
+        mentionOpen.value = false
+      } else {
+        showSnack(res?.message || 'Failed to post comment', 'error')
+      }
+    } catch {
+      showSnack('Failed to post comment', 'error')
+    } finally {
+      postingComment.value = false
+    }
+  }
+
+  async function removeComment(c) {
+    try {
+      const res = await api.delete(`/task/comments/${c.comment_id}`)
+      if (res?.success) {
+        comments.value = comments.value.filter(x => x.comment_id !== c.comment_id)
+        if (comments.value.length) commentCounts.value[c.task_id] = comments.value.length
+        else delete commentCounts.value[c.task_id]
+      } else {
+        showSnack(res?.message || 'Failed to delete', 'error')
+      }
+    } catch {
+      showSnack('Failed to delete', 'error')
+    }
+  }
+
+  function canDeleteComment(c) {
+    const uid = currentUser.value?.user_id
+    return c.user_id === uid || authStore.isAdminOrManager
+  }
+
+  function renderSegments(body) {
+    const parts = String(body ?? '').split(/(@[A-Za-z0-9._-]+)/g)
+    return parts
+      .filter(p => p !== '')
+      .map(p => ({ text: p, mention: /^@[A-Za-z0-9._-]+$/.test(p) }))
+  }
+
+  function initials(name) {
+    if (!name) return '?'
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
+  }
+
+  async function loadMentionableUsers(taskId) {
+    try {
+      const res = await api.get(`/task/${taskId}/mentionable-users`)
+      mentionableUsers.value = res?.data ?? []
+    } catch {
+      mentionableUsers.value = [{ username: 'all', full_name: 'Everyone on this project' }]
+    }
+  }
+
+  const mentionMatches = computed(() => {
+    const q = mentionQuery.value.toLowerCase()
+    if (!q) return mentionableUsers.value.slice(0, 8)
+
+    const starts = []
+    const contains = []
+    for (const u of mentionableUsers.value) {
+      const name = u.username.toLowerCase()
+      const full = (u.full_name ?? '').toLowerCase()
+      if (name.startsWith(q)) starts.push(u)
+      else if (name.includes(q) || full.includes(q)) contains.push(u)
+    }
+    return [...starts, ...contains].slice(0, 8)
+  })
+
+  function onCommentInput(val) {
+    const match = /@([A-Za-z0-9._-]*)$/.exec(val ?? '')
+    if (!match) {
+      mentionOpen.value = false
+      mentionQuery.value = ''
+      return
+    }
+    mentionQuery.value = match[1]
+    mentionIndex.value = 0
+    mentionOpen.value = mentionMatches.value.length > 0
+  }
+
+  function moveMention(step) {
+    if (!mentionOpen.value || !mentionMatches.value.length) return
+    const n = mentionMatches.value.length
+    mentionIndex.value = (mentionIndex.value + step + n) % n
+  }
+
+  function onMentionEnter(e) {
+    if (!mentionOpen.value || !mentionMatches.value.length) return
+    e.preventDefault()
+    applyMention(mentionMatches.value[mentionIndex.value].username)
+  }
+
+  function closeMentionSoon() {
+    setTimeout(() => { mentionOpen.value = false }, 150)
+  }
+
+  function applyMention(username) {
+    newComment.value = newComment.value.replace(/@([A-Za-z0-9._-]*)$/, `@${username} `)
+    mentionOpen.value = false
+    mentionQuery.value = ''
+    mentionIndex.value = 0
+  }
 
   function deriveStageFromCode(code) {
     if (!code) return null
@@ -594,8 +886,6 @@
     return (tasks.filter(t => t.status === TASK_STATUS.COMPLETED).length / tasks.length) * 100
   }
 
-  // ── Display helpers ───────────────────────────────────────────────────────────
-
   function toggleProject(projId) {
     const i = expandedProjects.value.indexOf(projId)
     i > -1 ? expandedProjects.value.splice(i, 1) : expandedProjects.value.push(projId)
@@ -625,7 +915,6 @@
     return new Date().toISOString().split('T')[0]
   }
 
-  // ── API ───────────────────────────────────────────────────────────────────────
   async function loadTasks() {
     loading.value = true
     try {
@@ -642,6 +931,8 @@
 
       const uniqueProjIds = [...new Set(allTasks.value.map(t => t.proj_id))]
       await Promise.all(uniqueProjIds.map(id => authStore.fetchProjectRole(id)))
+
+      await loadCommentCounts(allTasks.value)
     } catch {
       showSnack('Failed to load tasks', 'error')
     } finally {
@@ -759,7 +1050,6 @@
 
   function closeUpload() {
     uploadDialog.value = false
-    selectedTask.value = null
     uploadFiles.value = []
     uploadDescription.value = ''
   }
@@ -775,10 +1065,14 @@
       for (const f of Array.from(uploadFiles.value)) fd.append('files', f)
 
       const count = uploadFiles.value.length
+      const taskId = selectedTask.value.task_id
       const result = await api.uploadFile('/file/upload', fd)
       if (result?.success) {
         showSnack(`${count} file(s) uploaded`, 'success')
         closeUpload()
+        if (detailsDialog.value && selectedTask.value?.task_id === taskId) {
+          await loadTaskDocuments(taskId)
+        }
       } else {
         showSnack(result?.message || 'Upload failed', 'error')
       }
@@ -802,6 +1096,15 @@
     }
   }
 
+  async function loadTaskDocuments(taskId) {
+    try {
+      const result = await api.get(`/file/by-task/${taskId}`)
+      detailDocs.value = result?.data ?? []
+    } catch {
+      detailDocs.value = []
+    }
+  }
+
   function downloadDoc(doc) { window.open(`/api/file/download/${doc.file_id}`, '_blank') }
   function switchToUpload() { docsDialog.value = false; openUpload(selectedTask.value, selectedProject.value) }
   function confirmDeleteDoc(doc) { docToDelete.value = doc; deleteDialog.value = true }
@@ -809,9 +1112,11 @@
   async function doDelete() {
     deleting.value = true
     try {
-      const result = await api.delete(`/file/${docToDelete.value.file_id}`)
+      const fileId = docToDelete.value.file_id
+      const result = await api.delete(`/file/${fileId}`)
       if (result?.success) {
-        taskDocs.value = taskDocs.value.filter(d => d.file_id !== docToDelete.value.file_id)
+        taskDocs.value = taskDocs.value.filter(d => d.file_id !== fileId)
+        detailDocs.value = detailDocs.value.filter(d => d.file_id !== fileId)
         deleteDialog.value = false
         showSnack('Document deleted', 'success')
       } else {
@@ -824,10 +1129,22 @@
     }
   }
 
-  function openDetails(task, project) {
+  async function openDetails(task, project) {
     selectedTask.value = task
     selectedProject.value = project
     detailsDialog.value = true
+
+    comments.value = []
+    newComment.value = ''
+    detailDocs.value = []
+    mentionOpen.value = false
+    mentionQuery.value = ''
+
+    await Promise.all([
+      loadComments(task.task_id),
+      loadMentionableUsers(task.task_id),
+      loadTaskDocuments(task.task_id),
+    ])
   }
 
   function showSnack(msg, color = 'success') {
@@ -842,11 +1159,26 @@
       showSnack('Warning: could not load stage definitions', 'warning')
     }
     await loadTasks()
+    applyHighlight()
   })
 </script>
 
 
 <style scoped>
+  @keyframes row-flash {
+    0% {
+      background-color: rgba(25, 118, 210, 0.28);
+    }
+
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  .row-highlight {
+    animation: row-flash 2.5s ease-out;
+  }
+
   .dashboard-root {
     background: #f5f6f8;
     height: 100vh !important;
@@ -878,5 +1210,48 @@
   .tasks-table :deep(th) {
     font-weight: 600 !important;
     background-color: #ffffff;
+  }
+
+  .comments-scroll {
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  .comment-row + .comment-row {
+    border-top: 1px solid rgba(0,0,0,0.06);
+  }
+
+  .comment-body {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .mention {
+    color: #1976D2;
+    font-weight: 600;
+  }
+
+  .mention-wrap {
+    position: relative;
+  }
+
+  .mention-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 20;
+    min-width: 260px;
+    max-width: 100%;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+
+  .doc-description {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .clickable-rows :deep(tbody tr) {
+    cursor: pointer;
   }
 </style>

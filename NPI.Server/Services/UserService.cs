@@ -16,6 +16,7 @@ namespace NPI.Server.Services
         Task<(bool success, string message)> ChangePasswordAsync(int userId, ChangePasswordDto dto);
         Task<(bool success, string message)> ResetPasswordAsync(int userId, ResetPasswordDto dto);
         Task<(bool success, string message)> ToggleUserStatusAsync(int userId);
+        Task<(bool success, string message)> UpdateOwnProfileAsync(int userId, UpdateMyProfileDto dto);
         Task<List<UserListDto>> GetUsersByDepartmentAsync(int deptId);
         Task<List<UserListDto>> GetUsersByRoleAsync(int roleId);
     }
@@ -320,6 +321,27 @@ namespace NPI.Server.Services
             catch (Exception ex)
             {
                 return (false, $"Error toggling user status: {ex.Message}");
+            }
+        }
+
+        public async Task<(bool success, string message)> UpdateOwnProfileAsync(int userId, UpdateMyProfileDto dto)
+        {
+            try
+            {
+                var user = await _context.Users.FindAsync(userId);
+                if (user is null) return (false, "User not found");
+
+                if (!string.IsNullOrWhiteSpace(dto.full_name))
+                    user.full_name = dto.full_name.Trim();
+
+                user.updated_at = DateTime.Now;
+                await _context.SaveChangesAsync();
+
+                return (true, "Profile updated successfully");
+            }
+            catch (Exception ex)
+            {
+                return (false, $"Error updating profile: {ex.Message}");
             }
         }
 

@@ -79,12 +79,19 @@ export const useAuthStore = defineStore('auth', () => {
   )
 
   function canEditEnquiry(enquiry) {
-    if (enquiry.status !== ENQUIRY_STATUS.DRAFT) return false
-    if (isAdminOrManager.value) return true
-    return isSalesUser.value && Number(enquiry.created_by) === user.value?.user_id
+    if (!enquiry) return false
+    const editable = [ENQUIRY_STATUS.DRAFT, ENQUIRY_STATUS.NEEDS_REWORK]
+    if (!editable.includes(enquiry.status)) return false
+    return isAdminOrManager.value || isSalesUser.value
+  }
+
+  function canReviewEnquiry(enquiry) {
+    if (!enquiry) return false
+    return isAdminOrManager.value && enquiry.status === ENQUIRY_STATUS.SUBMITTED
   }
 
   function canDeleteEnquiry(enquiry) {
+    if (!enquiry) return false
     if (isAdminOrManager.value) return true
     return (
       isSalesUser.value &&
@@ -94,10 +101,12 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function canStartProject(item) {
+    if (!item) return false
     return isAdminOrManager.value && item.status === ENQUIRY_STATUS.SUBMITTED && !item.proj_id
   }
 
   function canManageProject(item) {
+    if (!item) return false
     return isAdminOrManager.value && !!item.proj_id
   }
 
@@ -200,7 +209,7 @@ export const useAuthStore = defineStore('auth', () => {
     getProjectRole, fetchProjectRole, hasProjectRole,
 
     canStartProject, canManageProject, canDeleteProject,
-    canCreateEnquiry, canEditEnquiry, canDeleteEnquiry,
+    canCreateEnquiry, canEditEnquiry, canReviewEnquiry, canDeleteEnquiry,
     canEditProject, canEditTask, canViewProject,
     canEditTaskItem, isViewerOnProject, canManageFiles,
 

@@ -474,7 +474,7 @@
                               <div class="mb-2">
                                 <strong>Total Members:</strong> {{ teamMembers.length }}
                               </div>
-                              <div v-for="member in teamMembers" :key="member.user_id" class="text-caption">
+                              <div v-for="member in teamMembers" :key="member._rowId" class="text-caption">
                                 • {{ member.user_name }} ({{ member.dept_name }}) —
                                 {{ member.role_in_project }}
                               </div>
@@ -596,7 +596,7 @@
 </template>
 
 <script setup>
-  import { ref, computed, onMounted } from 'vue'
+  import { ref, computed, watch, onMounted } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { useProjectStore } from '@/stores/project'
   import { useSettingsStore } from '@/stores/setting'
@@ -661,7 +661,7 @@
 
   const allStageIds = computed(() => stages.value.map(s => s.stage_id))
 
-  const openPanels = computed(() => allStageIds.value.map((_, i) => i))
+  const openPanels = ref([])
 
   const getStageColor = stageId => STAGE_COLORS[stageId] ?? DEFAULT_COLOR
   const getStageName = stageId => settingsStore.getStageName(stageId)
@@ -682,6 +682,10 @@
       return flagKey ? !!stageFlags.value[flagKey] : false
     })
   )
+
+  watch(activeStageIds, ids => {
+    openPanels.value = ids.map((_, i) => i)
+  }, { immediate: true })
 
   const optionalStages = computed(() =>
     stages.value.filter(s => !!OPTIONAL_STAGE_FLAGS[s.stage_id])

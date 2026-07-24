@@ -4,8 +4,8 @@
       <v-col cols="12" class="h-100">
         <v-card elevation="2" class="h-100 d-flex flex-column">
 
-          <!-- ── Compact Header ──────────────────────────────────────────── -->
-          <v-card-title class="bg-primary d-flex align-center justify-space-between py-1 px-3 text-subtitle-1 font-weight-medium">
+          <!-- ── Header ──────────────────────────────────────────── -->
+          <v-card-title class="bg-primary d-flex align-center justify-space-between py-1 px-3 text-subtitle-1 font-weight-medium" :class="{ 'row-highlight': flashHeader }">
             <div>
               <v-icon class="mr-2" size="small">mdi-chart-gantt</v-icon>
               Project Gantt Chart — {{ project?.proj_no }}
@@ -28,7 +28,7 @@
 
           <v-card-text v-else class="pa-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
 
-            <!-- ── Compact Project Summary ────────────────────────────────── -->
+            <!-- ── Project Summary ────────────────────────────────── -->
             <v-sheet class="pa-2 bg-grey-lighten-4 border-b">
               <v-row align="center" dense>
                 <v-col cols="auto" class="mr-6">
@@ -58,7 +58,7 @@
               </v-row>
             </v-sheet>
 
-            <!-- ── Merged NPI Stage pipeline & Controls ───────────────────── -->
+            <!-- ── NPI Stage pipeline & Controls ───────────────────── -->
             <v-sheet class="pa-2 bg-white border-b">
               <div class="d-flex align-center ga-2 overflow-x-auto">
                 <span class="text-caption text-grey mr-2 flex-shrink-0">Stages:</span>
@@ -149,16 +149,15 @@
                   </div>
                 </template>
 
-                <!-- Date cells — empty; all bars on overlay -->
-                <template v-for="col in timelineColumns"
-                          :key="col.value"
-                          #[`item.${col.value}`]="{ item }">
-                  <div class="gantt-empty-cell"
+                <!-- Date cells -->
+                <template v-for="col in timelineColumns" #[`item.${col.value}`]="{ item }">
+                  <div :key="col.value"
+                       class="gantt-empty-cell"
                        :class="{ 'is-today': col.isToday, 'is-stage-header': item.rowType === 'stage-header' }" />
                 </template>
               </v-data-table-virtual>
 
-              <!-- ── Bar Overlay (Clipped Area Container) ───────────────────────── -->
+              <!-- ── Bar Overlay ───────────────────────── -->
               <div class="gantt-clip-box" :style="clipBoxStyle">
                 <div class="gantt-canvas" :style="canvasStyle">
 
@@ -189,8 +188,7 @@
                 </div>
               </div>
 
-            </div><!-- /gantt-wrapper -->
-            <!-- Compact Legend strip -->
+            </div>
             <v-sheet class="pa-1 px-3 d-flex align-center ga-4 border-t text-caption bg-grey-lighten-5">
               <span class="text-grey font-weight-medium">Legend:</span>
               <div class="d-flex align-center ga-1">
@@ -241,7 +239,6 @@
   const route = useRoute()
   const settingsStore = useSettingsStore()
 
-  // ── State ─────────────────────────────────────────────────────────────────────
   const loading = ref(false)
   const project = ref(null)
   const tasks = ref([])
@@ -252,7 +249,6 @@
   const snackbarColor = ref('success')
   const ganttWrapper = ref(null)
 
-  // Measured DOM geometry for accurate clipping and canvas scroll
   const headerHeight = ref(36)
   const fixedColsWidth = ref(0)
   const timelineTotalWidth = ref(0)
@@ -260,6 +256,8 @@
   const scrollbarHeight = ref(0)
   const scrollTop = ref(0)
   const scrollLeft = ref(0)
+
+  const flashHeader = ref(false)
 
   function deriveStageFromCode(code) {
     if (!code) return '1.0'
@@ -286,7 +284,6 @@
     })
   }
 
-  // ── Pipeline ──────────────────────────────────────────────────────────────────
   const projectStages = computed(() => {
     if (!project.value) return []
     return (settingsStore.stages ?? []).map(s => s.stage_id).filter(id => {
@@ -309,7 +306,6 @@
 
   const currentStageId = computed(() => projectStages.value.find(s => s.status !== 'completed')?.id ?? projectStages.value.at(-1)?.id ?? '1.0')
 
-  // ── Display rows ─────────────────────────────────────────────────────────────
   const displayRows = computed(() => {
     const rows = []
     const stageIds = projectStages.value.map(s => s.id)
@@ -342,7 +338,6 @@
     return rows
   })
 
-  // ── Timeline ──────────────────────────────────────────────────────────────────
   const timelineStart = computed(() => {
     const vis = showAllStages.value ? tasks.value : tasks.value.filter(t => resolvedStageId(t) === currentStageId.value)
     const dates = vis.map(t => new Date(t.planned_start_date)).filter(d => !isNaN(d))
@@ -393,18 +388,16 @@
   const renderedEnd = computed(() => timelineColumns.value.length ? timelineColumns.value[timelineColumns.value.length - 1].endDate.getTime() + 1 : Date.now() + 86400000)
   const renderedMs = computed(() => renderedEnd.value - renderedStart.value)
 
-  // Number of fixed left columns
   const FIXED_COL_COUNT = 4
 
   const ganttHeaders = computed(() => [
-    { title: 'Task', value: 'title', width: '240px', sortable: false, fixed: true },
-    { title: 'Dept', value: 'dept_name', width: '90px', sortable: false, fixed: true },
-    { title: 'Dur.', value: 'duration', width: '60px', sortable: false, fixed: true },
-    { title: 'Planned / Actual', value: 'type_dates', width: '130px', sortable: false, fixed: true },
+    { title: 'Task', value: 'title', width: 240, sortable: false, fixed: true },
+    { title: 'Dept', value: 'dept_name', width: 90, sortable: false, fixed: true },
+    { title: 'Dur.', value: 'duration', width: 60, sortable: false, fixed: true },
+    { title: 'Planned / Actual', value: 'type_dates', width: 130, sortable: false, fixed: true },
     ...timelineColumns.value
   ])
 
-  // ── Overlay / Box Measurement ─────────────────────────────────────────────────
   function measureOverlay() {
     nextTick(() => {
       const wrapper = ganttWrapper.value
@@ -424,16 +417,13 @@
 
       const scrollableRect = scrollable.getBoundingClientRect()
 
-      // Calculate start of Gantt area right after the Fixed Columns
       const lastFixedTh = allTh[FIXED_COL_COUNT - 1]
       fixedColsWidth.value = lastFixedTh.getBoundingClientRect().right - scrollableRect.left
 
-      // Timeline span total size
       const firstDateTh = allTh[FIXED_COL_COUNT]
       const lastDateTh = allTh[allTh.length - 1]
       timelineTotalWidth.value = lastDateTh.getBoundingClientRect().right - firstDateTh.getBoundingClientRect().left
 
-      // Prevent overlapping scrollbars
       scrollbarWidth.value = scrollable.offsetWidth - scrollable.clientWidth
       scrollbarHeight.value = scrollable.offsetHeight - scrollable.clientHeight
 
@@ -442,7 +432,6 @@
     })
   }
 
-  // ── Clipping & Scroll Overlay Styles ──────────────────────────────────────────
   const clipBoxStyle = computed(() => ({
     position: 'absolute',
     top: `${headerHeight.value}px`,
@@ -463,7 +452,6 @@
     pointerEvents: 'none'
   }))
 
-  // ── Bar layout ────────────────────────────────────────────────────────────────
   const barLayout = computed(() => {
     if (!timelineTotalWidth.value || !renderedMs.value) return []
 
@@ -474,7 +462,6 @@
     let currentTop = 0;
 
     displayRows.value.forEach((row) => {
-      // Must exactly mirror CSS fixed dimensions
       const rowH = row.rowType === 'stage-header' ? 30 : 54;
 
       if (row.rowType === 'task') {
@@ -484,7 +471,6 @@
         const makeBar = (type, startDate, endDate) => {
           if (!startDate) return
 
-          // Handle missing 'actual_end_date' by falling back to now()
           let resolvedEndDate = endDate;
           if (type === 'actual' && !endDate) {
             resolvedEndDate = new Date();
@@ -511,7 +497,6 @@
 
           if (widthPct <= 0 || leftPct >= 100) return
 
-          // Calculate correct spacing offset vertically relative to currentTop
           const topOffset = type === 'planned' ? currentTop + 9 : currentTop + 31;
 
           bars.push({
@@ -546,7 +531,6 @@
     return bars
   })
 
-  // Today line dynamic overlay mapping
   const todayLineStyle = computed(() => {
     if (!timelineTotalWidth.value || !renderedMs.value) return { display: 'none' }
     const todayMs = new Date().setHours(0, 0, 0, 0)
@@ -601,6 +585,12 @@
       if (!templateResult?.success) {
         showSnack('Warning: could not load stage definitions', 'warning')
       }
+
+      if (route.query.highlight) {
+        flashHeader.value = true
+        setTimeout(() => { flashHeader.value = false }, 2500)
+      }
+
       await loadProjectData()
       attachScrollSync()
 
@@ -650,15 +640,11 @@
     box-sizing: border-box !important;
   }
 
-  /* ── Horizontally Fixed Data Columns ────────────────────────────────────── */
-
-  /* Planned/Actual Column - Includes Boundary border */
   .gantt-table :deep(th:nth-child(4)),
   .gantt-table :deep(td:nth-child(4)) {
     border-right: 2px solid #CFD8DC !important;
   }
 
-  /* Z-Index mapping for overlapping rows and headers */
   .gantt-table :deep(thead th) {
     z-index: 3 !important;
   }
@@ -669,9 +655,7 @@
   .gantt-table :deep(thead th:nth-child(4)) {
     z-index: 4 !important;
   }
-  /* Corner intersection */
 
-  /* Background blocks for overlapping sticky rows */
   .gantt-table :deep(tr.gantt-row-task td:nth-child(-n+4)) {
     background-color: #ffffff;
   }
@@ -680,7 +664,6 @@
     background-color: #ECEFF1;
   }
 
-  /* ── Row height lockdown mapped exactly to JavaScript offsets ───────────── */
   .gantt-row-task :deep(td) {
     height: 54px !important;
     max-height: 54px !important;
@@ -713,7 +696,6 @@
       border-left: 2px solid rgba(33,150,243,0.35);
     }
 
-  /* ── Overlay Masks ─────────────────────────────────────────────────────── */
   .gantt-clip-box {
     position: absolute;
     overflow: hidden;
@@ -726,7 +708,6 @@
     pointer-events: none;
   }
 
-  /* ── Bars ─────────────────────────────────────────────────────────────────── */
   .gantt-bar {
     position: absolute;
     border-radius: 3px;
@@ -814,7 +795,6 @@
     z-index: 10;
   }
 
-  /* Component Layout Tooling */
   .pipeline-chip {
     display: inline-flex;
     align-items: center;

@@ -12,7 +12,7 @@ namespace NPI.Server.Data
         public DbSet<Customers> Customers { get; set; }
         public DbSet<Departments> Departments { get; set; }
 
-        // ── NPI Form Config ───────────────────────────────────────────────────
+        // ── Form Config ───────────────────────────────────────────────────
         public DbSet<FormCategory> FormCategories { get; set; }
         public DbSet<FormSection> FormSections { get; set; }
         public DbSet<FormField> FormFields { get; set; }
@@ -21,6 +21,8 @@ namespace NPI.Server.Data
         // ── Enquiries ─────────────────────────────────────────────────────────
         public DbSet<Enquiries> Enquiries { get; set; }
         public DbSet<EnquiryCustomerRef> EnquiryCustomerRef { get; set; }
+        public DbSet<EnquiryReviews> EnquiryReviews { get; set; }
+        public DbSet<EnquiryRevisionSnapshots> EnquiryRevisionSnapshots { get; set; }
 
         // ── Files & Projects ──────────────────────────────────────────────────
         public DbSet<Files> Files { get; set; }
@@ -28,6 +30,7 @@ namespace NPI.Server.Data
         public DbSet<Projects> Projects { get; set; }
         public DbSet<Tasks> Tasks { get; set; }
         public DbSet<TaskTemplates> TaskTemplates { get; set; }
+        public DbSet<TaskComments> TaskComments { get; set; }
 
         // ── Teams & Roles ─────────────────────────────────────────────────────
         public DbSet<ProjectTeams> ProjectTeams { get; set; }
@@ -77,6 +80,40 @@ namespace NPI.Server.Data
                 .HasForeignKey<EnquiryCustomerRef>(c => c.enquiry_id)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // EnquiryReviews
+            modelBuilder.Entity<EnquiryReviews>()
+                .HasOne(r => r.Enquiry)
+                .WithMany(e => e.Reviews)
+                .HasForeignKey(r => r.enquiry_id)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<EnquiryReviews>()
+                .HasOne(r => r.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(r => r.reviewed_by)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<EnquiryReviews>()
+                .HasIndex(r => new { r.enquiry_id, r.created_at });
+
+            // EnquiryRevisionSnapshots
+            modelBuilder.Entity<EnquiryRevisionSnapshots>()
+                .HasOne(s => s.Enquiry)
+                .WithMany(e => e.RevisionSnapshots)
+                .HasForeignKey(s => s.enquiry_id)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<EnquiryRevisionSnapshots>()
+                .HasOne(s => s.SubmittedByUser)
+                .WithMany()
+                .HasForeignKey(s => s.submitted_by)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<EnquiryRevisionSnapshots>()
+                .HasIndex(s => new { s.enquiry_id, s.revision_no })
+                .IsUnique()
+                .HasDatabaseName("IX_EnquiryRevSnap_Enquiry_Rev");
+
             // ── Projects ──────────────────────────────────────────────────────
             modelBuilder.Entity<Projects>()
                 .HasOne(p => p.CreatedByUser)
@@ -108,6 +145,23 @@ namespace NPI.Server.Data
                 .WithMany(t => t.SubTasks)
                 .HasForeignKey(t => t.parent_task_id)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // TaskComments
+            modelBuilder.Entity<TaskComments>()
+                .HasOne(c => c.Task)
+                .WithMany()
+                .HasForeignKey(c => c.task_id)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TaskComments>()
+                .HasOne(c => c.User)
+                .WithMany()
+                .HasForeignKey(c => c.user_id)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<TaskComments>()
+                .HasIndex(c => new { c.task_id, c.created_at })
+                .HasDatabaseName("IX_TaskComments_Task_Created");
 
             // ── TaskTemplates ─────────────────────────────────────────────────
             modelBuilder.Entity<TaskTemplates>()

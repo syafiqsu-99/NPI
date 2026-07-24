@@ -14,8 +14,7 @@
       <v-list-item to="/projects" title="Projects" prepend-icon="mdi-folder-multiple" />
       <v-list-item to="/tasks" title="Tasks" prepend-icon="mdi-check-circle" />
       <v-list-item to="/files" title="Files" prepend-icon="mdi-file-document" />
-      <v-list-item v-if="authStore.isAdmin || authStore.isManager"
-                   to="/settings" title="Settings" prepend-icon="mdi-cog" />
+      <v-list-item to="/settings" title="Settings" prepend-icon="mdi-cog" />
     </v-list>
 
     <template #append>
@@ -73,10 +72,11 @@
 </template>
 
 <script setup>
-  import { ref, onMounted, onBeforeUnmount } from 'vue'
+  import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
   import { useRouter } from 'vue-router'
   import { useAuthStore } from '@/stores/auth'
   import { api } from '@/utils/api'
+  import { resolveNotificationRoute } from '@/utils/notifications'
   import { NOTIFICATION_COLORS, NOTIFICATION_ICONS } from '@/utils/constants'
   import { formatTimeAgo } from '@/utils/formatters'
   import * as signalR from '@microsoft/signalr'
@@ -117,11 +117,18 @@
       } catch { /* ignore */ }
     }
     notifMenu.value = false
-    if (notification.proj_id) router.push(`/projects/${notification.proj_id}/gantt`)
+
+    const target = resolveNotificationRoute(notification)
+    if (target) router.push(target)
   }
 
   async function connectSignalR() {
     if (!authStore.token) return
+
+    if (hubConnection) {
+      await hubConnection.stop().catch(() => { })
+      hubConnection = null
+    }
 
     hubConnection = new signalR.HubConnectionBuilder()
       .withUrl('/hubs/notifications', {
@@ -149,6 +156,7 @@
         is_read: false,
         proj_id: payload.proj_id ?? null,
         task_id: payload.task_id ?? null,
+        enquiry_id: payload.enquiry_id ?? null,
         created_at: payload.created_at ?? new Date().toISOString(),
       })
       if (notifications.value.length > 50) {
@@ -187,11 +195,31 @@
     router.push('/login')
   }
 
+  watch(
+    () => authStore.currentUser?.user_id,
+    async (newId, oldId) => {
+      if (newId === oldId) return
+
+      if (!newId) {
+        if (hubConnection) {
+          await hubConnection.stop().catch(() => { })
+          hubConnection = null
+        }
+        notifications.value = []
+        unreadCount.value = 0
+        return
+      }
+
+      await loadNotifications()
+      await connectSignalR()
+    }
+  )
+
   onMounted(async () => {
     if (authStore.token) await authStore.checkAuth()
     await loadNotifications()
     await connectSignalR()
-    pollInterval = setInterval(loadNotifications, 5 * 60 * 1000)
+    pollInterval = setInterval(loadNotifications, 60 * 1000)
   })
 
   onBeforeUnmount(async () => {

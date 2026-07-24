@@ -8,7 +8,12 @@
       </v-card-title>
 
       <v-tabs v-model="activeTab" bg-color="grey-lighten-4" color="primary" density="compact">
-        <v-tab value="users">
+        <v-tab value="myAccount">
+          <v-icon start size="18">mdi-account-circle</v-icon>
+          My Account
+        </v-tab>
+
+        <v-tab v-if="isAdminOrManager" value="users">
           <v-icon start size="18">mdi-account-multiple</v-icon>
           Users
         </v-tab>
@@ -18,22 +23,22 @@
           System Roles
         </v-tab>
 
-        <v-tab value="projectRoles">
+        <v-tab v-if="isAdminOrManager" value="projectRoles">
           <v-icon start size="18">mdi-folder-account</v-icon>
           Project Roles
         </v-tab>
 
-        <v-tab value="departments">
+        <v-tab v-if="isAdminOrManager" value="departments">
           <v-icon start size="18">mdi-domain</v-icon>
           Departments
         </v-tab>
 
-        <v-tab value="npiConfig">
+        <v-tab v-if="isAdminOrManager" value="npiConfig">
           <v-icon start size="18">mdi-form-select</v-icon>
           Enquiry Form
         </v-tab>
 
-        <v-tab value="taskTemplate">
+        <v-tab v-if="isAdminOrManager" value="taskTemplate">
           <v-icon start size="18">mdi-clipboard-list-outline</v-icon>
           Task Template
         </v-tab>
@@ -42,7 +47,11 @@
 
     <v-window v-model="activeTab" class="settings-content flex-grow-1">
 
-      <v-window-item value="users" class="fill-height">
+      <v-window-item value="myAccount" class="fill-height">
+        <MyAccount />
+      </v-window-item>
+
+      <v-window-item v-if="isAdminOrManager" value="users" class="fill-height">
         <UserManagement :is-admin="isAdmin" />
       </v-window-item>
 
@@ -50,19 +59,19 @@
         <RoleManagement />
       </v-window-item>
 
-      <v-window-item value="projectRoles" class="fill-height">
+      <v-window-item v-if="isAdminOrManager" value="projectRoles" class="fill-height">
         <ProjectRoleManagement />
       </v-window-item>
 
-      <v-window-item value="departments" class="fill-height">
+      <v-window-item v-if="isAdminOrManager" value="departments" class="fill-height">
         <DepartmentManagement />
       </v-window-item>
 
-      <v-window-item value="npiConfig" class="fill-height">
+      <v-window-item v-if="isAdminOrManager" value="npiConfig" class="fill-height">
         <FormConfig />
       </v-window-item>
 
-      <v-window-item value="taskTemplate" class="fill-height">
+      <v-window-item v-if="isAdminOrManager" value="taskTemplate" class="fill-height">
         <TaskTemplate />
       </v-window-item>
 
@@ -73,18 +82,20 @@
 <script setup>
   import { ref, computed } from 'vue'
   import { useAuthStore } from '@/stores/auth'
+  import MyAccount from '@/components/settings/MyAccount.vue'
   import UserManagement from '@/components/settings/UserManagement.vue'
   import RoleManagement from '@/components/settings/RoleManagement.vue'
   import ProjectRoleManagement from '@/components/settings/ProjectRoleManagement.vue'
   import DepartmentManagement from '@/components/settings/DepartmentManagement.vue'
-  import SystemSettings from '@/components/settings/SystemSettings.vue'
   import FormConfig from '@/components/settings/FormConfig.vue'
   import TaskTemplate from '@/components/settings/TaskTemplateManagement.vue'
 
   const authStore = useAuthStore()
-  const activeTab = ref('users')
 
   const isAdmin = computed(() => authStore.isAdmin)
+  const isAdminOrManager = computed(() => authStore.isAdminOrManager)
+
+  const activeTab = ref('myAccount')
 </script>
 
 <style scoped>

@@ -9,11 +9,14 @@ namespace NPI.Server.Services
     public interface IEnquiryService
     {
         Task<(bool Success, string Message, EnquiryResponseDto? Enquiry)> CreateEnquiryAsync(EnquiryCreateDto dto, int userId, string? ipAddress);
-        Task<(bool Success, string Message)> UpdateEnquiryAsync(int enquiryId, EnquiryCreateDto dto, int userId, string userRole, string? ipAddress);
-        Task<(bool Success, string Message)> SubmitEnquiryAsync(int enquiryId, int userId, string userRole, string? ipAddress);
+        Task<(bool Success, string Message)> UpdateEnquiryAsync(int enquiryId, EnquiryCreateDto dto, int userId, string userRole, bool isSales, string? ipAddress);
+        Task<(bool Success, string Message)> SubmitEnquiryAsync(int enquiryId, int userId, string userRole, bool isSales, string? ipAddress);
         Task<(bool Success, string Message)> DeleteEnquiryAsync(int enquiryId, int userId, string userRole, string? ipAddress);
+        Task<(bool Success, string Message)> ReviewEnquiryAsync(int enquiryId, string decision, string? remark, int userId, string userRole, string? ipAddress);
+        Task<List<EnquiryReviewResponseDto>> GetReviewsAsync(int enquiryId);
+        Task<List<EnquiryRevisionSnapshotDto>> GetRevisionSnapshotsAsync(int enquiryId);
         Task<EnquiryResponseDto?> GetEnquiryByIdAsync(int enquiryId);
-        Task<List<EnquiryResponseDto>> GetAllEnquiriesAsync();
+        Task<List<EnquiryResponseDto>> GetAllEnquiriesAsync(bool canSeeDrafts);
         Task<List<EnquiryResponseDto>> GetEnquiriesByUserAsync(int userId);
         Task<string> GenerateEnquiryNoAsync();
     }
@@ -22,14 +25,18 @@ namespace NPI.Server.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IAuditLogService _audit;
+        private readonly INotificationService _notifications;
 
-        public EnquiryService(ApplicationDbContext context, IAuditLogService audit)
+        public EnquiryService(
+            ApplicationDbContext context,
+            IAuditLogService audit,
+            INotificationService notifications)
         {
             _context = context;
             _audit = audit;
+            _notifications = notifications;
         }
 
-        // ── Read ──────────────────────────────────────────────────────────────
         public async Task<EnquiryResponseDto?> GetEnquiryByIdAsync(int enquiryId)
         {
             var enquiry = await _context.Enquiries
@@ -43,17 +50,42 @@ namespace NPI.Server.Services
             return enquiry is null ? null : MapToResponseDto(enquiry);
         }
 
-        public async Task<List<EnquiryResponseDto>> GetAllEnquiriesAsync()
+        public async Task<List<EnquiryResponseDto>> GetAllEnquiriesAsync(bool canSeeDrafts)
         {
-            var enquiries = await _context.Enquiries
+            var query = _context.Enquiries
                 .Include(e => e.Customer)
                 .Include(e => e.FieldValues)
                 .Include(e => e.CustomerRef)
                 .Include(e => e.CreatedByUser)
+                .AsQueryable();
+
+            if (!canSeeDrafts)
+                query = query.Where(e => e.status != EnquiryStatus.Draft);
+
+            var enquiries = await query
                 .OrderByDescending(e => e.created_at)
                 .ToListAsync();
 
-            return enquiries.Select(MapToResponseDto).ToList();
+            var ids = enquiries.Select(e => e.enquiry_id).ToList();
+
+            var latestReviews = await _context.EnquiryReviews
+                .Where(r => ids.Contains(r.enquiry_id))
+                .GroupBy(r => r.enquiry_id)
+                .Select(g => g.OrderByDescending(r => r.created_at).First())
+                .ToListAsync();
+
+            var reviewMap = latestReviews.ToDictionary(r => r.enquiry_id);
+
+            return enquiries.Select(e =>
+            {
+                var dto = MapToResponseDto(e);
+                if (reviewMap.TryGetValue(e.enquiry_id, out var rv))
+                {
+                    dto.latest_review_decision = rv.decision;
+                    dto.latest_review_remark = rv.remark;
+                }
+                return dto;
+            }).ToList();
         }
 
         public async Task<List<EnquiryResponseDto>> GetEnquiriesByUserAsync(int userId)
@@ -71,7 +103,6 @@ namespace NPI.Server.Services
             return enquiries.Select(MapToResponseDto).ToList();
         }
 
-        // ── Create ────────────────────────────────────────────────────────────
         public async Task<(bool Success, string Message, EnquiryResponseDto? Enquiry)> CreateEnquiryAsync(EnquiryCreateDto dto, int userId, string? ipAddress)
         {
             var strategy = _context.Database.CreateExecutionStrategy();
@@ -107,7 +138,7 @@ namespace NPI.Server.Services
                     await _context.SaveChangesAsync();
 
                     await SaveFieldValuesAsync(enquiry.enquiry_id, dto.field_values);
-                    await UpsertCustomerRefAsync(enquiry.enquiry_id, dto.CustomerRef);
+                    await UpsertCustomerRefAsync(enquiry.enquiry_id, dto.customer_ref);
 
                     await tx.CommitAsync();
 
@@ -138,8 +169,7 @@ namespace NPI.Server.Services
             return (true, outcome.Message, response);
         }
 
-        // ── Update ────────────────────────────────────────────────────────────
-        public async Task<(bool Success, string Message)> UpdateEnquiryAsync(int enquiryId, EnquiryCreateDto dto, int userId, string userRole, string? ipAddress)
+        public async Task<(bool Success, string Message)> UpdateEnquiryAsync(int enquiryId, EnquiryCreateDto dto, int userId, string userRole, bool isSales, string? ipAddress)
         {
             var strategy = _context.Database.CreateExecutionStrategy();
 
@@ -160,16 +190,17 @@ namespace NPI.Server.Services
                         return (false, "Enquiry not found.", false, (object?)null, (object?)null);
                     }
 
-                    if (!CanMutate(enquiry, userId, userRole))
+                    if (!CanEdit(enquiry, userId, userRole, isSales))
                     {
                         await tx.RollbackAsync();
                         return (false, "You are not authorised to edit this enquiry.", true, (object?)null, (object?)null);
                     }
 
-                    if (enquiry.status != EnquiryStatus.Draft)
+                    if (enquiry.status != EnquiryStatus.Draft &&
+                        enquiry.status != EnquiryStatus.NeedsRework)
                     {
                         await tx.RollbackAsync();
-                        return (false, "Only Draft enquiries can be updated.", false, (object?)null, (object?)null);
+                        return (false, "Only Draft or Needs-Rework enquiries can be updated.", false, (object?)null, (object?)null);
                     }
 
                     var customerId = await ResolveCustomerIdAsync(dto, enquiry);
@@ -188,7 +219,7 @@ namespace NPI.Server.Services
 
                     await _context.SaveChangesAsync();
                     await SaveFieldValuesAsync(enquiryId, dto.field_values);
-                    await UpsertCustomerRefAsync(enquiryId, dto.CustomerRef);
+                    await UpsertCustomerRefAsync(enquiryId, dto.customer_ref);
 
                     await tx.CommitAsync();
 
@@ -218,32 +249,42 @@ namespace NPI.Server.Services
             return (outcome.Success, outcome.Message);
         }
 
-        // ── Submit ────────────────────────────────────────────────────────────
-        public async Task<(bool Success, string Message)> SubmitEnquiryAsync(int enquiryId, int userId, string userRole, string? ipAddress)
+        public async Task<(bool Success, string Message)> SubmitEnquiryAsync(int enquiryId, int userId, string userRole, bool isSales, string? ipAddress)
         {
             try
             {
                 var enquiry = await _context.Enquiries.FindAsync(enquiryId);
                 if (enquiry is null) return (false, "Enquiry not found.");
 
-                if (!CanMutate(enquiry, userId, userRole))
+                if (!CanEdit(enquiry, userId, userRole, isSales))
                 {
                     await _audit.LogAsync(userId, null, "SUBMIT_DENIED", "Enquiries", enquiryId,
-                        null, new { reason = "Not owner and not Admin/Manager" }, ipAddress);
+                        null, new { reason = "Not owner, Sales, Admin, or Manager" }, ipAddress);
                     return (false, "You are not authorised to submit this enquiry.");
                 }
 
-                if (enquiry.status != EnquiryStatus.Draft)
-                    return (false, "Only Draft enquiries can be submitted.");
+                if (enquiry.status != EnquiryStatus.Draft &&
+                    enquiry.status != EnquiryStatus.NeedsRework)
+                    return (false, "Only Draft or Needs-Rework enquiries can be submitted.");
+
+                var previousStatus = enquiry.status;
+
+                if (previousStatus == EnquiryStatus.NeedsRework)
+                    enquiry.revision_no += 1;
 
                 enquiry.status = EnquiryStatus.Submitted;
                 enquiry.submitted_at = DateTime.Now;
                 await _context.SaveChangesAsync();
 
+                await SaveRevisionSnapshotAsync(enquiry, userId);
+
                 await _audit.LogAsync(userId, null, "SUBMIT", "Enquiries", enquiryId,
-                    new { status = EnquiryStatus.Draft },
-                    new { status = EnquiryStatus.Submitted, enquiry.submitted_at },
+                    new { status = previousStatus, revision = enquiry.revision_no },
+                    new { status = EnquiryStatus.Submitted, enquiry.submitted_at, revision = enquiry.revision_no },
                     ipAddress);
+
+                await _notifications.OnEnquirySubmittedAsync(
+                    enquiry.enquiry_id, enquiry.enquiry_no, userId);
 
                 return (true, "Enquiry submitted successfully.");
             }
@@ -256,7 +297,6 @@ namespace NPI.Server.Services
             }
         }
 
-        // ── Delete ────────────────────────────────────────────────────────────
         public async Task<(bool Success, string Message)> DeleteEnquiryAsync(int enquiryId, int userId, string userRole, string? ipAddress)
         {
             try
@@ -287,24 +327,182 @@ namespace NPI.Server.Services
                     enquiry.created_by
                 };
 
+                var files = await _context.Files
+                    .Where(f => f.enquiry_id == enquiryId)
+                    .ToListAsync();
+
+                var reviews = await _context.EnquiryReviews
+                    .Where(r => r.enquiry_id == enquiryId)
+                    .ToListAsync();
+
+                var snapshots = await _context.EnquiryRevisionSnapshots
+                    .Where(s => s.enquiry_id == enquiryId)
+                    .ToListAsync();
+
+                var paths = files
+                    .Where(f => !string.IsNullOrWhiteSpace(f.file_path))
+                    .Select(f => f.file_path!)
+                    .ToList();
+
+                if (files.Count > 0) _context.Files.RemoveRange(files);
+                if (reviews.Count > 0) _context.EnquiryReviews.RemoveRange(reviews);
+                if (snapshots.Count > 0) _context.EnquiryRevisionSnapshots.RemoveRange(snapshots);
+
                 _context.Enquiries.Remove(enquiry);
                 await _context.SaveChangesAsync();
 
+                foreach (var path in paths)
+                {
+                    try
+                    {
+                        if (File.Exists(path)) File.Delete(path);
+                    }
+                    catch { }
+                }
+
                 await _audit.LogAsync(userId, null, "DELETE", "Enquiries", enquiryId,
-                    snapshot, null, ipAddress);
+                    snapshot, new { deleted_files = files.Count }, ipAddress);
 
                 return (true, "Enquiry deleted successfully.");
             }
             catch (Exception ex)
             {
                 await _audit.LogAsync(userId, null, "DELETE_FAILED", "Enquiries", enquiryId,
-                    null, new { error = ex.Message }, ipAddress);
+                    null, new { error = ex.Message, inner = ex.InnerException?.Message }, ipAddress);
 
                 return (false, "Could not delete the enquiry. Please contact IT.");
             }
         }
 
-        // ── Helpers ─────────────────────────────────
+        public async Task<(bool Success, string Message)> ReviewEnquiryAsync(
+            int enquiryId, string decision, string? remark, int userId, string userRole, string? ipAddress)
+        {
+            if (!RbacHelper.IsAdminOrManager(userRole))
+            {
+                await _audit.LogAsync(userId, null, "REVIEW_DENIED", "Enquiries", enquiryId,
+                    null, new { reason = "Not Admin/Manager" }, ipAddress);
+                return (false, "You are not authorised to review enquiries.");
+            }
+
+            var enquiry = await _context.Enquiries.FindAsync(enquiryId);
+            if (enquiry is null) return (false, "Enquiry not found.");
+
+            if (enquiry.status != EnquiryStatus.Submitted)
+                return (false, "Only submitted enquiries can be reviewed.");
+
+            string newStatus = decision switch
+            {
+                EnquiryReviewDecision.NeedsRework => EnquiryStatus.NeedsRework,
+                EnquiryReviewDecision.NotFeasible => EnquiryStatus.NotFeasible,
+                _ => string.Empty
+            };
+            if (newStatus.Length == 0)
+                return (false, "Invalid review decision.");
+
+            var previousStatus = enquiry.status;
+
+            _context.EnquiryReviews.Add(new EnquiryReviews
+            {
+                enquiry_id = enquiryId,
+                revision_no = enquiry.revision_no,
+                reviewed_by = userId,
+                decision = decision,
+                remark = remark?.Trim(),
+                created_at = DateTime.Now
+            });
+
+            enquiry.status = newStatus;
+            enquiry.updated_at = DateTime.Now;
+            enquiry.updated_by = userId;
+            await _context.SaveChangesAsync();
+
+            await _notifications.OnEnquiryReviewedAsync(
+                enquiryId, enquiry.created_by, enquiry.enquiry_no, decision, remark);
+
+            await _audit.LogAsync(userId, null, "REVIEW", "Enquiries", enquiryId,
+                new { status = previousStatus },
+                new { status = newStatus, decision, enquiry.revision_no }, ipAddress);
+
+            return (true, $"Enquiry marked '{newStatus}'.");
+        }
+
+        public async Task<List<EnquiryReviewResponseDto>> GetReviewsAsync(int enquiryId)
+        {
+            return await _context.EnquiryReviews
+                .Where(r => r.enquiry_id == enquiryId)
+                .OrderByDescending(r => r.created_at)
+                .Select(r => new EnquiryReviewResponseDto
+                {
+                    review_id = r.review_id,
+                    enquiry_id = r.enquiry_id,
+                    revision_no = r.revision_no,
+                    reviewed_by = r.reviewed_by,
+                    reviewer_name = r.ReviewedByUser!.username,
+                    decision = r.decision,
+                    remark = r.remark,
+                    created_at = r.created_at
+                })
+                .ToListAsync();
+        }
+
+        public async Task<List<EnquiryRevisionSnapshotDto>> GetRevisionSnapshotsAsync(int enquiryId)
+        {
+            var rows = await _context.EnquiryRevisionSnapshots
+                .Where(s => s.enquiry_id == enquiryId)
+                .OrderBy(s => s.revision_no)
+                .Select(s => new
+                {
+                    s.snapshot_id,
+                    s.revision_no,
+                    s.cust_id,
+                    s.form_category,
+                    s.field_values_json,
+                    s.submitted_by,
+                    name = s.SubmittedByUser!.username,
+                    s.created_at
+                })
+                .ToListAsync();
+
+            return rows.Select(s => new EnquiryRevisionSnapshotDto
+            {
+                snapshot_id = s.snapshot_id,
+                revision_no = s.revision_no,
+                cust_id = s.cust_id,
+                form_category = s.form_category,
+                field_values = System.Text.Json.JsonSerializer
+                    .Deserialize<Dictionary<string, Dictionary<string, string?>>>(s.field_values_json)
+                    ?? new(),
+                submitted_by = s.submitted_by,
+                submitted_by_name = s.name,
+                created_at = s.created_at
+            }).ToList();
+        }
+
+        private async Task SaveRevisionSnapshotAsync(Enquiries enquiry, int userId)
+        {
+            var values = await _context.EnquiryFieldValues
+                .Where(v => v.enquiry_id == enquiry.enquiry_id)
+                .ToListAsync();
+
+            var grouped = values
+                .GroupBy(v => v.section_key)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.ToDictionary(v => v.field_key, v => v.field_value));
+
+            _context.EnquiryRevisionSnapshots.Add(new EnquiryRevisionSnapshots
+            {
+                enquiry_id = enquiry.enquiry_id,
+                revision_no = enquiry.revision_no,
+                cust_id = enquiry.cust_id,
+                form_category = enquiry.form_category,
+                field_values_json = System.Text.Json.JsonSerializer.Serialize(grouped),
+                submitted_by = userId,
+                created_at = DateTime.Now
+            });
+
+            await _context.SaveChangesAsync();
+        }
 
         private async Task SaveFieldValuesAsync(int enquiryId, Dictionary<string, Dictionary<string, string?>>? sections)
         {
@@ -397,11 +595,12 @@ namespace NPI.Server.Services
         private static bool CanMutate(Enquiries enquiry, int userId, string userRole) =>
             RbacHelper.IsAdminOrManager(userRole) || enquiry.created_by == userId;
 
-        // ── Mapping ───────────────────────────────────────────────────────────
+        private static bool CanEdit(Enquiries enquiry, int userId, string userRole, bool isSales) =>
+            RbacHelper.IsAdminOrManager(userRole) || isSales || enquiry.created_by == userId;
 
         private static EnquiryResponseDto MapToResponseDto(Enquiries e)
         {
-            var fieldValues = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+            var fieldValues = new Dictionary<string, Dictionary<string, string?>>(StringComparer.OrdinalIgnoreCase);
 
             if (e.FieldValues != null)
             {
@@ -411,7 +610,7 @@ namespace NPI.Server.Services
                         continue;
 
                     if (!fieldValues.ContainsKey(v.section_key))
-                        fieldValues[v.section_key] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        fieldValues[v.section_key] = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
                     fieldValues[v.section_key][v.field_key] = v.field_value ?? string.Empty;
                 }
@@ -432,25 +631,28 @@ namespace NPI.Server.Services
                 updated_at = e.updated_at,
                 updated_by = e.updated_by,
                 submitted_at = e.submitted_at,
+                revision_no = e.revision_no,
                 field_values = fieldValues,
-                CustomerRef = e.CustomerRef is not null
+                customer_ref = e.CustomerRef is not null
                     ? new CustomerRefResponseDto
                     {
                         enquiry_id = e.CustomerRef.enquiry_id,
                         mould_ownership = e.CustomerRef.mould_ownership
                     }
                     : null,
-                Files = e.Files?.Select(f => new FileResponseDto
-                {
-                    file_id = f.file_id,
-                    file_name = f.file_name,
-                    file_path = f.file_path,
-                    uploaded_at = f.created_at
-                }).ToList()
+                files = e.Files?
+                    .Where(f => f.status != FileStatus.Deleted)
+                    .Select(f => new FileResponseDto
+                    {
+                        file_id = f.file_id,
+                        file_name = f.file_name,
+                        file_path = f.file_path,
+                        file_size = f.file_size,
+                        description = f.description,
+                        uploaded_at = f.created_at
+                    }).ToList()
             };
         }
-
-        // ── Number generation ─────────────────────────────────────────────────
 
         public async Task<string> GenerateEnquiryNoAsync()
         {

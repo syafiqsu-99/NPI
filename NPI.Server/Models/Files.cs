@@ -13,6 +13,8 @@ namespace NPI.Server.Models
         public int file_version { get; set; } = 1;
         public int upload_by { get; set; }
         public int? dept_id { get; set; }
+        [StringLength(255)]
+        public string? description { get; set; }
 
         [Required]
         [StringLength(255)]

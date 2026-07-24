@@ -11,7 +11,7 @@ namespace NPI.Server.DTOs
         [StringLength(100)]
         public string form_category { get; set; } = string.Empty;
         public Dictionary<string, Dictionary<string, string?>>? field_values { get; set; }
-        public CustomerRefDto? CustomerRef { get; set; }
+        public CustomerRefDto? customer_ref { get; set; }
     }
 
     public class EnquiryResponseDto
@@ -30,10 +30,12 @@ namespace NPI.Server.DTOs
         public DateTime? updated_at { get; set; }
         public int? updated_by { get; set; }
         public DateTime? submitted_at { get; set; }
+        public int revision_no { get; set; }
+        public string? latest_review_decision { get; set; }
+        public string? latest_review_remark { get; set; }
         public Dictionary<string, Dictionary<string, string?>> field_values { get; set; } = new();
-        public CustomerRefResponseDto? CustomerRef { get; set; }
-
-        public List<FileResponseDto>? Files { get; set; }
+        public CustomerRefResponseDto? customer_ref { get; set; }
+        public List<FileResponseDto>? files { get; set; }
     }
 
     public class FormConfigResponseDto
@@ -59,6 +61,7 @@ namespace NPI.Server.DTOs
         public int display_order { get; set; } = 0;
         public bool is_active { get; set; } = true;
     }
+
     public class FormSectionDto
     {
         public int section_id { get; set; }
@@ -137,5 +140,39 @@ namespace NPI.Server.DTOs
         public bool is_required { get; set; } = false;
         public bool is_active { get; set; } = true;
         public int display_order { get; set; } = 0;
+    }
+
+    public class EnquiryReviewCreateDto
+    {
+        [Required(ErrorMessage = "A decision is required")]
+        [StringLength(50)]
+        public string decision { get; set; } = string.Empty;
+
+        [StringLength(2000)]
+        public string? remark { get; set; }
+    }
+
+    public class EnquiryReviewResponseDto
+    {
+        public int review_id { get; set; }
+        public int enquiry_id { get; set; }
+        public int revision_no { get; set; }
+        public int reviewed_by { get; set; }
+        public string? reviewer_name { get; set; }
+        public string decision { get; set; } = string.Empty;
+        public string? remark { get; set; }
+        public DateTime created_at { get; set; }
+    }
+
+    public class EnquiryRevisionSnapshotDto
+    {
+        public int snapshot_id { get; set; }
+        public int revision_no { get; set; }
+        public int cust_id { get; set; }
+        public string form_category { get; set; } = string.Empty;
+        public Dictionary<string, Dictionary<string, string?>> field_values { get; set; } = new();
+        public int submitted_by { get; set; }
+        public string? submitted_by_name { get; set; }
+        public DateTime created_at { get; set; }
     }
 }

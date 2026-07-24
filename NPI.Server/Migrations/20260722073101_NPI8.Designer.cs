@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NPI.Server.Data;
 
@@ -11,9 +12,11 @@ using NPI.Server.Data;
 namespace NPI.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260722073101_NPI8")]
+    partial class NPI8
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -348,10 +351,6 @@ namespace NPI.Server.Migrations
                     b.Property<int?>("dept_id")
                         .HasColumnType("int");
 
-                    b.Property<string>("description")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
                     b.Property<int?>("enquiry_id")
                         .HasColumnType("int");
 
@@ -544,9 +543,6 @@ namespace NPI.Server.Migrations
                     b.Property<DateTime>("created_at")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("enquiry_id")
-                        .HasColumnType("int");
-
                     b.Property<bool>("is_read")
                         .HasColumnType("bit");
 
@@ -574,8 +570,6 @@ namespace NPI.Server.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("notif_id");
-
-                    b.HasIndex("enquiry_id");
 
                     b.HasIndex("proj_id");
 
@@ -1314,10 +1308,6 @@ namespace NPI.Server.Migrations
 
             modelBuilder.Entity("NPI.Server.Models.Notifications", b =>
                 {
-                    b.HasOne("NPI.Server.Models.Enquiries", "Enquiry")
-                        .WithMany()
-                        .HasForeignKey("enquiry_id");
-
                     b.HasOne("NPI.Server.Models.Projects", "Project")
                         .WithMany("Notifications")
                         .HasForeignKey("proj_id")
@@ -1333,8 +1323,6 @@ namespace NPI.Server.Migrations
                         .HasForeignKey("user_id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Enquiry");
 
                     b.Navigation("Project");
 

@@ -114,6 +114,29 @@ export const useEnquiryStore = defineStore('enquiry', () => {
     }
   }
 
+  async function reviewEnquiry(id, decision, remark) {
+    try {
+      const res = await api.post(`/enquiry/${id}/review`, { decision, remark })
+      return res?.success ? res : { success: false, message: res?.message }
+    } catch (err) {
+      return { success: false, message: err.message }
+    }
+  }
+
+  async function fetchReviews(id) {
+    try {
+      const res = await api.get(`/enquiry/${id}/reviews`)
+      return res?.data ?? []
+    } catch { return [] }
+  }
+
+  async function fetchRevisions(id) {
+    try {
+      const res = await api.get(`/enquiry/${id}/revisions`)
+      return res?.data ?? []
+    } catch { return [] }
+  }
+
   async function uploadFile(enquiryId, file) {
     loading.value = true
     error.value = null
@@ -314,6 +337,9 @@ export const useEnquiryStore = defineStore('enquiry', () => {
     updateEnquiry,
     submitEnquiry,
     deleteEnquiry,
+    reviewEnquiry,
+    fetchReviews,
+    fetchRevisions,
     uploadFile,
     downloadEnquiryPDF,
     getEnquiryPDFBlob,

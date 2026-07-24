@@ -151,4 +151,22 @@ namespace NPI.Server.DTOs
         public string? revision_note { get; set; }
         public DateTime revised_on { get; set; }
     }
+
+    public class CreateTaskCommentDto
+    {
+        [Required(ErrorMessage = "Comment body is required")]
+        [StringLength(2000, MinimumLength = 1, ErrorMessage = "Comment must be between 1 and 2000 characters")]
+        public string body { get; set; } = string.Empty;
+    }
+
+    public class TaskCommentResponseDto
+    {
+        public int comment_id { get; set; }
+        public int task_id { get; set; }
+        public int user_id { get; set; }
+        public string? username { get; set; }
+        public string? full_name { get; set; }
+        public string body { get; set; } = string.Empty;
+        public DateTime created_at { get; set; }
+    }
 }

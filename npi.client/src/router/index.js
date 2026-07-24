@@ -23,13 +23,13 @@ const routes = [
   {
     path: '/projects/:id/setup',
     name: 'ProjectSetup',
-    component: () => import('@/views/ProjectSetup.vue'),
+    component: () => import('@/components/projects/ProjectSetup.vue'),
     meta: { requiresAuth: true, requiresRole: ['Admin', 'Manager'] }
   },
   {
     path: '/projects/:id/gantt',
     name: 'ProjectGantt',
-    component: () => import('@/views/ProjectGantt.vue'),
+    component: () => import('@/components/projects/ProjectGantt.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -53,26 +53,26 @@ const routes = [
   {
     path: '/enquiries/new',
     name: 'NewEnquiry',
-    component: () => import('@/views/EnquiryForm.vue'),
+    component: () => import('@/components/enquiries/EnquiryForm.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/enquiries/:id/edit',
     name: 'EditEnquiry',
-    component: () => import('@/views/EnquiryForm.vue'),
+    component: () => import('@/components/enquiries/EnquiryForm.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/enquiries/:id/detail',
     name: 'EnquiryManage',
-    component: () => import('@/views/EnquiryManage.vue'),
+    component: () => import('@/components/enquiries/EnquiryManage.vue'),
     meta: { requiresRole: ['Admin', 'Manager'] }
   },
   {
     path: '/settings',
     name: 'Settings',
     component: () => import('@/views/Settings.vue'),
-    meta: { requiresAuth: true, requiresRole: ['Admin', 'Manager'] }
+    meta: { requiresAuth: true }
   },
   {
     path: '/:pathMatch(.*)*',

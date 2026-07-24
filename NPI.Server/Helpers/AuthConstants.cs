@@ -18,6 +18,14 @@
     {
         public const string Draft = "Draft";
         public const string Submitted = "Submitted";
+        public const string NeedsRework = "Needs Rework";
+        public const string NotFeasible = "Not Feasible";
+    }
+
+    public static class EnquiryReviewDecision
+    {
+        public const string NeedsRework = "NeedsRework";
+        public const string NotFeasible = "NotFeasible";
     }
 
     public static class FileStatus

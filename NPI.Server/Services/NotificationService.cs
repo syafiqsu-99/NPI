@@ -10,27 +10,22 @@ namespace NPI.Server.Services
 {
     public interface INotificationService
     {
-        // ── Delivery ──────────────────────────────────────────────────────────
-        Task NotifyAsync(int userId, string type, string title, string body, int? projId = null, int? taskId = null);
-        Task NotifyManyAsync(IEnumerable<int> userIds, string type, string title, string body, int? projId = null, int? taskId = null);
+        Task NotifyAsync(int userId, string type, string title, string body, int? projId = null, int? taskId = null, int? enquiryId = null);
+        Task NotifyManyAsync(IEnumerable<int> userIds, string type, string title, string body, int? projId = null, int? taskId = null, int? enquiryId = null);
         Task NotifyDepartmentAsync(int deptId, string type, string title, string body, int? projId = null);
         Task NotifyProjectTeamAsync(int projId, string type, string title, string body, int? taskId = null, int? excludeUserId = null);
-
-        // ── Reads ─────────────────────────────────────────────────────────────
         Task<List<NotificationDto>> GetUnreadAsync(int userId, int take = 50);
         Task<int> GetUnreadCountAsync(int userId);
         Task MarkReadAsync(int notifId, int userId);
         Task MarkAllReadAsync(int userId);
-
-        // ── Business event triggers ───────────────────────────────────────────
         Task OnTaskCompletedAsync(int taskId, int projId, string? stageId);
         Task OnStageCompletedAsync(int projId, string stageId);
         Task OnProjectLaunchedAsync(int projId);
-        Task OnFaiCompletedAsync(int projId, int taskId);
         Task OnTaskDatesRevisedAsync(int taskId, int projId, DateOnly? oldStart, DateOnly? oldEnd, DateOnly? newStart, DateOnly? newEnd);
-        Task OnFileUploadedAsync(int projId, int uploadedByUserId);
         Task OnTaskAssignedAsync(int taskId, int projId, int assignedToUserId);
         Task OnProjectStatusChangedAsync(int projId, string status);
+        Task OnEnquiryReviewedAsync(int enquiryId, int createdBy, string enquiryNo, string decision, string? remark);
+        Task OnEnquirySubmittedAsync(int enquiryId, string enquiryNo, int submittedBy);
     }
 
     public class NotificationService : INotificationService
@@ -44,16 +39,15 @@ namespace NPI.Server.Services
             _hub = hub;
         }
 
-        // ══ Delivery ══════════════════════════════════════════════════════════
-
         public async Task NotifyAsync(int userId, string type, string title, string body,
-                                      int? projId = null, int? taskId = null)
+                                      int? projId = null, int? taskId = null, int? enquiryId = null)
         {
             var notif = new Notifications
             {
                 user_id = userId,
                 proj_id = projId,
                 task_id = taskId,
+                enquiry_id = enquiryId,
                 notif_type = type,
                 subject = title,
                 body = body,
@@ -64,7 +58,7 @@ namespace NPI.Server.Services
             _ctx.Notifications.Add(notif);
             await _ctx.SaveChangesAsync();
 
-            _ = _hub.Clients
+            await _hub.Clients
                     .Group($"user_{userId}")
                     .SendAsync("NewNotification", new
                     {
@@ -74,12 +68,13 @@ namespace NPI.Server.Services
                         body,
                         proj_id = projId,
                         task_id = taskId,
+                        enquiry_id = enquiryId,
                         created_at = notif.created_at
                     });
         }
 
         public async Task NotifyManyAsync(IEnumerable<int> userIds, string type, string title,
-                                          string body, int? projId = null, int? taskId = null)
+                                          string body, int? projId = null, int? taskId = null, int? enquiryId = null)
         {
             var distinctIds = userIds.Distinct().ToList();
             if (distinctIds.Count == 0) return;
@@ -91,6 +86,7 @@ namespace NPI.Server.Services
                 user_id = uid,
                 proj_id = projId,
                 task_id = taskId,
+                enquiry_id = enquiryId,
                 notif_type = type,
                 subject = title,
                 body = body,
@@ -103,7 +99,7 @@ namespace NPI.Server.Services
 
             foreach (var notif in notifications)
             {
-                _ = _hub.Clients
+                await _hub.Clients
                         .Group($"user_{notif.user_id}")
                         .SendAsync("NewNotification", new
                         {
@@ -113,6 +109,7 @@ namespace NPI.Server.Services
                             body,
                             proj_id = projId,
                             task_id = taskId,
+                            enquiry_id = enquiryId,
                             created_at = notif.created_at
                         });
             }
@@ -144,8 +141,6 @@ namespace NPI.Server.Services
                 type, title, body, projId, taskId);
         }
 
-        // ══ Reads ═════════════════════════════════════════════════════════════
-
         public async Task<List<NotificationDto>> GetUnreadAsync(int userId, int take = 50)
         {
             return await _ctx.Notifications
@@ -162,6 +157,7 @@ namespace NPI.Server.Services
                     is_read = n.is_read,
                     proj_id = n.proj_id,
                     task_id = n.task_id,
+                    enquiry_id = n.enquiry_id,
                     created_at = n.created_at
                 })
                 .ToListAsync();
@@ -194,9 +190,6 @@ namespace NPI.Server.Services
                     .SetProperty(n => n.read_at, DateTime.Now));
         }
 
-        // ══ Business event triggers ═══════════════════════════════════════════
-
-        // N1: Task completed → notify departments with pending tasks in the same stage
         public async Task OnTaskCompletedAsync(int taskId, int projId, string? stageId)
         {
             if (string.IsNullOrEmpty(stageId)) return;
@@ -234,14 +227,13 @@ namespace NPI.Server.Services
 
             await NotifyManyAsync(
                 teamUserIds,
-                "handover",
+                NotificationTypes.Handover,
                 $"Action required: {project?.proj_no}",
                 $"Task '{completedTask.title}' ({completedTask.Department?.dept_name}) is complete. " +
                 $"Your department's tasks in stage {stageId} are now unblocked.",
                 projId, taskId);
         }
 
-        // N2: All tasks in a stage completed
         public async Task OnStageCompletedAsync(int projId, string stageId)
         {
             var project = await _ctx.Projects.AsNoTracking()
@@ -259,13 +251,12 @@ namespace NPI.Server.Services
 
             await NotifyManyAsync(
                 recipients,
-                "stage_complete",
+                NotificationTypes.StageComplete,
                 $"Stage {stageId} completed — {project.proj_no}",
                 $"All tasks in stage {stageId} for project '{project.proj_name}' are marked complete.",
                 projId);
         }
 
-        // N5: Project launched
         public async Task OnProjectLaunchedAsync(int projId)
         {
             var project = await _ctx.Projects.AsNoTracking()
@@ -281,54 +272,13 @@ namespace NPI.Server.Services
 
             await NotifyManyAsync(
                 teamUserIds,
-                "project_launch",
+                NotificationTypes.ProjectLaunch,
                 $"Project launched: {project.proj_no}",
                 $"You have been assigned to '{project.proj_name}'. " +
                 $"The project is now In Progress — check your tasks.",
                 projId);
         }
 
-        // N6: FAI completed → notify Sales
-        public async Task OnFaiCompletedAsync(int projId, int taskId)
-        {
-            var project = await _ctx.Projects.AsNoTracking()
-                .FirstOrDefaultAsync(p => p.proj_id == projId);
-            if (project == null) return;
-
-            var salesDept = await _ctx.Departments
-                .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.dept_code == DeptCodes.Sales);
-
-            if (salesDept == null) return;
-
-            var salesUserIds = await _ctx.ProjectTeams
-                .AsNoTracking()
-                .Where(pt => pt.proj_id == projId)
-                .Join(_ctx.Users, pt => pt.user_id, u => u.user_id, (pt, u) => u)
-                .Where(u => u.dept_id == salesDept.dept_id && u.is_active)
-                .Select(u => u.user_id)
-                .ToListAsync();
-
-            await NotifyManyAsync(
-                salesUserIds,
-                "fai_complete",
-                $"FAI complete — ready for customer: {project.proj_no}",
-                $"QA has completed the First Article Inspection for '{project.proj_name}'. " +
-                $"Samples are ready for customer submission.",
-                projId, taskId);
-
-            if (!salesUserIds.Contains(project.created_by))
-            {
-                await NotifyAsync(
-                    project.created_by,
-                    "fai_complete",
-                    $"FAI complete — {project.proj_no}",
-                    "First Article Inspection is done. Sales should now submit samples to the customer.",
-                    projId, taskId);
-            }
-        }
-
-        // N7: Task dates revised
         public async Task OnTaskDatesRevisedAsync(int taskId, int projId,
             DateOnly? oldStart, DateOnly? oldEnd,
             DateOnly? newStart, DateOnly? newEnd)
@@ -349,37 +299,11 @@ namespace NPI.Server.Services
 
             await NotifyManyAsync(
                 recipients,
-                "date_revised",
+                NotificationTypes.DateRevised,
                 $"Task rescheduled: {task.task_code ?? task.title}",
                 msg, projId, taskId);
         }
 
-        // N8: File upload milestone
-        public async Task OnFileUploadedAsync(int projId, int uploadedByUserId)
-        {
-            var milestones = new[] { 10, 25, 50 };
-
-            var count = await _ctx.Files
-                .CountAsync(f => f.proj_id == projId && f.is_latest);
-
-            if (!milestones.Contains(count)) return;
-
-            var project = await _ctx.Projects.AsNoTracking()
-                .FirstOrDefaultAsync(p => p.proj_id == projId);
-            if (project == null) return;
-
-            if (project.created_by != uploadedByUserId)
-            {
-                await NotifyAsync(
-                    project.created_by,
-                    "file_milestone",
-                    $"File milestone: {count} files in {project.proj_no}",
-                    $"Project '{project.proj_name}' now has {count} documents uploaded.",
-                    projId);
-            }
-        }
-
-        // N9: Task assigned
         public async Task OnTaskAssignedAsync(int taskId, int projId, int assignedToUserId)
         {
             var task = await _ctx.Tasks.AsNoTracking()
@@ -390,14 +314,13 @@ namespace NPI.Server.Services
 
             await NotifyAsync(
                 assignedToUserId,
-                "task_assigned",
+                NotificationTypes.TaskAssigned,
                 $"Task assigned to you: {task.task_code ?? task.title}",
                 $"You have been assigned '{task.title}' in project '{project.proj_name}'. " +
                 $"Planned: {task.planned_start_date:dd MMM} → {task.planned_end_date:dd MMM}.",
                 projId, taskId);
         }
 
-        // N11: Project status changed
         public async Task OnProjectStatusChangedAsync(int projId, string status)
         {
             var project = await _ctx.Projects
@@ -409,27 +332,27 @@ namespace NPI.Server.Services
 
             var (notifType, title, bodyTemplate) = status switch
             {
-                ProjectsStatus.Planning => ("project_planning",
+                ProjectsStatus.Planning => (NotificationTypes.ProjectPlanning,
                     "Project moved to Planning",
                     "'{0}' is now in Planning phase. Awaiting project launch and team assignment."),
 
-                ProjectsStatus.InProgress => ("project_active",
+                ProjectsStatus.InProgress => (NotificationTypes.ProjectActive,
                     "Project launched and In Progress",
                     "'{0}' is now In Progress. All team members should review their assigned tasks."),
 
-                ProjectsStatus.OnHold => ("project_on_hold",
+                ProjectsStatus.OnHold => (NotificationTypes.ProjectOnHold,
                     "Project placed On Hold",
                     "'{0}' has been placed On Hold. Work should pause until further notice."),
 
-                ProjectsStatus.Completed => ("project_complete",
+                ProjectsStatus.Completed => (NotificationTypes.ProjectComplete,
                     "Project Completed",
                     "'{0}' has been completed successfully. All tasks are done and deliverables are signed off."),
 
-                ProjectsStatus.Cancelled => ("project_cancelled",
+                ProjectsStatus.Cancelled => (NotificationTypes.ProjectCancelled,
                     "Project Cancelled",
                     "'{0}' has been cancelled. If you have outstanding work, please stop and report to your manager."),
 
-                _ => ("project_status_changed",
+                _ => (NotificationTypes.ProjectStatusChanged,
                     $"Project status: {status}",
                     "'{0}' status has been updated to: " + status)
             };
@@ -445,6 +368,45 @@ namespace NPI.Server.Services
                 title,
                 string.Format(bodyTemplate, project.proj_name),
                 projId);
+        }
+        public async Task OnEnquiryReviewedAsync(int enquiryId, int createdBy,
+            string enquiryNo, string decision, string? remark)
+        {
+            var readable = decision == "NeedsRework" ? "needs rework" : "not feasible";
+
+            await NotifyAsync(
+                createdBy,
+                NotificationTypes.EnquiryReview,
+                $"Enquiry {enquiryNo}: {readable}",
+                string.IsNullOrWhiteSpace(remark)
+                    ? $"Your enquiry has been reviewed and marked {readable}."
+                    : remark.Trim(),
+                projId: null,
+                taskId: null,
+                enquiryId: enquiryId);
+        }
+
+        public async Task OnEnquirySubmittedAsync(int enquiryId, string enquiryNo, int submittedBy)
+        {
+            var reviewerIds = await _ctx.Users
+                .AsNoTracking()
+                .Where(u => u.is_active
+                         && u.user_id != submittedBy
+                         && (u.Role!.role_name == SystemRoles.Admin
+                          || u.Role!.role_name == SystemRoles.Manager))
+                .Select(u => u.user_id)
+                .ToListAsync();
+
+            if (reviewerIds.Count == 0) return;
+
+            await NotifyManyAsync(
+                reviewerIds,
+                NotificationTypes.EnquirySubmitted,
+                $"Enquiry submitted: {enquiryNo}",
+                "A new enquiry has been submitted and is awaiting review.",
+                projId: null,
+                taskId: null,
+                enquiryId: enquiryId);
         }
     }
 }

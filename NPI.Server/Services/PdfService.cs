@@ -117,7 +117,9 @@ namespace NPI.Server.Services
             statusText.Bold = true;
             statusText.Color = enquiry.status switch
             {
-                "Submitted" => Colors.Blue,
+                EnquiryStatus.Submitted => Colors.Green,
+                EnquiryStatus.NeedsRework => Colors.Orange,
+                EnquiryStatus.NotFeasible => Colors.Red,
                 _ => Colors.Black
             };
 

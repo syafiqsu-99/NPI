@@ -34,12 +34,11 @@ namespace NPI.Server.Controllers
             _audit = audit;
         }
 
-        // ── Read ──────────────────────────────────────────────────────────────
-
         [HttpGet]
         public async Task<IActionResult> GetAllEnquiries()
         {
-            var enquiries = await _enquiryService.GetAllEnquiriesAsync();
+            var canSeeDrafts = RbacHelper.IsAdminOrManager(User) || RbacHelper.IsSalesUser(User);
+            var enquiries = await _enquiryService.GetAllEnquiriesAsync(canSeeDrafts);
             return Ok(new { success = true, data = enquiries });
         }
 
@@ -63,8 +62,6 @@ namespace NPI.Server.Controllers
                 : Ok(new { success = true, data = enquiry });
         }
 
-        // ── Write ─────────────────────────────────────────────────────────────
-
         [HttpPost]
         public async Task<IActionResult> CreateEnquiry([FromBody] EnquiryCreateDto dto)
         {
@@ -86,7 +83,7 @@ namespace NPI.Server.Controllers
                 return Unauthorized(new { success = false, message = "Invalid token." });
 
             var (success, message) = await _enquiryService.UpdateEnquiryAsync(
-                id, dto, userId, RbacHelper.GetSystemRole(User), GetIpAddress());
+                id, dto, userId, RbacHelper.GetSystemRole(User), RbacHelper.IsSalesUser(User), GetIpAddress());
 
             return success
                 ? Ok(new { success = true, message })
@@ -100,7 +97,7 @@ namespace NPI.Server.Controllers
                 return Unauthorized(new { success = false, message = "Invalid token." });
 
             var (success, message) = await _enquiryService.SubmitEnquiryAsync(
-                id, userId, RbacHelper.GetSystemRole(User), GetIpAddress());
+                id, userId, RbacHelper.GetSystemRole(User), RbacHelper.IsSalesUser(User), GetIpAddress());
 
             return success
                 ? Ok(new { success = true, message })
@@ -121,7 +118,34 @@ namespace NPI.Server.Controllers
                 : BadRequest(new { success = false, message });
         }
 
-        // ── File upload ───────────────────────────────────────────────────────
+        [HttpPost("{id}/review")]
+        public async Task<IActionResult> ReviewEnquiry(int id, [FromBody] EnquiryReviewCreateDto dto)
+        {
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(new { success = false, message = "Invalid token." });
+
+            var (success, message) = await _enquiryService.ReviewEnquiryAsync(
+                id, dto.decision, dto.remark, userId,
+                RbacHelper.GetSystemRole(User), GetIpAddress());
+
+            return success
+                ? Ok(new { success = true, message })
+                : BadRequest(new { success = false, message });
+        }
+
+        [HttpGet("{id}/reviews")]
+        public async Task<IActionResult> GetReviews(int id)
+        {
+            var reviews = await _enquiryService.GetReviewsAsync(id);
+            return Ok(new { success = true, data = reviews });
+        }
+
+        [HttpGet("{id}/revisions")]
+        public async Task<IActionResult> GetRevisions(int id)
+        {
+            var snaps = await _enquiryService.GetRevisionSnapshotsAsync(id);
+            return Ok(new { success = true, data = snaps });
+        }
 
         [HttpPost("{id}/upload")]
         public async Task<IActionResult> UploadFile(int id, IFormFile file, [FromQuery] string comp_name = "Unknown")
@@ -143,13 +167,6 @@ namespace NPI.Server.Controllers
                     null, new { enquiry_id = id }, GetIpAddress());
                 return Forbid();
             }
-
-            if (enquiry.status != EnquiryStatus.Draft)
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Files can only be attached while the enquiry is a Draft."
-                });
 
             if (string.IsNullOrWhiteSpace(comp_name) && enquiry.Customer is not null)
                 comp_name = enquiry.Customer.comp_name;
@@ -174,8 +191,6 @@ namespace NPI.Server.Controllers
             return Ok(new { success = true, message, data = new { file = uploaded } });
         }
 
-        // ── PDF ───────────────────────────────────────────────────────────────
-
         [HttpGet("{id}/pdf")]
         public async Task<IActionResult> GetEnquiryPdf(int id)
         {
@@ -189,8 +204,6 @@ namespace NPI.Server.Controllers
                 return BadRequest(new { success = false, message = ex.Message });
             }
         }
-
-        // ── Helpers ───────────────────────────────────────────────────────────
 
         private bool TryGetUserId(out int userId)
         {

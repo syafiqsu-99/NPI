@@ -107,4 +107,10 @@ namespace NPI.Server.DTOs
         public bool is_active { get; set; }
         public DateTime created_at { get; set; }
     }
+
+    public class UpdateMyProfileDto
+    {
+        [StringLength(100, ErrorMessage = "Full name cannot exceed 100 characters")]
+        public string? full_name { get; set; }
+    }
 }

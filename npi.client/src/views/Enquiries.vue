@@ -41,7 +41,11 @@
                               item-key="enquiry_id"
                               fixed-header
                               height="100%"
-                              class="enquiry-table flex-grow-1">
+                              class="enquiry-table clickable-rows flex-grow-1"
+                              :row-props="({ item }) => ({
+                                class: item.enquiry_id === highlightId ? 'row-highlight' : ''
+                              })"
+                              @click:row="(_, { item }) => viewEnquiryPDF(item)">
 
           <template #item.project_indicator="{ item }">
             <div class="d-flex justify-center">
@@ -65,7 +69,21 @@
           </template>
 
           <template #item.status="{ item }">
-            <v-chip :color="getStatusColor(item.status)" size="small" variant="tonal" class="font-weight-medium">
+            <v-tooltip v-if="item.latest_review_remark" location="top" max-width="360">
+              <template #activator="{ props }">
+                <v-chip v-bind="props" :color="getStatusColor(item.status)" size="small"
+                        variant="tonal" class="font-weight-medium">
+                  <v-icon start size="14">mdi-comment-alert-outline</v-icon>
+                  {{ item.status }}
+                </v-chip>
+              </template>
+              <div class="text-caption font-weight-bold mb-1">
+                {{ reviewDecisionLabel(item.latest_review_decision) }}
+              </div>
+              <div class="text-body-2">{{ item.latest_review_remark }}</div>
+            </v-tooltip>
+            <v-chip v-else :color="getStatusColor(item.status)" size="small"
+                    variant="tonal" class="font-weight-medium">
               {{ item.status }}
             </v-chip>
           </template>
@@ -79,13 +97,7 @@
           </template>
 
           <template #item.actions="{ item }">
-            <div class="d-flex justify-center ga-1">
-              <v-btn icon size="small" variant="text" color="grey-darken-2"
-                     title="View PDF Preview"
-                     @click="viewEnquiryPDF(item.enquiry_id)">
-                <v-icon size="18">mdi-eye</v-icon>
-              </v-btn>
-
+            <div class="d-flex justify-center ga-1" @click.stop>
               <v-btn v-if="item.proj_id"
                      icon size="small" variant="text" color="success"
                      title="View Project Gantt"
@@ -128,12 +140,16 @@
     </v-card>
 
     <!-- PDF Dialog -->
-    <v-dialog v-model="showPdfDialog" max-width="800" persistent scrollable>
+    <v-dialog v-model="showPdfDialog" max-width="900" scrollable>
       <v-card class="dialog-card">
         <v-card-title class="d-flex align-center justify-space-between bg-primary">
           <div class="text-h6 font-weight-bold text-white">
             <v-icon start>mdi-file-pdf-box</v-icon>
-            Enquiry Preview
+            {{ pdfEnquiry?.enquiry_no || 'Enquiry Preview' }}
+            <v-chip v-if="pdfEnquiry" size="small" variant="flat" class="ml-2"
+                    :color="getStatusColor(pdfEnquiry.status)">
+              {{ pdfEnquiry.status }}
+            </v-chip>
           </div>
           <div class="d-flex ga-2">
             <v-btn variant="elevated" color="white" class="text-primary font-weight-bold"
@@ -147,17 +163,87 @@
             </v-btn>
           </div>
         </v-card-title>
-        <v-card-text class="pa-0" style="height: 80vh;">
+
+        <v-alert v-if="pdfEnquiry?.latest_review_remark" type="warning" variant="tonal"
+                 density="compact" rounded="0" class="text-body-2">
+          <strong>{{ reviewDecisionLabel(pdfEnquiry.latest_review_decision) }}:</strong>
+          {{ pdfEnquiry.latest_review_remark }}
+        </v-alert>
+
+        <v-card-text class="pa-0" style="height: 72vh;">
           <iframe v-if="pdfUrl" :src="pdfUrl" style="width: 100%; height: 100%; border: none;" />
           <div v-else class="d-flex align-center justify-center fill-height">
             <v-progress-circular indeterminate color="primary" size="64" />
           </div>
         </v-card-text>
+
+        <v-divider />
+
+        <v-card-actions class="pa-3">
+          <template v-if="authStore.canReviewEnquiry(pdfEnquiry)">
+            <v-btn color="warning" variant="tonal"
+                   @click="openReviewDialog('NeedsRework')">
+              <v-icon start>mdi-file-document-edit</v-icon>
+              Request Rework
+            </v-btn>
+            <v-btn color="error" variant="tonal" class="ml-2"
+                   @click="openReviewDialog('NotFeasible')">
+              <v-icon start>mdi-close-circle</v-icon>
+              Not Feasible
+            </v-btn>
+          </template>
+
+          <v-spacer />
+
+          <v-btn v-if="authStore.canStartProject(pdfEnquiry)"
+                 color="primary" variant="elevated"
+                 @click="startProjectFromPdf">
+            <v-icon start>mdi-rocket-launch</v-icon>
+            Start Project
+          </v-btn>
+          <v-btn variant="text" @click="showPdfDialog = false">Close</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Review Dialog -->
+    <v-dialog v-model="reviewDialog" max-width="520">
+      <v-card class="dialog-card">
+        <v-card-title class="text-subtitle-1 font-weight-bold pa-4">
+          {{ reviewDecision === 'NeedsRework' ? 'Request Rework' : 'Mark Not Feasible' }}
+        </v-card-title>
+        <v-divider />
+        <v-card-text class="pa-4">
+          <v-alert :type="reviewDecision === 'NeedsRework' ? 'warning' : 'error'"
+                   variant="tonal" density="compact" class="mb-4">
+            {{
+ reviewDecision === 'NeedsRework'
+              ? 'The enquiry goes back to Sales for changes.'
+              : 'The enquiry is rejected and cannot be launched as a project.'
+            }}
+          </v-alert>
+          <v-textarea v-model="reviewRemark"
+                      :label="reviewDecision === 'NeedsRework'
+                        ? 'What needs to change? (required)'
+                        : 'Reason (required)'"
+                      variant="outlined" rows="4" auto-grow
+                      maxlength="2000" counter autofocus />
+        </v-card-text>
+        <v-card-actions class="pa-4 pt-0">
+          <v-spacer />
+          <v-btn variant="text" @click="reviewDialog = false">Cancel</v-btn>
+          <v-btn :color="reviewDecision === 'NeedsRework' ? 'warning' : 'error'"
+                 variant="flat" :loading="submittingReview"
+                 :disabled="!reviewRemark.trim()"
+                 @click="submitReview">
+            Submit
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
 
     <!-- Delete Confirmation Dialog -->
-    <v-dialog v-model="deleteDialog" max-width="500" persistent>
+    <v-dialog v-model="deleteDialog" max-width="500">
       <v-card class="dialog-card rounded-lg">
         <v-card-text class="pa-6">
           <div class="d-flex align-start ga-4 mb-3">
@@ -200,13 +286,14 @@
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { ref, onMounted, nextTick } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
   import { useEnquiryStore } from '@/stores/enquiry'
   import { useAuthStore } from '@/stores/auth'
   import { ENQUIRY_STATUS_COLORS, DEFAULT_COLOR } from '@/utils/constants'
   import { formatDate } from '@/utils/formatters'
 
+  const route = useRoute()
   const router = useRouter()
   const enquiryStore = useEnquiryStore()
   const authStore = useAuthStore()
@@ -221,7 +308,13 @@
   const showPdfDialog = ref(false)
   const pdfUrl = ref(null)
   const currentEnquiryId = ref(null)
+  const pdfEnquiry = ref(null)
   const downloadingPDF = ref(false)
+
+  const reviewDialog = ref(false)
+  const reviewDecision = ref('')
+  const reviewRemark = ref('')
+  const submittingReview = ref(false)
 
   const headers = [
     { title: '', key: 'project_indicator', sortable: false, align: 'center', width: '52px' },
@@ -233,16 +326,35 @@
     { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '190px' },
   ]
 
-  // ── Status colour ───────────────────────────────────────────────────────────
+  const highlightId = ref(null)
+
+  function applyHighlight() {
+    const id = Number(route.query.highlight)
+    if (!id) return
+    highlightId.value = id
+    nextTick(() => {
+      document.querySelector('.row-highlight')?.scrollIntoView({
+        behavior: 'smooth', block: 'center',
+      })
+    })
+    setTimeout(() => { highlightId.value = null }, 3000)
+  }
 
   function getStatusColor(status) {
     return ENQUIRY_STATUS_COLORS[status] ?? DEFAULT_COLOR
   }
 
-  // ── PDF ─────────────────────────────────────────────────────────────────────
+  function reviewDecisionLabel(decision) {
+    return {
+      NeedsRework: 'Needs rework',
+      NotFeasible: 'Not feasible',
+    }[decision] ?? 'Latest review'
+  }
 
-  async function viewEnquiryPDF(id) {
+  async function viewEnquiryPDF(item) {
+    const id = typeof item === 'object' ? item.enquiry_id : item
     currentEnquiryId.value = id
+    pdfEnquiry.value = typeof item === 'object' ? item : null
     showPdfDialog.value = true
     pdfUrl.value = null
     try {
@@ -272,12 +384,43 @@
     }
   }
 
-  // ── Navigation ──────────────────────────────────────────────────────────────
+  function startProjectFromPdf() {
+    showPdfDialog.value = false
+    viewEnquiryDetail(currentEnquiryId.value)
+  }
+
+  function openReviewDialog(decision) {
+    reviewDecision.value = decision
+    reviewRemark.value = ''
+    reviewDialog.value = true
+  }
+
+  async function submitReview() {
+    if (!currentEnquiryId.value || !reviewRemark.value.trim()) return
+    submittingReview.value = true
+    try {
+      const res = await enquiryStore.reviewEnquiry(
+        currentEnquiryId.value, reviewDecision.value, reviewRemark.value.trim())
+
+      if (res?.success) {
+        reviewDialog.value = false
+        showPdfDialog.value = false
+        snackbarMessage.value = res.message || 'Review submitted'
+        snackbarColor.value = 'success'
+        snackbar.value = true
+        await enquiryStore.fetchEnquiries()
+      } else {
+        snackbarMessage.value = res?.message || 'Failed to submit review'
+        snackbarColor.value = 'error'
+        snackbar.value = true
+      }
+    } finally {
+      submittingReview.value = false
+    }
+  }
 
   function viewEnquiryDetail(id) { router.push(`/enquiries/${id}/detail`) }
   function editEnquiry(id) { router.push(`/enquiries/${id}/edit`) }
-
-  // ── Delete ──────────────────────────────────────────────────────────────────
 
   function openDeleteDialog(enquiry) {
     deleteTarget.value = enquiry
@@ -298,8 +441,6 @@
     deleteTarget.value = null
   }
 
-  // ── Mount ────────────────────────────────────────────────────────────────────
-
   onMounted(async () => {
     try {
       await enquiryStore.fetchEnquiries()
@@ -313,10 +454,25 @@
     } catch (err) {
       console.error('Enquiries mount error:', err)
     }
+    applyHighlight()
   })
 </script>
 
 <style scoped>
+  @keyframes row-flash {
+    0% {
+      background-color: rgba(25, 118, 210, 0.28);
+    }
+
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  .row-highlight {
+    animation: row-flash 2.5s ease-out;
+  }
+
   .page-container {
     height: 100vh !important;
     overflow: hidden !important;
@@ -338,6 +494,10 @@
 
   .enquiry-table :deep(tbody tr) {
     transition: background-color 0.2s ease;
+  }
+
+  .clickable-rows :deep(tbody tr) {
+    cursor: pointer;
   }
 
   .enquiry-table :deep(tbody tr:hover) {

@@ -7,7 +7,6 @@ namespace NPI.Server.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin,Manager")]
     public class TaskTemplateController : ControllerBase
     {
         private readonly ITaskTemplateService _service;
